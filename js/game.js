@@ -108,6 +108,7 @@ const Game = {
     else if (entry === 'arrival') { const p = World.arrival; pl.placeFeet(p.tx, p.bottom); }
     if (entry === 'save' || entry === 'start' || entry === 'arrival') { pl.vx = 0; pl.vy = 0; }
     pl.lastSafe = { x: pl.x, y: pl.y }; pl.dashT = 0; pl.attackT = 0;
+    this.look = pl.facing * 18; this.camGroundY = pl.y;
     this.cam.x = clamp(pl.x + pl.w / 2 - VW / 2, 0, World.W - VW);
     this.cam.y = clamp(pl.y - VH * 0.6, 0, World.H - VH);
     AudioSys.playTheme(World.room.region);
@@ -315,7 +316,8 @@ const Game = {
     // time powers
     if (this.stallT > 0) { this.stallT -= dt; if (this.stallT <= 0) this.timeScale = 1; }
     if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) { this.timeScale = this.stallT > 0 ? 0.3 : 1; } }
-    if (this.hitStop > 0) { this.stepParticles(dt); return; }
+    // hit-stop: the sim holds its breath, but particles keep flying and the player's squash keeps springing
+    if (this.hitStop > 0) { this.stepParticles(dt); if (this.player.animTick) this.player.animTick(dt, 0); if (this.player.bufferInputs) this.player.bufferInputs(); return; }
     const pl = this.player;
     pl.update(dt);
     for (const e of this.entities) e.update(dt);
@@ -346,8 +348,15 @@ const Game = {
   },
   updateCamera(dt) {
     const pl = this.player;
-    // look a little ahead of the player, keep him a bit below centre
-    let tx = pl.x + pl.w / 2 - VW / 2 + pl.facing * 18, ty = pl.y + pl.h / 2 - VH * 0.56;
+    // Look ahead of the player, easing the look-ahead over while running so a tap of the other direction does
+    // not yank the view; vertically follow the ground he last stood on, so hops do not bob the camera, and
+    // only chase him once a jump or fall leaves that band. Keeps him a bit below centre.
+    if (this.look === undefined) this.look = pl.facing * 18;
+    if (Math.abs(pl.vx) > 90 || pl.dashT > 0) this.look += (pl.facing * 22 - this.look) * (1 - Math.exp(-(pl.dashT > 0 ? 9 : 3.5) * dt));
+    if (pl.onGround || this.camGroundY === undefined) this.camGroundY = pl.y;
+    let py = pl.y;
+    if (!pl.onGround) { const dy = pl.y - this.camGroundY; py = dy < -44 ? pl.y + 44 : dy > 12 ? pl.y - 12 : this.camGroundY; if (pl.vy > 260) py += Math.min(1, (pl.vy - 260) / 260) * 36; }
+    let tx = pl.x + pl.w / 2 - VW / 2 + this.look, ty = py + pl.h / 2 - VH * 0.56;
     let minx = 0, miny = 0, maxx = World.W - VW, maxy = World.H - VH;
     const boss = this.entities.find((e) => e instanceof Boss && e.active && !e.dead);
     if (boss) {
@@ -411,7 +420,13 @@ const Game = {
     if (this.state === 'cutscene' && !Cutscene.overlay) { Cutscene.draw(ctx, t); return; }
     if (!World.room) { ctx.fillStyle = '#07060a'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); return; }
     const cam = this.cam;
-    const shx = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0, shy = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0;
+    // trauma shake: the offset grows with the square of the remaining shake and wanders smoothly instead of jittering
+    let shx = 0, shy = 0;
+    if (World.shake > 0) {
+      const tr = Math.min(1, World.shake), amp = tr * tr * 8 * ZOOM;
+      shx = amp * (Math.sin(t * 61.7) * 0.6 + Math.sin(t * 37.3 + 1.3) * 0.4);
+      shy = amp * (Math.sin(t * 53.1 + 2.1) * 0.6 + Math.sin(t * 29.9 + 0.4) * 0.4);
+    }
     Art.drawBackground(ctx, World.room.region, t, cam);
     // world space: magnified by ZOOM, scrolled by the camera
     ctx.setTransform(ZOOM, 0, 0, ZOOM, -Math.round(cam.x * ZOOM) + shx, -Math.round(cam.y * ZOOM) + shy);
