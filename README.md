@@ -5,6 +5,13 @@ no build step. Everything, from the tile art and character sprites to the
 cutscene illustrations and the music, is generated procedurally in plain
 JavaScript on an HTML5 canvas.
 
+The look is hand-inked: outlines are "boiling" lines re-rolled a few times a
+second, characters are articulated figures (a run cycle, squash and stretch,
+a trailing sash, dash afterimages, slash trails), and every region is built
+from stacked silhouette layers with fog, light shafts and drifting ash over
+organically edged rock. Cutscenes play as framed scroll panels with large
+expressive portraits and seal-stamped name plates.
+
 ## Play
 
 Open `index.html` in any modern browser, or serve the folder:
@@ -47,12 +54,12 @@ Six regions across 28 interconnected screens:
 
 - **The Threshold**: Orin's workshop, where Ilse wakes.
 - **Ashen Streets**: the hub. Pell the lamplighter's ghost keeps watch here.
-- **The Furnace**: guarded by the Cinder Hound. Grants the *Ember Dash*,
+- **The Sun-Engine**: guarded by the Cinder Hound. Grants the *Ember Dash*,
   which shatters cracked walls.
 - **Cathedral of Soot**: guarded by the Choirmaster. Grants *Ash Wings*,
   a second jump.
-- **Flooded Cisterns**: guarded by the Bellringer. Grants *Iron Grip*,
-  wall-clinging and wall-jumping.
+- **Flooded Cisterns**: Kessa the tide-keeper lives here. Guarded by the
+  Bellringer. Grants *Iron Grip*, wall-clinging and wall-jumping.
 - **Hanging Reliquary**: reachable only by climbing. Holds the *True Lantern*,
   which dissolves shadow walls and casts light as a ranged attack.
 - **The Warden's Spire**: the final gate, and the Warden itself.

@@ -197,6 +197,13 @@ const Game = {
       else if (this.has('dash')) lines = Story.pell.afterDash;
       else lines = Story.pell.intro;
       this.playCutscene(lines, null, true);
+    } else if (id === 'kessa') {
+      let lines;
+      if (f['boss:warden']) lines = Story.kessa.afterWarden;
+      else if (f['boss:bell']) lines = Story.kessa.afterBell;
+      else if (f.kessaMet) lines = Story.kessa.again;
+      else { lines = Story.kessa.intro; f.kessaMet = true; }
+      this.playCutscene(lines, null, true);
     } else if (id === 'orin') {
       this.playCutscene(Story.orin, () => {
         this.save.flags.orinGone = true;
@@ -395,21 +402,21 @@ const Game = {
     if (!World.room) { ctx.fillStyle = '#07060a'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); return; }
     // world
     if (World.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 6), Math.round((Math.random() - 0.5) * 6));
-    ctx.drawImage(Art.background(World.room.region), 0, 0);
-    Art.drawAsh(ctx, World.room.region, t);
+    Art.drawBackground(ctx, World.room.region, t, this.player.x + this.player.w / 2);
     World.draw(ctx, t);
     for (const e of this.entities) if (!(e instanceof Boss)) e.draw(ctx, t);
     for (const e of this.entities) if (e instanceof Boss) e.draw(ctx, t);
     for (const p of this.projectiles) p.draw(ctx, t);
     this.player.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
-    // player lantern light
+    // the compass core's light
     const pl = this.player;
     if (!pl.dead) {
-      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 10, pl.x + pl.w / 2, pl.y + 10, 90);
-      g.addColorStop(0, 'rgba(255,210,120,0.16)'); g.addColorStop(1, 'rgba(255,210,120,0)');
-      ctx.fillStyle = g; ctx.fillRect(pl.x - 100, pl.y - 100, 220, 220);
+      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 8, 8, pl.x + pl.w / 2, pl.y + 8, 110);
+      g.addColorStop(0, 'rgba(160,240,220,0.14)'); g.addColorStop(1, 'rgba(160,240,220,0)');
+      ctx.fillStyle = g; ctx.fillRect(pl.x - 120, pl.y - 120, 260, 260);
     }
+    Art.drawAtmosphere(ctx, World.room.region, t);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (this.flashWhite > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 4})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     UI.drawHud(ctx, t);

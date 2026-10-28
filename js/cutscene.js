@@ -82,12 +82,16 @@ const Cutscene = {
     // background
     if (s.ill || (!this.overlay && this.bg)) {
       const ill = Art.illustrations[s.ill || this.bg];
+      // an inked panel on dark paper, like a page of a scroll
+      ctx.fillStyle = '#0b0910'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(14, 14, VIEW_W - 28, VIEW_H - 28); ctx.clip();
       ill(ctx, this.stepT);
+      ctx.restore();
       if (s.ill && this.fade < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - this.fade})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
-      // letterbox
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, VIEW_W, 28);
-      ctx.fillRect(0, VIEW_H - 28, VIEW_W, 28);
+      ctx.strokeStyle = '#15101a'; ctx.lineWidth = 6; ctx.strokeRect(14, 14, VIEW_W - 28, VIEW_H - 28);
+      ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 1; ctx.strokeRect(17.5, 17.5, VIEW_W - 35, VIEW_H - 35);
+      ctx.fillStyle = '#b8202c'; ctx.fillRect(VIEW_W - 44, 26, 16, 16); ctx.fillStyle = '#e9dfc8'; ctx.fillRect(VIEW_W - 40, 30, 8, 8);
     } else if (!this.overlay && s.title) {
       ctx.fillStyle = '#07060a';
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -97,10 +101,12 @@ const Cutscene = {
       const a = clamp(this.stepT / 0.6, 0, 1);
       ctx.globalAlpha = a;
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#f2e9d8';
-      ctx.font = 'bold 30px Georgia, serif';
+      ctx.fillStyle = '#b8202c'; ctx.fillRect(VIEW_W / 2 - 1, VIEW_H / 2 - 70, 2, 40 * a);
+      ctx.fillStyle = '#e9dfc8';
+      ctx.font = 'bold 32px Georgia, serif';
       ctx.fillText(s.title, VIEW_W / 2, VIEW_H / 2 - 4);
-      if (s.sub) { ctx.fillStyle = '#c8b890'; ctx.font = 'italic 14px Georgia, serif'; ctx.fillText(s.sub, VIEW_W / 2, VIEW_H / 2 + 24); }
+      ctx.fillStyle = '#b8202c'; ctx.fillRect(VIEW_W / 2 - 70 * a, VIEW_H / 2 + 6, 140 * a, 1.5);
+      if (s.sub) { ctx.fillStyle = '#c8b890'; ctx.font = 'italic 14px Georgia, serif'; ctx.fillText(s.sub, VIEW_W / 2, VIEW_H / 2 + 28); }
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
       return;
@@ -108,15 +114,16 @@ const Cutscene = {
     const text = this.textOf(s).slice(0, this.chars);
     if (s.ill) {
       // caption at the bottom
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0, VIEW_H - 112, VIEW_W, 84);
-      ctx.fillStyle = '#f2e9d8';
+      ctx.fillStyle = 'rgba(11,9,16,0.82)';
+      ctx.fillRect(14, VIEW_H - 112, VIEW_W - 28, 98);
+      ctx.fillStyle = '#b8202c'; ctx.fillRect(34, VIEW_H - 96, 3, 60);
+      ctx.fillStyle = '#e9dfc8';
       ctx.font = '15px Georgia, serif';
-      const lines = wrapText(ctx, text, VIEW_W - 80);
-      lines.forEach((l, i) => ctx.fillText(l, 40, VIEW_H - 88 + i * 20));
-      if (this.chars >= this.textOf(s).length && Math.floor(t * 2) % 2 === 0) { ctx.fillStyle = '#c8b890'; ctx.fillText('▼', VIEW_W - 36, VIEW_H - 38); }
+      const lines = wrapText(ctx, text, VIEW_W - 110);
+      lines.forEach((l, i) => ctx.fillText(l, 50, VIEW_H - 84 + i * 20));
+      if (this.chars >= this.textOf(s).length && Math.floor(t * 2) % 2 === 0) { ctx.fillStyle = '#c9a24a'; ctx.fillText('▼', VIEW_W - 40, VIEW_H - 30); }
     } else {
-      UI.dialogueBox(ctx, s.who, s.name, text, this.chars >= this.textOf(s).length, t);
+      UI.dialogueBox(ctx, s.who, s.name, text, this.chars >= this.textOf(s).length, t, s.mood);
     }
     if (this.skippable) {
       ctx.fillStyle = '#9a9080';

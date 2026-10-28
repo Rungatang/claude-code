@@ -9,6 +9,7 @@ const World = {
   decor: [],       // decorative chars grid
   bossActive: false,
   shake: 0,
+  tileVersion: 0,
 
   load(id) {
     const def = ROOMS[id];
@@ -18,6 +19,7 @@ const World = {
     this.tiles = [];
     this.decor = [];
     this.bossActive = false;
+    this.tileVersion++;
     const ents = [];
     const flags = Game.save.flags;
     let shardIndex = Game.shardIndexFor(id);
@@ -70,7 +72,7 @@ const World = {
   // Reveal shadow walls (after the lantern is obtained) and break cracked walls
   dissolveShadows() {
     let any = false;
-    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[y][x] === '?') { this.tiles[y][x] = '.'; any = true; Game.burst(x * TILE + 8, y * TILE + 8, '#e6d8ff', 6); }
+    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[y][x] === '?') { this.tiles[y][x] = '.'; any = true; this.tileVersion++; Game.burst(x * TILE + 8, y * TILE + 8, '#e6d8ff', 6); }
     return any;
   },
   breakCrack(tx, ty) {
@@ -80,7 +82,7 @@ const World = {
     while (stack.length) {
       const [x, y] = stack.pop();
       if (this.tile(x, y) !== 'C') continue;
-      this.tiles[y][x] = '.';
+      this.tiles[y][x] = '.'; this.tileVersion++;
       Game.save.flags['crack:' + this.roomId + ':' + x + ':' + y] = true;
       Game.burst(x * TILE + 8, y * TILE + 8, PALETTES[this.room.region].edge, 8);
       stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
@@ -89,7 +91,7 @@ const World = {
     this.shake = 0.25;
   },
   openGates() {
-    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[y][x] === 'G') { this.tiles[y][x] = '.'; Game.burst(x * TILE + 8, y * TILE + 8, '#ff3355', 4); }
+    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[y][x] === 'G') { this.tiles[y][x] = '.'; this.tileVersion++; Game.burst(x * TILE + 8, y * TILE + 8, '#ff3355', 4); }
   },
 
   // Move an AABB body through the tiles, resolving collisions axis by axis.
@@ -171,53 +173,8 @@ const World = {
   },
 
   draw(ctx, t) {
-    const region = this.room.region;
-    const sheet = Art.tileSheet(region);
-    const p = PALETTES[region];
-    // decor behind tiles
-    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) {
-      const d = this.decor[y][x];
-      if (d === '.') continue;
-      const px = x * TILE, py = y * TILE;
-      if (d === '|') {
-        ctx.fillStyle = p.dark; ctx.fillRect(px + 4, py, 8, TILE);
-        ctx.fillStyle = p.edge; ctx.fillRect(px + 5, py, 2, TILE);
-      } else if (d === '~') {
-        ctx.fillStyle = 'rgba(80,200,210,0.25)'; ctx.fillRect(px, py + 4 + Math.sin(t * 2 + x) * 2, TILE, TILE);
-        ctx.fillStyle = 'rgba(160,240,240,0.4)'; ctx.fillRect(px + (x * 3 % 8), py + 5 + Math.sin(t * 2 + x) * 2, 5, 1);
-      } else if (d === ':') {
-        ctx.fillStyle = p.dark; ctx.fillRect(px + 2, py + 10, 5, 6); ctx.fillRect(px + 9, py + 12, 4, 4);
-        ctx.fillStyle = p.edge; ctx.fillRect(px + 3, py + 10, 3, 1);
-      }
-    }
-    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) {
-      const ch = this.tiles[y][x];
-      if (ch === '.') continue;
-      const px = x * TILE, py = y * TILE;
-      if (ch === '#' || ch === 'C' || ch === 'G' || ch === 'D') {
-        let m = 0;
-        if (this.solidAt(x, y - 1) || this.tile(x, y - 1) === 'D') m |= 1;
-        if (this.solidAt(x + 1, y) || this.tile(x + 1, y) === 'D') m |= 2;
-        if (this.solidAt(x, y + 1) || this.tile(x, y + 1) === 'D') m |= 4;
-        if (this.solidAt(x - 1, y) || this.tile(x - 1, y) === 'D') m |= 8;
-        if (ch === '#') ctx.drawImage(sheet, m * TILE, 0, TILE, TILE, px, py, TILE, TILE);
-        else if (ch === 'C') ctx.drawImage(sheet, 0, TILE, TILE, TILE, px, py, TILE, TILE);
-        else if (ch === 'G') ctx.drawImage(sheet, 0, TILE * 2, TILE, TILE, px, py, TILE, TILE);
-        else if (ch === 'D') {
-          if (this.bossActive) ctx.drawImage(sheet, 0, TILE * 2, TILE, TILE, px, py, TILE, TILE);
-          else { ctx.fillStyle = p.dark; ctx.globalAlpha = 0.35; ctx.fillRect(px + 6, py, 4, TILE); ctx.globalAlpha = 1; }
-        }
-      } else if (ch === '=') {
-        ctx.drawImage(sheet, 0, TILE * 3, TILE, TILE, px, py, TILE, TILE);
-      } else if (ch === '^') {
-        ctx.drawImage(sheet, TILE, TILE * 3, TILE, TILE, px, py, TILE, TILE);
-      } else if (ch === '?') {
-        const a = 0.75 + Math.sin(t * 3 + x + y) * 0.15;
-        ctx.fillStyle = `rgba(10,8,16,${a})`;
-        ctx.fillRect(px, py, TILE, TILE);
-        ctx.fillStyle = 'rgba(120,60,140,0.35)';
-        ctx.fillRect(px + ((x + Math.floor(t * 4)) % 4) * 4, py + ((y + Math.floor(t * 3)) % 4) * 4, 3, 3);
-      }
-    }
+    Art.drawDecorBehind(ctx, this, t);
+    ctx.drawImage(Art.roomTiles(this), 0, 0);
+    Art.drawDynamicTiles(ctx, this, t);
   },
 };
