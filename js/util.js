@@ -7,6 +7,10 @@ const ROOM_W = 40;
 const ROOM_H = 23;
 const VIEW_W = ROOM_W * TILE; // 640
 const VIEW_H = ROOM_H * TILE; // 368
+// The world is drawn magnified so the characters read large; the camera sees VIEW_W/ZOOM x VIEW_H/ZOOM world pixels.
+const ZOOM = 2;
+const VW = VIEW_W / ZOOM;
+const VH = VIEW_H / ZOOM;
 const DT = 1 / 60;
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);

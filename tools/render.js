@@ -78,7 +78,6 @@ fs.mkdirSync(outDir, { recursive: true });
 
   if (want('env') || want('tiles') || want('hud')) {
     await page.setViewportSize({ width: 1280, height: 736 });
-    await page.evaluate(() => { Game.manual = false; delete Game.draw; const c = document.getElementById('game'); c.width = 640; c.height = 368; Game.resize(); });
     await page.reload(); await page.waitForTimeout(400);
     await page.keyboard.press('Enter'); await page.waitForTimeout(300);
     await page.keyboard.down('Escape'); await page.waitForTimeout(1300); await page.keyboard.up('Escape'); await page.waitForTimeout(300);
@@ -86,7 +85,7 @@ fs.mkdirSync(outDir, { recursive: true });
     await page.keyboard.press('Digit9'); await page.keyboard.press('Digit0');
     const spots = [['A1', 60, 'shore_tideline'], ['A1', 100, 'shore_breakers'], ['R1', 20, 'rust_scrapyard'], ['R3', 60, 'rust_altar'], ['H1', 20, 'hours_nave'], ['H4', 20, 'hours_crushers'], ['T1', 100, 'tower_hall'], ['D1', 20, 'archive_oubliette'], ['M1', 20, 'mills_wheelhouse'], ['U1', 20, 'root_cellar']];
     for (const [zone, tx, name] of spots) {
-      await page.evaluate(({ zone, tx }) => { Game.loadZone(zone, 'debug'); Game.player.placeFeet(tx, (zone === 'R3' ? 44 : 21) * TILE); Game.player.vy = 0; Game.state = 'play'; Game.pendingDialogue = null; Cutscene.active = false; UI.banner = null; Game.cam.x = Math.max(0, Math.min(World.W - VIEW_W, Game.player.x - VIEW_W / 2)); Game.cam.y = Math.max(0, Math.min(World.H - VIEW_H, Game.player.y - VIEW_H * 0.55)); }, { zone, tx });
+      await page.evaluate(({ zone, tx }) => { Game.loadZone(zone, 'debug'); Game.player.placeFeet(tx, (zone === 'R3' ? 44 : 21) * TILE); Game.player.vy = 0; Game.state = 'play'; Game.pendingDialogue = null; Cutscene.active = false; UI.banner = null; Game.cam.x = Math.max(0, Math.min(World.W - VW, Game.player.x - VW / 2)); Game.cam.y = Math.max(0, Math.min(World.H - VH, Game.player.y - VH * 0.6)); }, { zone, tx });
       await page.waitForTimeout(500);
       for (let k = 0; k < 3; k++) { const s = await page.evaluate(() => Game.state); if (s === 'cutscene' || s === 'overlay') { await page.keyboard.press('Enter'); await page.waitForTimeout(150); } }
       await page.screenshot({ path: path.join(outDir, 'env_' + name + '.png') });

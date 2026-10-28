@@ -229,8 +229,8 @@ const World = {
   draw(ctx, t, cam) {
     Art.drawDecorBehind(ctx, this, t, cam);
     const tiles = Art.roomTiles(this);
-    const sx = Math.max(0, Math.floor(cam.x)), sy = Math.max(0, Math.floor(cam.y));
-    const sw = Math.min(VIEW_W, tiles.width - sx), sh = Math.min(VIEW_H, tiles.height - sy);
+    const sx = Math.max(0, Math.floor(cam.x) - 8), sy = Math.max(0, Math.floor(cam.y) - 8);
+    const sw = Math.min(VW + 16, tiles.width - sx), sh = Math.min(VH + 16, tiles.height - sy);
     ctx.drawImage(tiles, sx, sy, sw, sh, sx, sy, sw, sh);
     Art.drawDynamicTiles(ctx, this, t, cam);
   },

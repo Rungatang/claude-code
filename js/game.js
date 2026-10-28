@@ -108,8 +108,8 @@ const Game = {
     else if (entry === 'arrival') { const p = World.arrival; pl.placeFeet(p.tx, p.bottom); }
     if (entry === 'save' || entry === 'start' || entry === 'arrival') { pl.vx = 0; pl.vy = 0; }
     pl.lastSafe = { x: pl.x, y: pl.y }; pl.dashT = 0; pl.attackT = 0;
-    this.cam.x = clamp(pl.x + pl.w / 2 - VIEW_W / 2, 0, World.W - VIEW_W);
-    this.cam.y = clamp(pl.y - VIEW_H * 0.55, 0, World.H - VIEW_H);
+    this.cam.x = clamp(pl.x + pl.w / 2 - VW / 2, 0, World.W - VW);
+    this.cam.y = clamp(pl.y - VH * 0.6, 0, World.H - VH);
     AudioSys.playTheme(World.room.region);
     this.curScreen = null;
     this.trackScreen(true);
@@ -346,13 +346,20 @@ const Game = {
   },
   updateCamera(dt) {
     const pl = this.player;
-    let tx = pl.x + pl.w / 2 - VIEW_W / 2 + pl.facing * 30, ty = pl.y - VIEW_H * 0.55;
-    let minx = 0, miny = 0, maxx = World.W - VIEW_W, maxy = World.H - VIEW_H;
+    // look a little ahead of the player, keep him a bit below centre
+    let tx = pl.x + pl.w / 2 - VW / 2 + pl.facing * 18, ty = pl.y + pl.h / 2 - VH * 0.56;
+    let minx = 0, miny = 0, maxx = World.W - VW, maxy = World.H - VH;
     const boss = this.entities.find((e) => e instanceof Boss && e.active && !e.dead);
-    if (boss) { minx = maxx = boss.arena.x; miny = maxy = boss.arena.y; }
+    if (boss) {
+      // during a fight frame both fighters, clamped to the arena
+      const a = boss.arena;
+      const mid = (pl.x + pl.w / 2 + boss.x + boss.w / 2) / 2;
+      tx = mid - VW / 2; ty = Math.min(pl.y, boss.y) + 30 - VH * 0.5;
+      minx = a.x; maxx = a.x + a.w - VW; miny = a.y; maxy = a.y + a.h - VH;
+    }
     tx = clamp(tx, minx, Math.max(minx, maxx)); ty = clamp(ty, miny, Math.max(miny, maxy));
-    const k = 1 - Math.pow(0.001, dt);
-    this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k * 1.3;
+    const k = 1 - Math.pow(0.002, dt);
+    this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k * 1.2;
   },
   beginTransition(dir) {
     const pl = this.player;
@@ -380,7 +387,7 @@ const Game = {
         case 'down': pl.x = sc.ox * TILE + tr.relX; pl.y = sc.oy * TILE + 2; pl.vy = Math.max(pl.vy, 60); break;
       }
       pl.lastSafe = { x: pl.x, y: pl.y }; pl.invuln = Math.max(pl.invuln, 0.3);
-      this.cam.x = clamp(pl.x + pl.w / 2 - VIEW_W / 2, 0, World.W - VIEW_W); this.cam.y = clamp(pl.y - VIEW_H * 0.55, 0, World.H - VIEW_H);
+      this.cam.x = clamp(pl.x + pl.w / 2 - VW / 2, 0, World.W - VW); this.cam.y = clamp(pl.y - VH * 0.6, 0, World.H - VH);
       this.curScreen = null; this.trackScreen(true);
     }
     if (tr.t >= 0.36) { this.transition = null; if (this.state === 'transition') this.state = 'play'; }
@@ -406,7 +413,8 @@ const Game = {
     const cam = this.cam;
     const shx = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0, shy = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0;
     Art.drawBackground(ctx, World.room.region, t, cam);
-    ctx.translate(-Math.round(cam.x) + shx, -Math.round(cam.y) + shy);
+    // world space: magnified by ZOOM, scrolled by the camera
+    ctx.setTransform(ZOOM, 0, 0, ZOOM, -Math.round(cam.x * ZOOM) + shx, -Math.round(cam.y * ZOOM) + shy);
     World.draw(ctx, t, cam);
     const pl = this.player;
     if (pl.anchor) Art.drawAnchor(ctx, pl.anchor, t);
@@ -416,9 +424,9 @@ const Game = {
     pl.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
     if (!pl.dead) {
-      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 8, pl.x + pl.w / 2, pl.y + 10, 110);
+      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 6, pl.x + pl.w / 2, pl.y + 10, 80);
       g.addColorStop(0, 'rgba(255,214,150,0.12)'); g.addColorStop(1, 'rgba(255,214,150,0)');
-      ctx.fillStyle = g; ctx.fillRect(pl.x - 120, pl.y - 120, 260, 260);
+      ctx.fillStyle = g; ctx.fillRect(pl.x - 90, pl.y - 90, 200, 200);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     Art.drawAtmosphere(ctx, World.room.region, t, cam);

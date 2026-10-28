@@ -8,12 +8,14 @@ const UI = {
   toast: null,
   PAPER: '#e9dfc8', INK: '#15101a', SEAL: '#b8202c', GOLD: '#c9a24a', JADE: '#7af0d0',
 
+  // drawn in world space (magnified), so sizes are divided by the zoom
   prompt(ctx, x, y, text) {
-    ctx.font = '10px Georgia, serif'; ctx.textAlign = 'center';
-    const w = ctx.measureText(text).width + 12;
-    ctx.fillStyle = 'rgba(21,16,26,0.8)'; ctx.fillRect(x - w / 2, y - 11, w, 15);
-    ctx.fillStyle = this.SEAL; ctx.fillRect(x - w / 2, y - 11, 2, 15);
-    ctx.fillStyle = this.PAPER; ctx.fillText(text, x + 1, y);
+    const z = ZOOM;
+    ctx.font = (10 / z).toFixed(1) + 'px Georgia, serif'; ctx.textAlign = 'center';
+    const w = ctx.measureText(text).width + 12 / z;
+    ctx.fillStyle = 'rgba(21,16,26,0.8)'; ctx.fillRect(x - w / 2, y - 11 / z, w, 15 / z);
+    ctx.fillStyle = this.SEAL; ctx.fillRect(x - w / 2, y - 11 / z, 2 / z, 15 / z);
+    ctx.fillStyle = this.PAPER; ctx.fillText(text, x + 1 / z, y);
     ctx.textAlign = 'left';
   },
 
