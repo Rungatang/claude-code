@@ -20,7 +20,7 @@ for (const [id, r] of Object.entries(ROOMS)) {
   if (coords[key]) errors.push(`${id}: map coordinate clash with ${coords[key]}`);
   coords[key] = id;
   for (const row of r.grid) for (const ch of row) {
-    if (!'#.=^C?DGLRdepXQ|~:PSNABMHawtkrh'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
+    if (!'#.=^C?DGLRdepXQ|~:PSNABMHTawtkrh'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
     if (ch === 'P') playerStarts++;
     if (ch === 'B' && !r.boss) errors.push(`${id}: boss marker without boss`);
     if (ch === 'A' && !r.ability) errors.push(`${id}: ability marker without ability`);
@@ -72,9 +72,9 @@ for (const [id, r] of Object.entries(ROOMS)) {
   if (flat.includes('p') && !(flat.includes('d') || flat.includes('e'))) errors.push(`${id}: plate without door`);
 }
 // count collectibles
-let shards = 0, hearts = 0;
-for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) { if (ch === 'M') shards++; if (ch === 'H') hearts++; }
-console.log(`rooms: ${Object.keys(ROOMS).length}, shards: ${shards}, hearts: ${hearts}`);
+let shards = 0, hearts = 0, spools = 0;
+for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) { if (ch === 'M') shards++; if (ch === 'H') hearts++; if (ch === 'T') spools++; }
+console.log(`rooms: ${Object.keys(ROOMS).length}, shards: ${shards}, hearts: ${hearts}, spools: ${spools}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
 console.log('rooms OK');
 
@@ -94,7 +94,7 @@ console.log('rooms OK');
     for (let y = 1; y < H; y++) for (let x = 0; x < W; x++) if (stand(g, x, y)) cells.add(x + ',' + y);
     // seeds: standable cells on the bottom two rows, plus side-entry rows, plus arrival/start
     const seen = new Set(); const queue = [];
-    for (const c of cells) { const [x, y] = c.split(',').map(Number); if (y >= H - 4 || ((x <= 1 || x >= W - 2) && y >= 16)) { seen.add(c); queue.push([x, y]); } }
+    for (const c of cells) { const [x, y] = c.split(',').map(Number); if (y >= H - 4 || x <= 1 || x >= W - 2 || 'PQ'.includes(g[y][x])) { seen.add(c); queue.push([x, y]); } }
     while (queue.length) {
       const [x, y] = queue.shift();
       for (let dy = -3; dy <= 12; dy++) for (let dx = -5; dx <= 5; dx++) {
@@ -116,7 +116,7 @@ console.log('rooms OK');
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const ch = r.grid[y][x];
-      if ('MHASNBp'.includes(ch)) {
+      if ('MHTASNBp'.includes(ch)) {
         // the item cell or the standable cell beneath it must be reachable
         let ok = false; for (let yy = y; yy <= Math.min(H - 1, y + 3); yy++) if (seen.has(x + ',' + yy)) ok = true;
         if (!ok) warnings.push(`${id}: ${ch} at ${x},${y} looks unreachable by 3-tile jumps`);

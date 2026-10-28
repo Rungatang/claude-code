@@ -45,7 +45,7 @@ const SOLVER = () => {
     const out = [];
     for (const sc of Object.values(World.zone.screens)) for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) {
       const ch = sc.def.grid[y][x];
-      if ('AMHSNBp'.includes(ch)) { const gx = sc.ox + x, gy = sc.oy + y; out.push({ ch, x: gx, y: gy, screen: sc.id, rect: ch === 'S' || ch === 'N' ? { x: gx * TILE - 8, y: (gy - 1) * TILE, w: 32, h: 32 } : ch === 'B' ? { x: gx * TILE - 60, y: (gy - 2) * TILE, w: 136, h: 48 } : ch === 'p' ? { x: gx * TILE - 2, y: gy * TILE - 6, w: 20, h: 22 } : { x: gx * TILE, y: gy * TILE, w: 16, h: 16 } }); }
+      if ('AMHTSNBp'.includes(ch)) { const gx = sc.ox + x, gy = sc.oy + y; out.push({ ch, x: gx, y: gy, screen: sc.id, rect: ch === 'S' || ch === 'N' ? { x: gx * TILE - 8, y: (gy - 1) * TILE, w: 32, h: 32 } : ch === 'B' ? { x: gx * TILE - 60, y: (gy - 2) * TILE, w: 136, h: 48 } : ch === 'p' ? { x: gx * TILE - 2, y: gy * TILE - 6, w: 20, h: 22 } : { x: gx * TILE, y: gy * TILE, w: 16, h: 16 } }); }
     }
     return out;
   };
@@ -159,7 +159,7 @@ const SOLVER = () => {
   for (let stage = 0; stage < 8; stage++) {
     const visited = new Set();
     const queue = [['A1', { kind: 'start' }]];
-    const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set() };
+    const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, spools: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set() };
     const found = new Set();
     while (queue.length) {
       const [zone, entry] = queue.shift();
@@ -176,6 +176,7 @@ const SOLVER = () => {
         if (s.ch === 'A') reached.abilities.add(def.ability);
         if (s.ch === 'M') reached.shards++;
         if (s.ch === 'H') reached.hearts++;
+        if (s.ch === 'T') reached.spools++;
         if (s.ch === 'S') { reached.saves.add(s.screen); queue.push([zone, { kind: 'save' }]); }
         if (s.ch === 'B') reached.bosses.add(def.boss);
         if (s.ch === 'N') reached.npcs.add(def.npc);
@@ -190,7 +191,7 @@ const SOLVER = () => {
         queue.push([SCREEN_ZONE[to], { kind: 'edge', screen: to, dir: opposite[dir] }]);
       }
     }
-    const info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates] };
+    const info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, spools: reached.spools, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates] };
     report.stages.push(info);
     if (!info.newAbilities.length) break;
     for (const a of info.newAbilities) abilities.push(a);
@@ -206,12 +207,16 @@ const SOLVER = () => {
   await page.waitForTimeout(300);
   const t0 = Date.now();
   const report = await page.evaluate(SOLVER);
-  for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts);
+  for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts, 'spools', st.spools);
   const last = report.stages[report.stages.length - 1];
-  const all = Object.keys(require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';ZONES'));
-  const everZones = new Set(), everBosses = new Set(), everPlates = new Set(); let maxShards = 0, maxHearts = 0;
-  for (const st of report.stages) { st.zones.forEach((z) => everZones.add(z)); st.bosses.forEach((b) => everBosses.add(b)); (st.plates || []).forEach((p) => everPlates.add(p)); maxShards = Math.max(maxShards, st.shards); maxHearts = Math.max(maxHearts, st.hearts); }
-  const plateScreens = ['A2', 'R2', 'D2', 'M2', 'U1'];
+  const defs = require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';({ ZONES, ROOMS })');
+  const all = Object.keys(defs.ZONES);
+  const total = { shards: 0, hearts: 0, spools: 0 };
+  for (const r of Object.values(defs.ROOMS)) for (const row of r.grid) for (const ch of row) { if (ch === 'M') total.shards++; if (ch === 'H') total.hearts++; if (ch === 'T') total.spools++; }
+  const everZones = new Set(), everBosses = new Set(), everPlates = new Set(); let maxShards = 0, maxHearts = 0, maxSpools = 0;
+  for (const st of report.stages) { st.zones.forEach((z) => everZones.add(z)); st.bosses.forEach((b) => everBosses.add(b)); (st.plates || []).forEach((p) => everPlates.add(p)); maxShards = Math.max(maxShards, st.shards); maxHearts = Math.max(maxHearts, st.hearts); maxSpools = Math.max(maxSpools, st.spools || 0); }
+  const plateScreens = Object.keys(defs.ROOMS).filter((id) => defs.ROOMS[id].grid.some((row) => row.includes('p')));
+  console.log('collectibles reached: shards ' + maxShards + '/' + total.shards + ', hearts ' + maxHearts + '/' + total.hearts + ', spools ' + maxSpools + '/' + total.spools);
   const missingPlates = plateScreens.filter((p) => !everPlates.has(p));
   console.log('unreached plates:', missingPlates.length ? missingPlates.join(',') : 'none');
   const missing = all.filter((r) => !everZones.has(r));
@@ -221,7 +226,7 @@ const SOLVER = () => {
   const finalOk = last.abilities.length === 6 && last.bosses.includes('regent') && last.bosses.includes('sef');
   const earlyTower = report.stages.some((st) => !st.abilities.includes('sever') && (st.bosses.includes('regent') || st.bosses.includes('sef')));
   if (earlyTower) console.log('WARNING: tower bosses reachable before sever');
-  const ok = finalOk && maxShards === 8 && maxHearts === 3 && !missing.length && !earlyTower && !missingPlates.length;
+  const ok = finalOk && maxShards === total.shards && maxHearts === total.hearts && maxSpools === total.spools && !missing.length && !earlyTower && !missingPlates.length;
   console.log(ok ? 'SOLVER OK' : 'SOLVER FAILED');
   process.exit(ok ? 0 : 1);
 })();

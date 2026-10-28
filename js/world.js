@@ -44,6 +44,7 @@ const World = {
           case 'A': if (!Game.has(def.ability)) ents.push({ cls: 'pickup', kind: 'ability', ability: def.ability, x: gx, y: gy }); ch = '.'; break;
           case 'M': { const idx = shardIndex++; if (!flags['shard:' + idx]) ents.push({ cls: 'pickup', kind: 'shard', index: idx, x: gx, y: gy }); ch = '.'; break; }
           case 'H': if (!flags['heart:' + def.id + ':' + x + ':' + y]) ents.push({ cls: 'pickup', kind: 'heart', x: gx, y: gy }); ch = '.'; break;
+          case 'T': if (!flags['spool:' + def.id + ':' + x + ':' + y]) ents.push({ cls: 'pickup', kind: 'spool', x: gx, y: gy }); ch = '.'; break;
           case 'B': ents.push({ cls: 'bossSpawn', x: gx, y: gy, boss: def.boss, arena: { x: sc.ox * TILE, y: sc.oy * TILE, w: VIEW_W, h: VIEW_H } }); ch = '.'; break;
           case 'Q': this.arrival = { tx: gx, bottom: (gy + 1) * TILE }; ch = '.'; break;
           case 'G': if (flags[def.gateFlag] || (def.boss && flags['boss:' + def.boss])) ch = '.'; break;
