@@ -101,14 +101,22 @@ console.log('rooms OK');
         if (dy < 0 && Math.abs(dx) > 4) continue;
         const nx = x + dx, ny = y + dy; const k = nx + ',' + ny;
         if (!cells.has(k) || seen.has(k)) continue;
-        // rough wall check: no solid directly above the start when jumping up
-        if (dy < 0 && solid(g, x, y - 1)) continue;
+        // overhang check: rising first then moving sideways, or moving sideways first then rising,
+        // must keep the head clear of solid tiles (the body is two cells tall)
+        if (dy < 0) {
+          // the body rises straight up first (head is one cell above the feet cell), then crosses at the apex
+          let clear = true;
+          for (let k = 1; k <= -dy + 1; k++) if (solid(g, x, y - k)) clear = false;
+          const step = Math.sign(nx - x);
+          for (let cx = x; cx !== nx && clear; cx += step) if (solid(g, cx + step, ny) || solid(g, cx + step, ny - 1)) clear = false;
+          if (!clear) continue;
+        }
         seen.add(k); queue.push([nx, ny]);
       }
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const ch = r.grid[y][x];
-      if ('MHASNB'.includes(ch)) {
+      if ('MHASNBp'.includes(ch)) {
         // the item cell or the standable cell beneath it must be reachable
         let ok = false; for (let yy = y; yy <= Math.min(H - 1, y + 3); yy++) if (seen.has(x + ',' + yy)) ok = true;
         if (!ok) warnings.push(`${id}: ${ch} at ${x},${y} looks unreachable by 3-tile jumps`);
