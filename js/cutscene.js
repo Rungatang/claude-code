@@ -35,6 +35,19 @@ const Cutscene = {
     this.chars = 0;
     if (s && s.ill) this.bg = s.ill;
     if (s && s.ill) this.fade = 0;
+    // reveal schedule: a typewriter that breathes at punctuation, like a person speaking
+    const text = s ? this.textOf(s) : '';
+    this.reveal = []; let acc = 0;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      acc += 1 / 45;
+      if ('.!?'.includes(c) && text[i + 1] === ' ') acc += 0.22;
+      else if (c === '\u2026') acc += 0.3;
+      else if (',;:'.includes(c) && text[i + 1] === ' ') acc += 0.09;
+      else if (c === '\u2014') acc += 0.12;
+      this.reveal.push(acc);
+    }
+    this.letterbox = this.overlay ? 0 : 1;
   },
   textOf(s) { return s.text || ''; },
   next() {
@@ -59,10 +72,13 @@ const Cutscene = {
     }
     const text = this.textOf(s);
     const delay = s.ill ? 0.8 : 0.1;
+    if (this.overlay) this.letterbox = Math.min(1, (this.letterbox || 0) + dt / 0.35);
     if (text) {
       const prev = this.chars;
-      this.chars = Math.min(text.length, Math.floor(Math.max(0, this.stepT - delay) * 45));
-      if (this.chars > prev && this.chars % 3 === 0) AudioSys.sfx('text');
+      const el = Math.max(0, this.stepT - delay);
+      let n = this.chars; while (n < text.length && this.reveal[n] <= el) n++;
+      this.chars = Math.min(text.length, Math.max(prev, n));
+      if (this.chars > prev && this.chars % 2 === 0 && text[this.chars - 1] !== ' ') AudioSys.sfx('text', s.who || s.name || 'narrator');
     }
     const complete = this.chars >= text.length;
     if (s.title) {
@@ -74,7 +90,7 @@ const Cutscene = {
       else this.next();
       return;
     }
-    if (s.hold && complete && this.stepT > delay + text.length / 45 + s.hold) this.next();
+    if (s.hold && complete && this.stepT > delay + (this.reveal.length ? this.reveal[this.reveal.length - 1] : 0) + s.hold) this.next();
   },
   draw(ctx, t) {
     if (!this.active) return;
@@ -124,6 +140,11 @@ const Cutscene = {
       lines.forEach((l, i) => ctx.fillText(l, 50, VIEW_H - 84 + i * 20));
       if (this.chars >= this.textOf(s).length && Math.floor(t * 2) % 2 === 0) { ctx.fillStyle = '#c9a24a'; ctx.fillText('▼', VIEW_W - 40, VIEW_H - 30); }
     } else {
+      if (this.overlay) {
+        const lb = 26 * (this.letterbox || 0);
+        ctx.fillStyle = '#07060a'; ctx.fillRect(0, 0, VIEW_W, lb); ctx.fillRect(0, VIEW_H - lb, VIEW_W, lb);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(0, lb, VIEW_W, VIEW_H - lb * 2);
+      }
       UI.dialogueBox(ctx, s.who, s.name, text, this.chars >= this.textOf(s).length, t, s.mood);
     }
     if (this.skippable) {

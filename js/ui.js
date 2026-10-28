@@ -122,6 +122,8 @@ const UI = {
     }
   },
   showBanner(region, room) { this.banner = { region, room, t: 3 }; },
+  totalHearts() { let n = 0; for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) if (ch === 'H') n++; return n; },
+  totalSpools() { let n = 0; for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) if (ch === 'T') n++; return n; },
   showToast(text) { this.toast = { text, t: 2.5 }; },
 
   drawTitle(ctx, t) {
@@ -165,7 +167,7 @@ const UI = {
     });
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
     ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 240);
-    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/3    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 270);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 270);
     ctx.textAlign = 'left';
   },
 
@@ -187,7 +189,8 @@ const UI = {
     ctx.fillStyle = this.PAPER; ctx.font = 'bold 18px Georgia, serif'; ctx.fillText('THE CITY OF HOURS', VIEW_W / 2, 36);
     ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 50, 46, 100, 1.5);
     ctx.textAlign = 'left';
-    const cw = 50, ch = 27, ox = 74, oy = 48;
+    const cols = Math.max(...Object.values(ROOMS).map((r) => r.mx)) + 1, rows = Math.max(...Object.values(ROOMS).map((r) => r.my)) + 1;
+    const cw = Math.min(50, Math.floor((VIEW_W - 60) / cols)), ch = Math.min(27, Math.floor(260 / rows)), ox = Math.floor((VIEW_W - cols * cw) / 2), oy = 48;
     for (const [id, r] of Object.entries(ROOMS)) {
       if (!Game.save.explored[id] && !Game.debug) continue;
       const x = ox + r.mx * cw, y = oy + r.my * ch;
@@ -203,15 +206,16 @@ const UI = {
       if (r.boss) { ctx.fillStyle = Game.save.flags['boss:' + r.boss] ? '#6a6060' : this.SEAL; ctx.beginPath(); ctx.arc(x + cw - 12, y + 12, 4, 0, Math.PI * 2); ctx.fill(); }
       if (r.ability && !Game.has(r.ability)) { ctx.fillStyle = '#e6d8ff'; ctx.fillRect(x + cw - 14, y + ch - 14, 6, 6); }
       if (r.npc && !r.boss) { ctx.fillStyle = '#9fb8ff'; ctx.fillRect(x + 8, y + ch - 13, 5, 5); }
+      if (Game.save.explored[id]) { let k = 0; r.grid.forEach((row, yy) => row.split('').forEach((c, xx) => { if ((c === 'H' && !Game.save.flags['heart:' + id + ':' + xx + ':' + yy]) || (c === 'T' && !Game.save.flags['spool:' + id + ':' + xx + ':' + yy])) { ctx.fillStyle = c === 'H' ? '#ff9a9a' : '#8fb3ff'; ctx.fillRect(x + cw - 14 - k * 6, y + 20, 4, 4); k++; } })); }
       if (id === Game.curScreen && Math.floor(t * 3) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.fillRect(x + cw / 2 - 3, y + ch / 2 - 3, 6, 6); }
     }
-    const ly = oy + 10 * ch + 14;
+    const ly = oy + rows * ch + 14;
     ctx.font = '11px Georgia, serif';
     ctx.fillStyle = this.GOLD; ctx.fillRect(ox, ly - 8, 4, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('lantern', ox + 10, ly);
     ctx.fillStyle = this.SEAL; ctx.beginPath(); ctx.arc(ox + 80, ly - 4, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c8b890'; ctx.fillText('guardian', ox + 90, ly);
     ctx.fillStyle = '#e6d8ff'; ctx.fillRect(ox + 160, ly - 9, 6, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('power', ox + 172, ly);
     ctx.fillStyle = '#9fb8ff'; ctx.fillRect(ox + 230, ly - 9, 5, 5); ctx.fillStyle = '#c8b890'; ctx.fillText('someone to talk to', ox + 242, ly);
-    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/3    ' + PALETTES[World.room.region].name + (Game.curScreen ? ': ' + ROOMS[Game.curScreen].name : ''), ox, ly + 16);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + (this.totalSpools() ? '    Spools ' + (Game.spoolCount ? Game.spoolCount() : 0) + '/' + this.totalSpools() : '') + '    ' + PALETTES[World.room.region].name + (Game.curScreen ? ': ' + ROOMS[Game.curScreen].name : ''), ox, ly + 16);
     ctx.fillStyle = '#6a6060'; ctx.textAlign = 'right'; ctx.fillText('M / Tab to close', VIEW_W - ox, ly + 16); ctx.textAlign = 'left';
   },
 
