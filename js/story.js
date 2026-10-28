@@ -190,6 +190,28 @@ const Story = {
     { title: 'The thread', text: 'You understand the bar you have been spending. Every recall, every withering, every stopped second: a stranger\'s hour, burned. You have been paying her debts with their lives since the moment you woke. You stop walking for a while.' },
   ],
 
+  // Inscribed tablets found in the world (tile 'i'). Keyed by screen id, in reading order within the
+  // screen. Each is a fragment of the City's own voice: lore, warnings, and hints about the powers.
+  tablets: {
+    A1: [{ title: 'ON THE TIDELINE', text: 'Whoever reads this woke on the shore, as we all did. The sea brings only two things to this city: the drowned, and those the Hourwright is finished with. Learn which you are. Walk right. Strike with X; the first blow makes room for a second and a third.' }],
+    A2: [{ title: 'THE FIRST LESSON', text: 'A door that closes behind you is not a wall. Fix a point in time where you stand (F) and the stair will remember you there. Press what must be pressed, then return. The city teaches this to every child. Few remember being taught.' }],
+    A3: [{ title: 'ON THE DROWNED', text: 'The husks were people who paid everything and kept walking. They pull back before they lunge: the whole body coils and the eyes go green. That pause is a courtesy. Use it. Step back or strike first; do not stand and wait.' }],
+    A5: [{ title: 'ON THE JETTY', text: 'Here the Hourwrights kept their boats. They did not sail them. They stood at the end of the planks and gave the sea the ones who could not pay. Someone has scratched beneath this, in a newer hand: SHE STILL COMES HERE.' }],
+    R1: [{ title: 'ON THE DISTRICT', text: 'Iron rusts because time is poured into it faster than it can bear. Everything in this district was aged by hand. The knights do not know they are a hundred years dead. Their shields face forward: go over, go behind, or wait for the hammer to fall and the arms to tire.' }],
+    R4: [{ title: 'ON WITHERING', text: 'To wither is to give a thing its own future all at once. A lock becomes the dust it was always going to be. A living thing slows, and breaks sooner. The Mother in the foundry learned this and it ate her from the inside. Point it upward (Up and V) at what hangs above you.' }],
+    H1: [{ title: 'ON THE CATHEDRAL', text: 'The Great Clock was not built to tell the hour. It was built to hold them. Every gear in these walls is turning somebody\'s afternoon. Listen: that ticking is four hundred heartbeats, kept.' }],
+    H3: [{ title: 'ON STALLING', text: 'The Regent\'s duelist stole its tempo from the pendulum. Hold it in your hand and the world thickens for a few breaths while you stay quick. Crushers fall slow enough to pass beneath. So do blades.' }],
+    H4: [{ title: 'WARNING', text: 'The weights in this shaft do not care who you are. Watch the chain: it draws taut before the fall. Stall them, or count.' }],
+    T1: [{ title: 'ON THE REGENT', text: 'He was the last clockmaster. When the Hourwrights came for the city\'s hours he climbed the tower and sealed the Clock with his own remaining years. He has not come down since. He is not kind. He is not what you were told.' }],
+    D1: [{ title: 'ON THE ARCHIVE', text: 'Below the city they kept the ledgers: who owed, who paid, who was paid with. The water came later. The paper did not drown; it learned to move. The wraiths here blink out before they cut. When one vanishes, it is behind you.' }],
+    D4: [{ title: 'ON MENDING', text: 'Mend is the gentlest and the most expensive. It asks a thing what it was and pays the difference. Rubble becomes a bridge. A wound you took a moment ago never happened. Nothing is truly undone; the cost is simply moved onto someone else\'s page.' }],
+    M1: [{ title: 'ON THE MILLS', text: 'The hounds charge in straight lines and cannot turn. They lower their heads and dig in before they run. Be anywhere but in front of them when they finish. The millers knew this. The millers are gone.' }],
+    M4: [{ title: 'ON ECHOES', text: 'Three seconds of you, left behind. It will walk, strike and weigh what you weighed. The gates in the grindstones open for a weight that stays. A person is a weight that stays, for a while.' }],
+    U1: [{ title: 'ON THE ROOT', text: 'This is where the hours go when they are spent. Down. Into the roots. The city drinks them back up and calls it a season. Climb. It is a long way and nothing here wants you to leave.' }],
+    U4: [{ title: 'ON SEVERING', text: 'To cut the thread is to stop every clock but your own. It costs five hours and it is never your own five. There is a reason the Hourwright gives this one last, and gives it gladly. Think about who it is you are spending.' }],
+    U6: [{ title: 'A NEWER HAND', text: 'If you are reading this you climbed out, which means she wanted you to. Whoever she is to you now: a friend, a sister, a voice on the shore. Ask her who poured you. Ask her what the ledger at her waist is for.' }],
+  },
+
   abilities: {
     dash:   { title: 'SKIP', color: '#8fb3ff', text: 'Sef\'s seal. C, L or Shift steps you forward faster than the moment can follow. Nothing can touch you mid-skip, and cracked walls shatter.' },
     wither: { title: 'WITHER', color: '#9fc59a', text: 'The Ferrous Mother\'s decay, held in the hand. Select it with Q / E and cast with V; hold Up to cast upward. Ages whatever it strikes: rust locks crumble, the withered take double harm and slow.' },

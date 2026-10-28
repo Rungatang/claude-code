@@ -32,6 +32,7 @@ const World = {
     for (const sc of Object.values(zone.screens)) {
       const def = sc.def;
       let shardIndex = Game.shardIndexFor(def.id);
+      let tabletIndex = 0;
       for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) {
         const gx = sc.ox + x, gy = sc.oy + y;
         let ch = this.tiles[gy][gx];
@@ -45,6 +46,7 @@ const World = {
           case 'M': { const idx = shardIndex++; if (!flags['shard:' + idx]) ents.push({ cls: 'pickup', kind: 'shard', index: idx, x: gx, y: gy }); ch = '.'; break; }
           case 'H': if (!flags['heart:' + def.id + ':' + x + ':' + y]) ents.push({ cls: 'pickup', kind: 'heart', x: gx, y: gy }); ch = '.'; break;
           case 'T': if (!flags['spool:' + def.id + ':' + x + ':' + y]) ents.push({ cls: 'pickup', kind: 'spool', x: gx, y: gy }); ch = '.'; break;
+          case 'i': { const idx = tabletIndex++; ents.push({ cls: 'tablet', x: gx, y: gy, screen: def.id, index: idx }); ch = '.'; break; }
           case 'B': ents.push({ cls: 'bossSpawn', x: gx, y: gy, boss: def.boss, arena: { x: sc.ox * TILE, y: sc.oy * TILE, w: VIEW_W, h: VIEW_H } }); ch = '.'; break;
           case 'Q': this.arrival = { tx: gx, bottom: (gy + 1) * TILE }; ch = '.'; break;
           case 'G': if (flags[def.gateFlag] || (def.boss && flags['boss:' + def.boss])) ch = '.'; break;

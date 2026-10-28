@@ -11,7 +11,7 @@
 //   D  boss gate (shuts during a fight)   G  sealed gate (opens when the screen's gateFlag is set)
 //   |  pillar   ~  water   :  rubble   (decor)
 //   P  player start   Q  underground arrival   S  lantern   N  npc   A  power altar   B  boss
-//   M  memory shard   H  hour (max health)   T  spool (max thread)
+//   M  memory shard   H  hour (max health)   T  spool (max thread)   i  inscribed tablet (Story.tablets)
 //   a  husk   w  hourfly   t  archer   k  rust knight   r  wraith   h  mill hound
 // ---------------------------------------------------------------------------
 //

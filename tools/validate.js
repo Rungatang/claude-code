@@ -20,7 +20,7 @@ for (const [id, r] of Object.entries(ROOMS)) {
   if (coords[key]) errors.push(`${id}: map coordinate clash with ${coords[key]}`);
   coords[key] = id;
   for (const row of r.grid) for (const ch of row) {
-    if (!'#.=^C?DGLRdepXQ|~:PSNABMHTawtkrh'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
+    if (!'#.=^C?DGLRdepXQ|~:PSNABMHTiawtkrh'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
     if (ch === 'P') playerStarts++;
     if (ch === 'B' && !r.boss) errors.push(`${id}: boss marker without boss`);
     if (ch === 'A' && !r.ability) errors.push(`${id}: ability marker without ability`);
@@ -116,7 +116,7 @@ console.log('rooms OK');
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const ch = r.grid[y][x];
-      if ('MHTASNBp'.includes(ch)) {
+      if ('MHTASNBpi'.includes(ch)) {
         // the item cell or the standable cell beneath it must be reachable
         let ok = false; for (let yy = y; yy <= Math.min(H - 1, y + 3); yy++) if (seen.has(x + ',' + yy)) ok = true;
         if (!ok) warnings.push(`${id}: ${ch} at ${x},${y} looks unreachable by 3-tile jumps`);
