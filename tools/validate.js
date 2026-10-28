@@ -4,12 +4,12 @@ const fs = require('fs');
 const vm = require('vm');
 const ctx = {};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(__dirname + '/../js/rooms.js', 'utf8') + '\nthis.ROOMS = ROOMS;', ctx);
+vm.runInContext('const ROOM_W = 40, ROOM_H = 23;' + fs.readFileSync(__dirname + '/../js/rooms.js', 'utf8') + '\nthis.ROOMS = ROOMS; this.ZONES = ZONES;', ctx);
 const ROOMS = ctx.ROOMS;
 const W = 40, H = 23;
 const errors = [];
-const SOLID = new Set(['#', 'C', '?', 'D', 'G']);
-const open = (ch) => !SOLID.has(ch) || ch === 'D' || ch === 'G' || ch === '?';
+const SOLID = new Set(['#', 'C', '?', 'D', 'G', 'L', 'd', 'e']);
+const open = (ch) => !SOLID.has(ch) || ch === 'D' || ch === 'G' || ch === '?' || ch === 'L' || ch === 'd' || ch === 'e';
 const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
 const coords = {};
 let playerStarts = 0;
@@ -20,7 +20,7 @@ for (const [id, r] of Object.entries(ROOMS)) {
   if (coords[key]) errors.push(`${id}: map coordinate clash with ${coords[key]}`);
   coords[key] = id;
   for (const row of r.grid) for (const ch of row) {
-    if (!'#.=^C?DG|~:PSNABMHabtk'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
+    if (!'#.=^C?DGLRdepXQ|~:PSNABMHawtkrh'.includes(ch)) errors.push(`${id}: unknown tile '${ch}'`);
     if (ch === 'P') playerStarts++;
     if (ch === 'B' && !r.boss) errors.push(`${id}: boss marker without boss`);
     if (ch === 'A' && !r.ability) errors.push(`${id}: ability marker without ability`);
@@ -61,9 +61,61 @@ for (const [id, r] of Object.entries(ROOMS)) {
   }
 }
 if (playerStarts !== 1) errors.push(`expected one player start, found ${playerStarts}`);
+// every screen belongs to exactly one zone
+const inZone = {};
+for (const z of Object.values(ctx.ZONES)) for (const id of z.ids) { if (inZone[id]) errors.push(`${id}: in two zones`); inZone[id] = z.id; }
+for (const id of Object.keys(ROOMS)) if (!inZone[id]) errors.push(`${id}: not in any zone`);
+// plates and doors: a screen with d/e needs a plate, and vice versa
+for (const [id, r] of Object.entries(ROOMS)) {
+  const flat = r.grid.join('');
+  if ((flat.includes('d') || flat.includes('e')) && !flat.includes('p')) errors.push(`${id}: door without plate`);
+  if (flat.includes('p') && !(flat.includes('d') || flat.includes('e'))) errors.push(`${id}: plate without door`);
+}
 // count collectibles
 let shards = 0, hearts = 0;
 for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) { if (ch === 'M') shards++; if (ch === 'H') hearts++; }
 console.log(`rooms: ${Object.keys(ROOMS).length}, shards: ${shards}, hearts: ${hearts}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
 console.log('rooms OK');
+
+// ---------------------------------------------------------------------------
+// Platform-chain lint: within each screen, can every standable spot that
+// matters (specials, top exits) be reached from the floor with jumps of at
+// most 3 rows and 4 columns? Approximate, but catches ledges set too high.
+// ---------------------------------------------------------------------------
+(function lint() {
+  const warnings = [];
+  const solid = (g, x, y) => (y < 0 || y >= H || x < 0 || x >= W) ? false : '#C'.includes(g[y][x]);
+  const stand = (g, x, y) => y + 1 < H && !solid(g, x, y) && !solid(g, x, y - 1) && (solid(g, x, y + 1) || g[y + 1][x] === '=' || g[y + 1][x] === 'R');
+  for (const [id, r] of Object.entries(ROOMS)) {
+    const g = r.grid.map((row) => row.split(''));
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ('dep'.includes(g[y][x])) g[y][x] = '.';
+    const cells = new Set();
+    for (let y = 1; y < H; y++) for (let x = 0; x < W; x++) if (stand(g, x, y)) cells.add(x + ',' + y);
+    // seeds: standable cells on the bottom two rows, plus side-entry rows, plus arrival/start
+    const seen = new Set(); const queue = [];
+    for (const c of cells) { const [x, y] = c.split(',').map(Number); if (y >= H - 4 || ((x <= 1 || x >= W - 2) && y >= 16)) { seen.add(c); queue.push([x, y]); } }
+    while (queue.length) {
+      const [x, y] = queue.shift();
+      for (let dy = -3; dy <= 12; dy++) for (let dx = -5; dx <= 5; dx++) {
+        if (dy < 0 && Math.abs(dx) > 4) continue;
+        const nx = x + dx, ny = y + dy; const k = nx + ',' + ny;
+        if (!cells.has(k) || seen.has(k)) continue;
+        // rough wall check: no solid directly above the start when jumping up
+        if (dy < 0 && solid(g, x, y - 1)) continue;
+        seen.add(k); queue.push([nx, ny]);
+      }
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = r.grid[y][x];
+      if ('MHASNB'.includes(ch)) {
+        // the item cell or the standable cell beneath it must be reachable
+        let ok = false; for (let yy = y; yy <= Math.min(H - 1, y + 3); yy++) if (seen.has(x + ',' + yy)) ok = true;
+        if (!ok) warnings.push(`${id}: ${ch} at ${x},${y} looks unreachable by 3-tile jumps`);
+      }
+    }
+    if (r.links.up) { let ok = false; for (let x = 0; x < W; x++) if ('.=dG'.includes(r.grid[0][x])) for (let yy = 1; yy <= 4; yy++) if (seen.has(x + ',' + yy)) ok = true; if (!ok && !r.oneWayUp) warnings.push(`${id}: top exit looks unreachable by 3-tile jumps`); }
+  }
+  if (warnings.length) { console.log('chain lint:\n' + warnings.join('\n')); process.exit(2); }
+  console.log('chain lint OK');
+})();

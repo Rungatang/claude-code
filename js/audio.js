@@ -111,16 +111,16 @@ const AudioSys = {
   // Each theme: tempo, a bass line, an arpeggio/melody line, and a pad chord.
   // Note numbers are MIDI; 0 means rest.
   themes: {
-    title:     { bpm: 72,  bass: [33, 0, 0, 0, 36, 0, 0, 0, 31, 0, 0, 0, 35, 0, 0, 0], lead: [57, 60, 64, 67, 64, 60, 59, 62, 55, 59, 62, 66, 62, 59, 57, 0], pad: [45, 52, 57], wave: 'triangle', padWave: 'sine' },
-    threshold: { bpm: 60,  bass: [33, 0, 0, 0, 0, 0, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0], lead: [0, 0, 57, 0, 0, 0, 60, 0, 0, 0, 55, 0, 0, 0, 0, 0], pad: [45, 48, 52], wave: 'sine', padWave: 'sine' },
-    streets:   { bpm: 84,  bass: [38, 0, 38, 0, 41, 0, 0, 0, 36, 0, 36, 0, 33, 0, 0, 0], lead: [62, 0, 65, 69, 0, 65, 62, 0, 60, 0, 63, 67, 0, 63, 60, 0], pad: [50, 53, 57], wave: 'triangle', padWave: 'triangle' },
-    furnace:   { bpm: 112, bass: [31, 31, 0, 31, 34, 0, 31, 0, 29, 29, 0, 29, 32, 0, 30, 0], lead: [67, 0, 70, 0, 67, 74, 0, 70, 65, 0, 68, 0, 65, 72, 0, 68], pad: [43, 46, 50], wave: 'sawtooth', padWave: 'triangle' },
-    cathedral: { bpm: 66,  bass: [28, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0, 0], lead: [64, 0, 67, 0, 71, 0, 72, 0, 71, 0, 67, 0, 64, 0, 62, 0], pad: [52, 55, 59, 62], wave: 'sine', padWave: 'sine' },
-    cistern:   { bpm: 76,  bass: [26, 0, 0, 0, 0, 0, 29, 0, 24, 0, 0, 0, 0, 0, 31, 0], lead: [0, 0, 62, 0, 0, 65, 0, 0, 0, 0, 60, 0, 0, 63, 0, 0], pad: [38, 45, 50], wave: 'triangle', padWave: 'sine' },
-    reliquary: { bpm: 58,  bass: [30, 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 0, 0, 0, 0, 0], lead: [66, 0, 0, 69, 0, 0, 73, 0, 0, 0, 71, 0, 0, 0, 0, 0], pad: [42, 49, 54], wave: 'sine', padWave: 'triangle' },
-    spire:     { bpm: 96,  bass: [29, 0, 29, 0, 29, 0, 32, 0, 27, 0, 27, 0, 27, 0, 34, 0], lead: [65, 68, 72, 0, 68, 72, 77, 0, 63, 67, 70, 0, 67, 70, 75, 0], pad: [41, 44, 48], wave: 'sawtooth', padWave: 'triangle' },
-    boss:      { bpm: 132, bass: [26, 26, 0, 26, 0, 26, 29, 0, 26, 26, 0, 26, 0, 32, 31, 0], lead: [62, 0, 62, 65, 0, 62, 68, 0, 62, 0, 62, 65, 0, 70, 69, 0], pad: [38, 41, 45], wave: 'sawtooth', padWave: 'sawtooth' },
-    ending:    { bpm: 64,  bass: [36, 0, 0, 0, 40, 0, 0, 0, 43, 0, 0, 0, 41, 0, 0, 0], lead: [72, 0, 76, 79, 0, 76, 72, 0, 74, 0, 77, 81, 0, 77, 74, 0], pad: [48, 52, 55, 59], wave: 'triangle', padWave: 'sine' },
+    title:   { bpm: 66,  bass: [31, 0, 0, 0, 34, 0, 0, 0, 29, 0, 0, 0, 33, 0, 0, 0], lead: [55, 58, 62, 65, 62, 58, 57, 60, 53, 57, 60, 64, 60, 57, 55, 0], pad: [43, 50, 55], wave: 'triangle', padWave: 'sine' },
+    shore:   { bpm: 58,  bass: [31, 0, 0, 0, 0, 0, 0, 0, 29, 0, 0, 0, 0, 0, 0, 0], lead: [0, 0, 55, 0, 0, 0, 58, 0, 0, 0, 53, 0, 0, 0, 0, 0], pad: [43, 46, 50], wave: 'sine', padWave: 'sine' },
+    rust:    { bpm: 96,  bass: [29, 29, 0, 29, 32, 0, 29, 0, 27, 27, 0, 27, 30, 0, 28, 0], lead: [65, 0, 68, 0, 65, 72, 0, 68, 63, 0, 66, 0, 63, 70, 0, 66], pad: [41, 44, 48], wave: 'sawtooth', padWave: 'triangle' },
+    hours:   { bpm: 72,  bass: [26, 0, 0, 0, 0, 0, 0, 0, 31, 0, 0, 0, 0, 0, 0, 0], lead: [62, 0, 65, 0, 69, 0, 70, 0, 69, 0, 65, 0, 62, 0, 60, 0], pad: [50, 53, 57, 60], wave: 'sine', padWave: 'sine' },
+    tower:   { bpm: 100, bass: [27, 0, 27, 0, 27, 0, 30, 0, 25, 0, 25, 0, 25, 0, 32, 0], lead: [63, 66, 70, 0, 66, 70, 75, 0, 61, 65, 68, 0, 65, 68, 73, 0], pad: [39, 42, 46], wave: 'sawtooth', padWave: 'triangle' },
+    archive: { bpm: 60,  bass: [24, 0, 0, 0, 0, 0, 27, 0, 22, 0, 0, 0, 0, 0, 29, 0], lead: [0, 0, 60, 0, 0, 63, 0, 0, 0, 0, 58, 0, 0, 61, 0, 0], pad: [36, 43, 48], wave: 'triangle', padWave: 'sine' },
+    mills:   { bpm: 84,  bass: [28, 0, 28, 0, 31, 0, 0, 0, 26, 0, 26, 0, 23, 0, 0, 0], lead: [52, 0, 55, 59, 0, 55, 52, 0, 50, 0, 53, 57, 0, 53, 50, 0], pad: [40, 43, 47], wave: 'triangle', padWave: 'triangle' },
+    root:    { bpm: 64,  bass: [26, 0, 0, 0, 0, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0], lead: [62, 0, 0, 65, 0, 0, 69, 0, 0, 0, 67, 0, 0, 0, 0, 0], pad: [38, 45, 50], wave: 'sine', padWave: 'triangle' },
+    boss:    { bpm: 140, bass: [26, 26, 0, 26, 0, 26, 29, 0, 26, 26, 0, 26, 0, 32, 31, 0], lead: [62, 0, 62, 65, 0, 62, 68, 0, 62, 0, 62, 65, 0, 70, 69, 0], pad: [38, 41, 45], wave: 'sawtooth', padWave: 'sawtooth' },
+    ending:  { bpm: 60,  bass: [36, 0, 0, 0, 40, 0, 0, 0, 43, 0, 0, 0, 41, 0, 0, 0], lead: [72, 0, 76, 79, 0, 76, 72, 0, 74, 0, 77, 81, 0, 77, 74, 0], pad: [48, 52, 55, 59], wave: 'triangle', padWave: 'sine' },
   },
 
   playTheme(name, force) {

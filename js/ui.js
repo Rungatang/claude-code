@@ -52,33 +52,52 @@ const UI = {
 
   drawHud(ctx, t) {
     const pl = Game.player;
-    // health: jade talisman slips
+    // hours: hourglass pips
     for (let i = 0; i < pl.maxHp; i++) {
-      const x = 14 + i * 13, y = 12;
-      ctx.fillStyle = this.INK; ctx.fillRect(x - 1, y - 1, 10, 20);
-      ctx.fillStyle = i < pl.hp ? this.JADE : '#2a2a34'; ctx.fillRect(x, y, 8, 18);
-      if (i < pl.hp) { ctx.fillStyle = '#d8fff4'; ctx.fillRect(x + 1, y + 1, 2, 6); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x + 1, y + 8, 6, 1); }
+      const x = 14 + i * 14, y = 12, on = i < pl.hp;
+      ctx.fillStyle = this.INK; ctx.fillRect(x - 1, y - 1, 11, 19);
+      ctx.fillStyle = on ? '#ffd27a' : '#2a2630';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9, y); ctx.lineTo(x + 4.5, y + 8.5); ctx.lineTo(x + 9, y + 17); ctx.lineTo(x, y + 17); ctx.lineTo(x + 4.5, y + 8.5); ctx.closePath(); ctx.fill();
+      if (on) { ctx.fillStyle = '#fff6d0'; ctx.fillRect(x + 1.5, y + 1.5, 2, 3); }
     }
-    // ability seals
-    const abs = ['dash', 'djump', 'cling', 'lantern'];
-    const cols = { dash: '#ff7a2a', djump: '#ffd680', cling: '#7af0d0', lantern: '#e6d8ff' };
-    abs.forEach((a, i) => {
-      const x = VIEW_W - 16 - (abs.length - i) * 24 + 10, y = 22;
-      ctx.fillStyle = this.INK; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = Game.has(a) ? cols[a] : '#3a3340'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = Game.has(a) ? cols[a] : '#2a2630';
-      Art.drawAbilityIcon(ctx, a, x - 5, y - 5, 10);
+    // thread: a spool of nine segments
+    const tx0 = 14, ty0 = 36;
+    for (let i = 0; i < pl.maxThread; i++) {
+      ctx.fillStyle = this.INK; ctx.fillRect(tx0 + i * 9 - 1, ty0 - 1, 9, 7);
+      ctx.fillStyle = i < Math.floor(pl.thread) ? '#8fb3ff' : (i < pl.thread ? '#4a5a80' : '#262430');
+      ctx.fillRect(tx0 + i * 9, ty0, 7, 5);
+    }
+    ctx.fillStyle = '#9fb0d0'; ctx.font = '9px Georgia, serif'; ctx.fillText('thread', tx0 + pl.maxThread * 9 + 4, ty0 + 5);
+    // anchor
+    if (pl.anchor) { ctx.fillStyle = '#ffd27a'; ctx.font = '10px Georgia, serif'; ctx.fillText('\u2693 anchor set  (F returns, ' + RECALL_COST + ' thread)', 14, 56); }
+    else if (Game.save.flags['scene:A2']) { ctx.fillStyle = '#6a6a7a'; ctx.font = '10px Georgia, serif'; ctx.fillText('F: set anchor', 14, 56); }
+    // powers: seals along the right, selected one raised
+    const list = Game.powerList();
+    list.forEach((id, i) => {
+      const p = POWERS[id];
+      const x = VIEW_W - 16 - (list.length - i) * 26 + 12, y = 22, sel = i === Game.powerIndex;
+      const cd = pl.cds[id] > 0;
+      ctx.fillStyle = this.INK; ctx.beginPath(); ctx.arc(x, y, sel ? 12 : 10, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = cd ? '#3a3340' : p.color; ctx.lineWidth = sel ? 2 : 1.2; ctx.beginPath(); ctx.arc(x, y, sel ? 11 : 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = cd ? '#3a3340' : p.color;
+      Art.drawPowerIcon(ctx, id, x - 5, y - 5, 10);
+      if (cd) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (pl.cds[id] / p.cd)); ctx.closePath(); ctx.fill(); }
+      if (sel) { ctx.fillStyle = this.PAPER; ctx.font = '10px Georgia, serif'; ctx.textAlign = 'right'; ctx.fillText(p.name + '  (' + p.cost + ')', VIEW_W - 14, 48); ctx.textAlign = 'left'; }
     });
+    if (list.length) { ctx.fillStyle = '#6a6a7a'; ctx.font = '9px Georgia, serif'; ctx.textAlign = 'right'; ctx.fillText('Q / E select   V cast', VIEW_W - 14, 60); ctx.textAlign = 'left'; }
     ctx.fillStyle = '#e6d8ff'; ctx.font = '11px Georgia, serif'; ctx.textAlign = 'right';
-    ctx.fillText('◆ ' + Game.shardCount() + ' / ' + Story.shards.length, VIEW_W - 14, 48);
+    ctx.fillText('\u25C6 ' + Game.shardCount() + ' / ' + Story.shards.length, VIEW_W - 14, list.length ? 74 : 48);
     ctx.textAlign = 'left';
-    // boss bar: red lacquer
+    // boss bar with poise
     const boss = Game.entities.find((e) => e instanceof Boss && e.active && !e.dead);
     if (boss) {
-      const w = 320, x = (VIEW_W - w) / 2, y = VIEW_H - 24;
-      ctx.fillStyle = this.INK; ctx.fillRect(x - 3, y - 3, w + 6, 12);
+      const w = 320, x = (VIEW_W - w) / 2, y = VIEW_H - 26;
+      ctx.fillStyle = this.INK; ctx.fillRect(x - 3, y - 3, w + 6, 16);
       ctx.fillStyle = '#4a1018'; ctx.fillRect(x, y, w, 6);
-      ctx.fillStyle = this.SEAL; ctx.fillRect(x, y, w * boss.hp / boss.maxHp, 6);
+      if (boss.def.scripted) { ctx.fillStyle = this.SEAL; ctx.fillRect(x, y, w, 6); }
+      else { ctx.fillStyle = this.SEAL; ctx.fillRect(x, y, w * boss.hp / boss.maxHp, 6); }
+      ctx.fillStyle = '#2a2a40'; ctx.fillRect(x, y + 7, w, 3);
+      ctx.fillStyle = boss.state === 'stagger' ? '#fff' : '#ffd27a'; ctx.fillRect(x, y + 7, w * (boss.state === 'stagger' ? boss.timer / 1.8 : boss.poise / boss.def.poise), 3);
       ctx.fillStyle = this.PAPER; ctx.font = 'italic 12px Georgia, serif'; ctx.textAlign = 'center';
       ctx.fillText(boss.name, VIEW_W / 2, y - 7); ctx.textAlign = 'left';
     }
@@ -86,11 +105,8 @@ const UI = {
       this.banner.t -= DT;
       const a = clamp(Math.min(this.banner.t, 3 - this.banner.t) / 0.5, 0, 1);
       ctx.globalAlpha = a; ctx.textAlign = 'center';
-      if (this.banner.region) {
-        ctx.fillStyle = this.PAPER; ctx.font = 'bold 20px Georgia, serif'; ctx.fillText(this.banner.region, VIEW_W / 2, 72);
-        ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 40, 80, 80, 1.5);
-      }
-      ctx.fillStyle = '#c8b890'; ctx.font = 'italic 12px Georgia, serif'; ctx.fillText(this.banner.room, VIEW_W / 2, 96);
+      if (this.banner.region) { ctx.fillStyle = this.PAPER; ctx.font = 'bold 20px Georgia, serif'; ctx.fillText(this.banner.region, VIEW_W / 2, 84); ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 40, 92, 80, 1.5); }
+      ctx.fillStyle = '#c8b890'; ctx.font = 'italic 12px Georgia, serif'; ctx.fillText(this.banner.room, VIEW_W / 2, 108);
       ctx.textAlign = 'left'; ctx.globalAlpha = 1;
       if (this.banner.t <= 0) this.banner = null;
     }
@@ -107,8 +123,8 @@ const UI = {
   showToast(text) { this.toast = { text, t: 2.5 }; },
 
   drawTitle(ctx, t) {
-    Art.illustrations.city(ctx, t);
-    ctx.fillStyle = 'rgba(10,6,12,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    Art.illustrations.shoreWake(ctx, t);
+    ctx.fillStyle = 'rgba(10,6,12,0.55)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     // ash
     ctx.fillStyle = '#d8d4d0'; for (let i = 0; i < 60; i++) { ctx.globalAlpha = 0.2 + (i % 3) * 0.1; ctx.fillRect(((i * 7919 * 13) % VIEW_W) + Math.sin(t * 0.6 + i) * 14, (((i * 7919) % VIEW_H) + t * (8 + (i % 5) * 6)) % VIEW_H, 1 + (i % 2), 1 + (i % 2)); }
     ctx.globalAlpha = 1;
@@ -116,8 +132,8 @@ const UI = {
     ctx.fillStyle = this.SEAL; ctx.fillRect(84, 60, 26, 110);
     ctx.fillStyle = this.PAPER; ctx.fillRect(90, 70, 14, 14); ctx.fillRect(90, 92, 14, 3); ctx.fillRect(90, 100, 14, 3); ctx.fillRect(90, 110, 6, 40); ctx.fillRect(98, 110, 6, 40);
     ctx.textAlign = 'center';
-    ctx.fillStyle = this.PAPER; ctx.font = 'bold 58px Georgia, serif'; ctx.fillText('ASHFALL', VIEW_W / 2, 122);
-    ctx.fillStyle = this.GOLD; ctx.font = 'italic 18px Georgia, serif'; ctx.fillText('The Last Cartographer', VIEW_W / 2, 152);
+    ctx.fillStyle = this.PAPER; ctx.font = 'bold 54px Georgia, serif'; ctx.fillText('HOLLOW HOURS', VIEW_W / 2, 122);
+    ctx.fillStyle = this.GOLD; ctx.font = 'italic 16px Georgia, serif'; ctx.fillText('a debt paid in other people\'s time', VIEW_W / 2, 152);
     ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 60, 164, 120, 1.5);
     const items = this.titleItems();
     items.forEach((it, i) => {
@@ -127,8 +143,9 @@ const UI = {
       ctx.fillText((sel ? '▸ ' : '') + it, VIEW_W / 2, 218 + i * 28);
     });
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
-    ctx.fillText('Arrows / WASD move     Z / Space jump     X strike     C / Shift dash     V cast light     Up interact', VIEW_W / 2, 302);
-    ctx.fillText('M map     Esc pause     N mute', VIEW_W / 2, 318);
+    ctx.fillText('Arrows / WASD move    Z / Space jump    X strike (Up+X, Down+X in air)    C / Shift skip', VIEW_W / 2, 296);
+    ctx.fillText('F anchor / return    Q / E choose power    V cast    Up talk / rest    M map    Esc pause    N mute', VIEW_W / 2, 312);
+    ctx.fillStyle = '#7a5a5a'; ctx.fillText('Contains themes of coercion and death. Not for children.', VIEW_W / 2, 330);
     ctx.fillStyle = '#5a5050'; ctx.fillText('press Enter', VIEW_W / 2, 350);
     ctx.textAlign = 'left';
   },
@@ -146,7 +163,7 @@ const UI = {
     });
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
     ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 240);
-    ctx.fillText('Shards ' + Game.shardCount() + '/' + Story.shards.length + '    Hearts ' + Game.heartCount() + '/2    Time ' + Game.playTime(), VIEW_W / 2, 270);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/3    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 270);
     ctx.textAlign = 'left';
   },
 
@@ -154,7 +171,7 @@ const UI = {
     ctx.fillStyle = `rgba(0,0,0,${clamp(k, 0, 0.85)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     if (k > 0.8) {
       ctx.textAlign = 'center';
-      ctx.fillStyle = this.PAPER; ctx.font = 'italic 22px Georgia, serif'; ctx.fillText('The core goes dark.', VIEW_W / 2, 160);
+      ctx.fillStyle = this.PAPER; ctx.font = 'italic 22px Georgia, serif'; ctx.fillText('The sand runs out.', VIEW_W / 2, 160);
       ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 30, 172, 60, 1.5);
       ctx.fillStyle = '#9a9080'; ctx.font = '12px Georgia, serif'; ctx.fillText('press Enter to wake again at the last lantern', VIEW_W / 2, 200);
       ctx.textAlign = 'left';
@@ -165,10 +182,10 @@ const UI = {
     ctx.fillStyle = 'rgba(6,5,10,0.93)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     this.frame(ctx, 10, 10, VIEW_W - 20, VIEW_H - 20, { fill: 'rgba(20,16,24,0.6)' });
     ctx.textAlign = 'center';
-    ctx.fillStyle = this.PAPER; ctx.font = 'bold 18px Georgia, serif'; ctx.fillText('MAP OF VERENTH', VIEW_W / 2, 40);
+    ctx.fillStyle = this.PAPER; ctx.font = 'bold 18px Georgia, serif'; ctx.fillText('THE CITY OF HOURS', VIEW_W / 2, 36);
     ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 50, 46, 100, 1.5);
     ctx.textAlign = 'left';
-    const cw = 56, ch = 40, ox = 60, oy = 66;
+    const cw = 50, ch = 27, ox = 74, oy = 48;
     for (const [id, r] of Object.entries(ROOMS)) {
       if (!Game.save.explored[id] && !Game.debug) continue;
       const x = ox + r.mx * cw, y = oy + r.my * ch;
@@ -184,16 +201,16 @@ const UI = {
       if (r.boss) { ctx.fillStyle = Game.save.flags['boss:' + r.boss] ? '#6a6060' : this.SEAL; ctx.beginPath(); ctx.arc(x + cw - 12, y + 12, 4, 0, Math.PI * 2); ctx.fill(); }
       if (r.ability && !Game.has(r.ability)) { ctx.fillStyle = '#e6d8ff'; ctx.fillRect(x + cw - 14, y + ch - 14, 6, 6); }
       if (r.npc && !r.boss) { ctx.fillStyle = '#9fb8ff'; ctx.fillRect(x + 8, y + ch - 13, 5, 5); }
-      if (id === World.roomId && Math.floor(t * 3) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.fillRect(x + cw / 2 - 3, y + ch / 2 - 3, 6, 6); }
+      if (id === Game.curScreen && Math.floor(t * 3) % 2 === 0) { ctx.fillStyle = '#fff'; ctx.fillRect(x + cw / 2 - 3, y + ch / 2 - 3, 6, 6); }
     }
-    const ly = oy + 5 * ch + 16;
+    const ly = oy + 10 * ch + 14;
     ctx.font = '11px Georgia, serif';
-    ctx.fillStyle = this.GOLD; ctx.fillRect(ox, ly - 8, 4, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('way-lantern (rest and save)', ox + 10, ly);
-    ctx.fillStyle = this.SEAL; ctx.beginPath(); ctx.arc(ox + 196, ly - 4, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c8b890'; ctx.fillText('guardian', ox + 206, ly);
-    ctx.fillStyle = '#e6d8ff'; ctx.fillRect(ox + 280, ly - 9, 6, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('way-seal', ox + 292, ly);
-    ctx.fillStyle = '#9fb8ff'; ctx.fillRect(ox + 370, ly - 9, 5, 5); ctx.fillStyle = '#c8b890'; ctx.fillText('someone to talk to', ox + 382, ly);
-    ctx.fillText('Shards ' + Game.shardCount() + '/' + Story.shards.length + '   Hearts ' + Game.heartCount() + '/2   ' + PALETTES[World.room.region].name + ': ' + World.room.name, ox, ly + 18);
-    ctx.fillStyle = '#6a6060'; ctx.fillText('M / Tab to close', ox, ly + 36);
+    ctx.fillStyle = this.GOLD; ctx.fillRect(ox, ly - 8, 4, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('lantern', ox + 10, ly);
+    ctx.fillStyle = this.SEAL; ctx.beginPath(); ctx.arc(ox + 80, ly - 4, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#c8b890'; ctx.fillText('guardian', ox + 90, ly);
+    ctx.fillStyle = '#e6d8ff'; ctx.fillRect(ox + 160, ly - 9, 6, 6); ctx.fillStyle = '#c8b890'; ctx.fillText('power', ox + 172, ly);
+    ctx.fillStyle = '#9fb8ff'; ctx.fillRect(ox + 230, ly - 9, 5, 5); ctx.fillStyle = '#c8b890'; ctx.fillText('someone to talk to', ox + 242, ly);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/3    ' + PALETTES[World.room.region].name + (Game.curScreen ? ': ' + ROOMS[Game.curScreen].name : ''), ox, ly + 16);
+    ctx.fillStyle = '#6a6060'; ctx.textAlign = 'right'; ctx.fillText('M / Tab to close', VIEW_W - ox, ly + 16); ctx.textAlign = 'left';
   },
 
   drawOverlayCard(ctx, title, text, t, color) {

@@ -1,176 +1,201 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// The script. Verenth is a city of lacquer, brass and jade that once ran on
-// a captured sun. Lines carry an optional mood for the portrait.
-//
-//   { ill: 'name', text, hold }        illustrated panel
-//   { who, name, text, mood }          dialogue line
-//   { title, sub, hold }               title card
+// The script of HOLLOW HOURS.
+//   { ill, text, hold }        illustrated panel
+//   { who, name, text, mood }  dialogue line
+//   { title, sub, hold }       title card
 // ---------------------------------------------------------------------------
 const Story = {
   prologue: [
-    { ill: 'city', text: 'Verenth never knew night. The Sun-Engine turned above its roofs, a star the old masters had caught and chained, and the Surveyors of the Nine Roads kept every street named, measured and lit.' },
-    { ill: 'furnaceBreak', text: 'In the four-hundredth year the Engine cracked. The council called it a tremor. The engineers called it fatigue. The streets, who had no word for it, only looked up.' },
-    { ill: 'ashfall', text: 'Ash fell for forty days. The hall of the Surveyors burned, and every map with it. Those who could not find the way out of the dark did what people do. They waited for someone who could.' },
-    { ill: 'sealing', text: 'The Warden, first of the guardian engines, had one instruction: protect the city. It closed the nine gates from the inside, swallowed the key, and called the silence that followed peace.' },
-    { ill: 'workshop', text: 'Beneath the Threshold the last Surveyor worked by one candle. Not a map that could be carried, he wrote. A map that could walk. He set a jade core in her chest and gave it a direction instead of a name.' },
-    { ill: 'awaken', text: 'He did not finish her. There was not enough iron, or enough time, or enough of him. He lit the core anyway, and sat down beside the bench to wait.', hold: 5 },
-    { who: 'orin', name: 'Orin', text: 'Wake, Ilse. The streets have forgotten themselves. Draw them the way out.', mood: 'sad' },
+    { ill: 'dark', text: 'There is a sound before there is anything else. Water, close. Something ticking, closer.', hold: 3 },
+    { ill: 'shoreWake', text: 'Cold stone under one cheek. Salt. A weight in the chest that does not belong to a body, turning, turning, like a thing wound too tight.' },
+    { ill: 'hourglass', text: 'Where a heart should be there is glass, and in the glass, sand. It is running the wrong way.', hold: 4 },
+  ],
+  wake: [
+    { who: 'you', name: '???', text: 'Where... No. Start smaller. Who.' , mood: 'sad' },
+    { who: 'you', name: '???', text: 'Nothing. A name should be the first thing back and there is nothing where it was. Only this ticking.' },
+    { who: 'you', name: '???', text: 'Then the second thing. Move. Find out what the ticking is for.', mood: 'stern' },
   ],
 
-  firstSteps: [
-    { who: 'ilse', name: 'Ilse', text: 'Designation: wayfinder. Function: survey, record, lead. Status...' },
-    { who: 'ilse', name: 'Ilse', text: 'Incomplete. The core is lit, but the map in it is blank. The bench is cold. The maker is a shape of ash in the chair.', mood: 'sad' },
-    { who: 'ilse', name: 'Ilse', text: 'Then I will begin the way every map begins. With the first step, and the word "here".', mood: 'stern' },
-  ],
-
-  pell: {
-    intro: [
-      { who: 'pell', name: '???', text: 'A light. A walking light, down the Threshold road. Nothing has walked that road in a hundred years, and nothing living has walked it in longer.' },
-      { who: 'ilse', name: 'Ilse', text: 'I am Ilse. I am a wayfinder. I was made to draw the map.' },
-      { who: 'pell', name: 'Pell', text: 'Pell. I lit the lamps on this street for forty years, and I have stood under this one for a hundred more. Old habits.' },
-      { who: 'pell', name: 'Pell', text: 'Orin said he would send someone. I thought he meant a person. The map burned, wayfinder. The Engine district, the Cathedral, the Cisterns. All of it.' },
-      { who: 'ilse', name: 'Ilse', text: 'Then I will draw it again. Where does the road go?', mood: 'stern' },
-      { who: 'pell', name: 'Pell', text: 'East, to the Sun-Engine. It still breathes. Something lives in its heart that eats the lost, and it has had a long time to get hungry.' },
-      { who: 'pell', name: 'Pell', text: 'Above my post there is a door you cannot see yet. When you can see it, you will be nearly done. Go on. I will keep the lamp.' },
+  screenEnter: {
+    A2: [
+      { who: 'you', name: '???', text: 'A door, shut. A plate on the far side of the room. Too far to run it before the door closes again.' },
+      { who: 'you', name: '???', text: 'The glass in my chest pulls when I think about the door. As if it wants to mark the place. As if I could set a pin in the moment and come back to it.', mood: 'stern' },
+      { title: 'ANCHOR', sub: 'F sets an anchor in time. F again returns you to it. Returning costs thread.', hold: 4 },
     ],
-    afterDash: [
-      { who: 'pell', name: 'Pell', text: 'You came out of the Engine with its fire in your heels. Orin stole from his own machines to build you. He never did like waste.' },
-      { who: 'pell', name: 'Pell', text: 'The Cathedral of Soot is above the collapsed avenue, behind a wall the ash cracked. The choir up there never stopped singing. It should have.' },
-      { who: 'ilse', name: 'Ilse', text: 'Why do you stay under the lamp, Pell?' },
-      { who: 'pell', name: 'Pell', text: 'Because someone has to be where the map says they are. Otherwise what is a map for?' },
-    ],
-    afterDjump: [
-      { who: 'pell', name: 'Pell', text: 'Wings of ash. He made those once for a bird, and the bird flew into the Engine. You will do better. You have somewhere to go.' },
-      { who: 'pell', name: 'Pell', text: 'The Cisterns lie under the Undermarket, past the old belfry. The Bellringer tolls for the drowned down there. Do not answer it. Kessa might. Kessa answers everything.' },
-    ],
-    afterCling: [
-      { who: 'pell', name: 'Pell', text: 'You climbed out of the water. Good. Orin hung the true lantern in the Reliquary above the Cisterns\' last hall, where only a climber could reach it.' },
-      { who: 'pell', name: 'Pell', text: 'With it you will see the roads the Warden\'s shadow hides. Including the one above my post. Including, I think, a few things you would rather not.' },
-    ],
-    afterLantern: [
-      { who: 'pell', name: 'Pell', text: 'You carry the whole city in your chest now. I can almost read it from here. Every lamp I ever lit.' },
-      { who: 'ilse', name: 'Ilse', text: 'Every one. I marked them.' },
-      { who: 'pell', name: 'Pell', text: 'Then the door is above me, and the Warden is behind it. It is not cruel, wayfinder. It is only certain. Go. When the gates open, the rest of us will follow your light.' },
-    ],
-    afterWarden: [
-      { who: 'pell', name: 'Pell', text: 'It\'s quiet. This city has never once been quiet.' },
-      { who: 'pell', name: 'Pell', text: 'I think I can put the lamp down now. Lead the way, Ilse. I would like to see where it goes.' },
-    ],
-  },
-
-  kessa: {
-    intro: [
-      { who: 'kessa', name: 'Kessa', text: 'Mind the water. It is not deep, but it is patient, and it remembers everyone who came down these stairs.' },
-      { who: 'ilse', name: 'Ilse', text: 'You are alive.' },
-      { who: 'kessa', name: 'Kessa', text: 'Mostly. I kept the tide-gates. When the ash came I shut them, and the water stayed, and so did I. The bell rings every hour for those who did not.' },
-      { who: 'kessa', name: 'Kessa', text: 'A wayfinder, then. Orin talked about you, down here, when he could not sleep. He said a map is a promise that the way exists. He was not sure he believed it.' },
-      { who: 'ilse', name: 'Ilse', text: 'I was not built to believe. I was built to measure. The way will exist when I have drawn it.', mood: 'stern' },
-      { who: 'kessa', name: 'Kessa', text: 'Then draw quickly. The Bellringer is east of here, and it has learned to tell your footsteps from the water\'s.' },
-    ],
-    again: [
-      { who: 'kessa', name: 'Kessa', text: 'Still here. The water keeps the time; I keep the water. Go east when you are ready. The bell will know you.' },
-    ],
-    afterBell: [
-      { who: 'kessa', name: 'Kessa', text: 'The bell has stopped. I have counted the hours by it for so long that the silence is heavier than the sound was.' },
-      { who: 'kessa', name: 'Kessa', text: 'Its hands were iron. Orin said it was his best work before you. He said that about everything until you.' },
-      { who: 'kessa', name: 'Kessa', text: 'The Reliquary hangs above the last hall. He kept his dearest thing there. Climb, wayfinder. I will open the tide-gates when the city empties. I would like to see the sea again.' },
-    ],
-    afterWarden: [
-      { who: 'kessa', name: 'Kessa', text: 'The water is moving. I did not open the gates. It just... went, the way water does when it finally remembers the sea.' },
-      { who: 'kessa', name: 'Kessa', text: 'Go up, Ilse. I will be the last one out. Someone should be.' },
-    ],
+    A3: [{ title: 'STRIKE', sub: 'X strikes. Three strikes chain. Up + X cuts upward. Down + X in the air bounces off what you hit. Every hit earns thread.', hold: 4.5 }],
+    R1: [{ who: 'you', name: 'Tam', text: 'Rust. The whole district is rusting, and it is rusting fast. Something here is running time forward and spending it on nothing.' }],
+    H4: [{ who: 'you', name: 'Tam', text: 'Pendulum weights, falling through the shaft faster than I can climb. If time around them ran thick as tar...', mood: 'stern' }],
+    T1: [{ who: 'you', name: 'Tam', text: 'The hall of the Regent. Every gear in the city turns from here. And there he is, not even standing to meet me.', mood: 'stern' }],
+    D4: [{ who: 'you', name: 'Tam', text: 'The stair is broken. The stones are still here, scattered; they only fell. Falling is a thing that happens in time. Time can be asked to give it back.' }],
+    M2: [{ who: 'you', name: 'Tam', text: 'A weighted gate. It will not stay open unless something stands on the plate while I pass. I have no one. Unless I count the last few seconds of myself.' }],
+    U4: [{ who: 'you', name: 'Tam', text: 'Light. Real light, from above. And a voice I know, calling my name down the shaft.', mood: 'sad' }],
   },
 
   regionEnter: {
-    furnace: [{ who: 'ilse', name: 'Ilse', text: 'Heat. The Engine district still breathes. Something in here is alive, or has decided to be.' }],
-    cathedral: [{ who: 'ilse', name: 'Ilse', text: 'Soot on every pane of glass. And a hymn above, that has not stopped in a hundred years because no one told it the service was over.' }],
-    cistern: [{ who: 'ilse', name: 'Ilse', text: 'Water. Black, still, patient. Somewhere below, a bell keeps a time no one asked it to keep.' }],
-    reliquary: [{ who: 'ilse', name: 'Ilse', text: 'Cages on chains, hung where only a climber could reach. He kept his dearest things out of everyone\'s hands. Including, I think, his own.', mood: 'sad' }],
-    spire: [{ who: 'ilse', name: 'Ilse', text: 'The Spire. Every street I have drawn ends here, at a gate that was closed to keep the dark out, and kept everything else in.', mood: 'stern' }],
+    rust: [{ who: 'you', name: 'Tam', text: 'The lower city. Sef said the Regent let it rot. She did not say it would still be rotting, visibly, while I watch.' }],
+    hours: [{ who: 'you', name: 'Tam', text: 'The Cathedral of Hours. The gears here are the size of houses and none of them have stopped. Someone keeps the city\'s time very carefully for a tyrant.' }],
+    tower: [{ who: 'you', name: 'Tam', text: 'The tower. The sand in my chest is running faster. It knows this place.', mood: 'stern' }],
+    archive: [{ who: 'you', name: 'Tam', text: 'Dark. Wet. Paper, rotting in the water, miles of it. This is where the city keeps what it would rather not remember.', mood: 'sad' }],
+    mills: [{ who: 'you', name: 'Tam', text: 'Bone dust. The mills ground something fine down here for a long time, and it was not grain.' }],
+    root: [{ who: 'you', name: 'Tam', text: 'Roots, red as veins, going up. Everything that grows wants the light. So do I.' }],
   },
 
+  sef: {
+    jetty: [
+      { who: 'sef', name: '???', text: 'Easy. Easy. You are shaking. The Warden had you by the chain and you cut through it like it was thread. Sit a moment.' },
+      { who: 'you', name: '???', text: 'Who are you? Who am I? Why is there glass in my chest?' },
+      { who: 'sef', name: 'Sef', text: 'Sef. We knew each other, before. As for you: your name is Tam, and the glass is what the Regent left you instead of a memory.', mood: 'sad' },
+      { who: 'sef', name: 'Sef', text: 'He rules the city from the clocktower. He takes the hours of the people below and keeps the Great Clock locked so no one can take them back. He took yours. He took everything you were and left you on the shore to rot.' },
+      { who: 'you', name: 'Tam', text: 'Then why am I not rotting? Why can I fold the moment and step back through it?' },
+      { who: 'sef', name: 'Sef', text: 'Because he could not take all of you. What is left is enough to climb. Enough to reach him. I have been waiting a long time for someone who could.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'Take this. It is a seal I kept from the old guild: a skip in time, a step you can take faster than anything can follow. Go up through the rust. I will find you on the way.' },
+    ],
+    jettyAgain: [{ who: 'sef', name: 'Sef', text: 'Up through the Scrapyard, Tam. The seal is on the stone there. I will be behind you.' }],
+    afterDash: [
+      { who: 'you', name: 'Tam', text: 'Sef. Sef? ...Gone, between one tick and the next. She moves like she has somewhere to be.' },
+    ],
+    root: [
+      { who: 'sef', name: 'Sef', text: 'Tam! Down here, all this time. I searched the whole city for you. I thought he had unmade you.' , mood: 'sad' },
+      { who: 'you', name: 'Tam', text: 'He threw me into the dark. He did not even seem angry, Sef. He seemed confused. He asked what you had told me.' },
+      { who: 'sef', name: 'Sef', text: 'He asks everyone that. He has had a century to learn which questions make people doubt their friends.' },
+      { who: 'sef', name: 'Sef', text: 'Listen. I have kept one last thing for you. Sever. The cut that stops the thread entirely. He cannot move through a stopped moment; nothing can but you.' },
+      { who: 'sef', name: 'Sef', text: 'Take it, go up, and end him. I will come to the Great Clock when the way is open. Then we can give the city its hours back together.', mood: 'stern' },
+    ],
+    rootAgain: [{ who: 'sef', name: 'Sef', text: 'The seal is on the altar. Take it, Tam. He is waiting, and so is everyone below.' }],
+    afterSever: [
+      { who: 'you', name: 'Tam', text: 'The Archivist said the one who asks for hours has a kind voice. The Miller said she waited by the Well for people who were desperate.', mood: 'sad' },
+      { who: 'you', name: 'Tam', text: 'He said the Regent locked the Clock to keep someone out. He did not say whom. Up, then. The answer is up.', mood: 'stern' },
+    ],
+    confront: [
+      { who: 'sef', name: 'Sef', text: 'You did it. You actually did it. Look at him, Tam. A hundred years of keeping the Clock from me and he is just a pile of robes.' },
+      { who: 'you', name: 'Tam', text: 'From you.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: '...From us. From everyone. Step aside, I need to open it before the hands settle.' },
+      { who: 'you', name: 'Tam', text: 'He said he did not bring me here. He said to ask you how my hours taste.' },
+      { who: 'sef', name: 'Sef', text: 'He was dying. The dying say things.' },
+      { who: 'you', name: 'Tam', text: 'I found the ledger pages in the Archive, Sef. The Debtors\' Well. Four hundred names. Yours at the bottom of every column.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'Then you know what you are. Good. It saves me explaining. You are my brother, Tam, and you are also four hundred people who owed me, and I am not going to let either of you keep me from that Clock.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'I scraped you clean so the wards would not smell what I poured into you. It worked. You walked straight through his door. Now be useful one last time and die where I can collect you.' },
+    ],
+  },
+
+  archivist: {
+    intro: [
+      { who: 'archivist', name: 'The Archivist', text: 'Another one thrown down the oubliette. You are early. Most of them take a day to stop screaming.' },
+      { who: 'you', name: 'Tam', text: 'The Regent did this. He will answer for it.' },
+      { who: 'archivist', name: 'The Archivist', text: 'The Regent? The Regent has not been down here in sixty years. He sends food, when he remembers. No. The one who fills this place is the one who asks.' },
+      { who: 'you', name: 'Tam', text: 'Asks for what?' },
+      { who: 'archivist', name: 'The Archivist', text: 'An hour. Just one. From a mother at a sickbed, a man with a debt, a child who does not know what an hour is worth. Such a kind voice. The ledger is in the Reading Room, if the Index lets you near it. I never could.' },
+    ],
+    again: [{ who: 'archivist', name: 'The Archivist', text: 'East. The Index guards the ledger and the ledger guards the names. Mind the paper. It cuts.' }],
+    afterIndex: [
+      { who: 'archivist', name: 'The Archivist', text: 'You read it, then. Four hundred columns. I kept the Archive for the city, and the city used it to file people.' , mood: 'sad' },
+      { who: 'archivist', name: 'The Archivist', text: 'The altar beyond holds a mending. Go up through the Mills. The Miller knew the kind voice better than I did. He married it.' },
+    ],
+    end: [{ who: 'archivist', name: 'The Archivist', text: 'The water is draining. I had forgotten the floor had a pattern.' }],
+  },
+  miller: {
+    intro: [
+      { who: 'miller', name: 'The Miller', text: 'Do not mind the dust. It is only people.' },
+      { who: 'you', name: 'Tam', text: 'The Regent\'s doing?' },
+      { who: 'miller', name: 'The Miller', text: 'You keep saying that name like it means something down here. The Regent sealed the Clock. That is all he ever did. Sealed it, and sat on it, so she could not get her hands on the rest of us at once.' },
+      { who: 'you', name: 'Tam', text: 'She.' },
+      { who: 'miller', name: 'The Miller', text: 'My wife. She ran the Well. She would sit with you by the water and ask so gently. One hour, to settle the account. The ones who gave went grey in a week. The ones who refused came down here.' },
+      { who: 'miller', name: 'The Miller', text: 'She had a brother who tried to stop her. Burned her ledgers. Then he was gone, and a month later something hollow came out of the Well wearing his face and walked off toward the tower.', mood: 'sad' },
+    ],
+    again: [{ who: 'miller', name: 'The Miller', text: 'The Grinder is east. It was a dog once. She asked it for an hour too.' }],
+    afterGrinder: [
+      { who: 'miller', name: 'The Miller', text: 'Quiet, at last. You have her eyes, you know. I did not want to say.', mood: 'sad' },
+      { who: 'miller', name: 'The Miller', text: 'The echo altar is beyond. Then the Root, all the way up. If she is waiting at the top for you, boy, do not let her sit you down by the water.' },
+    ],
+    end: [{ who: 'miller', name: 'The Miller', text: 'The wheel has stopped. I think I will go and see the sky.' }],
+  },
+
+  underground: [
+    { who: 'you', name: 'Tam', text: 'Water. Dark. He did not kill me. He dropped me down a hole like a thing he did not have time for.', mood: 'sad' },
+    { who: 'you', name: 'Tam', text: 'He said: "What has she told you?" He said it like he already knew. Up. Whatever this place is, up is where the answers are.', mood: 'stern' },
+  ],
+  loss: [
+    { who: 'regent', name: 'The Regent', text: 'Stop. Stop, I said. Do you know how long it has been since anything got through my door?', mood: 'calm' },
+    { who: 'you', name: 'Tam', text: 'You took my hours. You took my name.' },
+    { who: 'regent', name: 'The Regent', text: 'I have never seen you before in my life. And yet you reek of the Well. Four hundred... no. More. What has she told you?' },
+    { who: 'you', name: 'Tam', text: 'Enough.' },
+    { who: 'regent', name: 'The Regent', text: 'Not nearly. I do not have the hours to spare on you, and I will not let her collect what is in your chest. Go down and think.', mood: 'stern' },
+    { ill: 'fall', text: 'The hands of the Clock stopped. The floor opened like a mouth. There was a long time of nothing at all, and then water.', hold: 5 },
+  ],
+
   bosses: {
-    hound: {
-      intro: [
-        { title: 'THE CINDER HOUND', sub: 'Heart of the Sun-Engine', hold: 2.4 },
-        { who: 'ilse', name: 'Ilse', text: 'The Engine\'s core, on four legs. It still runs. It still burns. So it can still be put out.', mood: 'stern' },
-      ],
+    shallows: {
+      intro: [{ title: 'WARDEN OF THE SHALLOWS', sub: 'It has drowned many. It is good at it.', hold: 2.4 }, { who: 'you', name: '???', text: 'Armour, kelp, a chain. It is between me and the only way out. Then it is in my way.', mood: 'stern' }],
+      defeat: [{ who: 'you', name: '???', text: 'The sand in my chest ran faster while I fought. As if it liked it. I do not think I like that it liked it.', mood: 'sad' }],
+    },
+    ferrous: {
+      intro: [{ title: 'THE FERROUS MOTHER', sub: 'She rusts, and she makes more of herself from the rust.', hold: 2.4 }, { who: 'you', name: 'Tam', text: 'Iron, oxidising while I watch. Someone aged her a thousand years and she did not have the decency to fall over.', mood: 'stern' }],
+      defeat: [{ who: 'you', name: 'Tam', text: 'The rust came off her like a shed skin and went into the glass. I can feel it. Decay, held in the hand like a stone.' }],
+    },
+    escapement: {
+      intro: [{ title: 'THE ESCAPEMENT', sub: 'The Regent\'s duelist. It does not miss a beat.', hold: 2.4 }, { who: 'you', name: 'Tam', text: 'It keeps time with its blade. Fine. I will set the tempo.', mood: 'stern' }],
+      defeat: [{ who: 'you', name: 'Tam', text: 'It said one word before it stopped. "Her." I am tired of everything in this city knowing something I do not.', mood: 'sad' }],
+    },
+    regent1: {
+      intro: [{ title: 'THE REGENT OF HOURS', sub: 'He has not stood up in sixty years. He stands up.', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'Who let you up the stairs? Never mind. Hold still. This will go faster if you hold still.', mood: 'calm' }],
+      defeat: [],
+    },
+    index: {
+      intro: [{ title: 'THE INDEX', sub: 'Every name the city filed and forgot, in one body.', hold: 2.4 }, { who: 'you', name: 'Tam', text: 'Paper, and the paper is screaming. Four hundred columns of names. Let me read them.', mood: 'stern' }],
+      defeat: [{ who: 'you', name: 'Tam', text: 'The ledger. The Debtors\' Well. Every column signed at the foot in the same hand. S. Not his hand. Hers.', mood: 'sad' }],
+    },
+    grinder: {
+      intro: [{ title: 'THE GRINDER', sub: 'It was a dog once.', hold: 2.4 }, { who: 'you', name: 'Tam', text: 'Bone and millstone, running on an hour someone was asked for very kindly. I am sorry. I am going to stop you anyway.', mood: 'stern' }],
+      defeat: [{ who: 'you', name: 'Tam', text: 'It lay down the way a dog lies down. The Miller is right about the dust.', mood: 'sad' }],
+    },
+    regent: {
+      intro: [{ title: 'THE REGENT OF HOURS', sub: 'Keeper of the Great Clock', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'You climbed out. Good. Then you have met the Archivist, and the Miller, and you still came up here with your blade out. So she has you after all.', mood: 'calm' }, { who: 'you', name: 'Tam', text: 'Open the Clock.' }, { who: 'regent', name: 'The Regent', text: 'If I open it she empties the city in a night. If I do not, you will take my head and she empties it anyway. I am very old, Tam. Let us see if I am still fast.', mood: 'stern' }],
+      phase2: [{ who: 'regent', name: 'The Regent', text: 'There. There it is. Her Sever, in your hand. She gave you the one thing I could not stop. Clever woman. She was always clever.', mood: 'stern' }],
       defeat: [
-        { who: 'ilse', name: 'Ilse', text: 'The heat is going into the floor. And into me. He built me to take what his other machines carried. I am not sure he asked them.', mood: 'sad' },
+        { who: 'regent', name: 'The Regent', text: 'Enough. Enough. I kept it shut for a hundred years. Let someone else.', mood: 'calm' },
+        { who: 'you', name: 'Tam', text: 'You took everything from me.' },
+        { who: 'regent', name: 'The Regent', text: 'I never laid a hand on you until this room. I did not bring you here. I would not know how to hollow a man and fill him with other men\'s hours. I only ever knew one person who could.', mood: 'sad' },
+        { who: 'regent', name: 'The Regent', text: 'She is behind you, Tam. She has been behind you the whole way up. Ask her how your hours taste.' },
       ],
     },
-    choir: {
-      intro: [
-        { title: 'THE CHOIRMASTER', sub: 'Keeper of the Unending Hymn', hold: 2.4 },
-        { who: 'choir', name: 'Choirmaster', text: 'A new voice. Stay. Sing with us. No one leaves the choir, little lamp, and no one has wanted to.' },
-        { who: 'ilse', name: 'Ilse', text: 'The song is over. It has been over for a very long time. Let them rest.', mood: 'stern' },
-      ],
+    sef: {
+      intro: [{ title: 'SEF, THE HOURWRIGHT', sub: 'She asks so kindly.', hold: 2.6 }],
+      rewind: [{ who: 'sef', name: 'Sef', text: 'No. No, I do not think so. I have more hours than you can cut, little brother. I turn mine back.', mood: 'stern' }],
       defeat: [
-        { who: 'choir', name: 'Choirmaster', text: '...so quiet. I had forgotten what the quiet was for.', mood: 'sad' },
-        { who: 'ilse', name: 'Ilse', text: 'For sleeping. Go on. I will mark where you were.' },
-      ],
-    },
-    bell: {
-      intro: [
-        { title: 'THE BELLRINGER', sub: 'Who Tolls for the Drowned', hold: 2.4 },
-        { who: 'ilse', name: 'Ilse', text: 'It rings for everyone the water took. Then let it ring once more, loudly, and for the last time.', mood: 'stern' },
-      ],
-      defeat: [
-        { who: 'ilse', name: 'Ilse', text: 'Still water. Its hands were iron. Now mine are, and I am not certain that is a gift.' },
-      ],
-    },
-    warden: {
-      intro: [
-        { title: 'THE WARDEN', sub: 'First Work of the Last Surveyor', hold: 2.6 },
-        { who: 'warden', name: 'Warden', text: 'Wayfinder. Orin\'s last mistake, come to correct his first. The gates stay closed. Outside them is ash. Inside them is order.' },
-        { who: 'ilse', name: 'Ilse', text: 'Inside them is nothing. Everyone here is dead, Warden. You are guarding a tomb and calling it a city.', mood: 'stern' },
-        { who: 'warden', name: 'Warden', text: 'Then I guard it well.' },
-      ],
-      phase2: [
-        { who: 'warden', name: 'Warden', text: 'Why do you keep standing? He did not build you for this. He built you to draw.' },
-        { who: 'ilse', name: 'Ilse', text: 'He built me a map. The map says: forward.', mood: 'stern' },
-      ],
-      defeat: [
-        { who: 'warden', name: 'Warden', text: '...my instruction. Protect the city. I cannot see how. Where is the city? Show me the city.', mood: 'calm' },
-        { who: 'ilse', name: 'Ilse', text: 'It was never the walls. It is the people, and they need to leave. Protect them. Walk them out.' },
-        { who: 'warden', name: 'Warden', text: 'A new instruction. I... yes. I follow the map.', mood: 'calm' },
+        { who: 'sef', name: 'Sef', text: 'Tam. Tam, listen to me. They were debtors. They owed. I only ever took what was owed.', mood: 'sad' },
+        { who: 'you', name: 'Tam', text: 'You took their lives an hour at a time and called it arithmetic. And when I tried to stop you, you took mine and made me carry theirs.' },
+        { who: 'sef', name: 'Sef', text: 'I made you last. I made you the only thing in this city that will not run out. Is that not a kind of love?' },
+        { who: 'you', name: 'Tam', text: 'No. But I know what to do with four hundred hours that are not mine.', mood: 'stern' },
       ],
     },
   },
 
   ending: [
-    { ill: 'ascension', text: 'The Warden opened the gates it had held shut for a hundred years. Pell\'s lamp went first. Then Kessa, walking backwards so she could watch the water follow. Then the rest, a river of small lights, behind the one that walked.', hold: 7 },
-    { ill: 'map', text: 'Ilse finished the map on a hill outside Verenth, where the ash stops and the grass begins. Every street. Every door. Every name she had been given, and the one she had been given to carry.', hold: 7 },
-    { ill: 'epilogue', text: 'In the corner she drew a small house on the coast and wrote beside it "Ilse". Then she folded the map, put on her hat, and set out to see if the way existed.', hold: 8 },
-    { title: 'ASHFALL', sub: 'The Last Cartographer', hold: 4 },
-    { title: 'Thank you for playing', sub: 'Shards found and hearts gathered are shown on the map.', hold: 4 },
-  ],
-
-  orin: [
-    { who: 'orin', name: 'Orin', text: 'Ilse. You climbed. I hoped you would. I never could; my hands shook by the end.' },
-    { who: 'ilse', name: 'Ilse', text: 'You are not here. You are an echo caught in the lantern\'s glass.', mood: 'sad' },
-    { who: 'orin', name: 'Orin', text: 'An echo is a kind of map. Take the true lantern. The Warden\'s shadow cannot cross it, and neither can its certainty.' },
-    { who: 'orin', name: 'Orin', text: 'And when you face it, do not try to destroy it. It is obedient, not cruel. I made it that way, and then I made you to argue with it. Give it something new to obey.', mood: 'sad' },
-    { who: 'ilse', name: 'Ilse', text: 'Was I finished, Orin?' },
-    { who: 'orin', name: 'Orin', text: 'No. Nothing that walks is. That is rather the point of walking.' },
+    { ill: 'clock', text: 'He opened the Great Clock. The hands had been held at the same minute for a hundred years, and they were cold to the touch.', hold: 6 },
+    { ill: 'giving', text: 'Then he gave the hours back. Four hundred of them, out of the glass and into the gears, each one a stranger\'s unspent afternoon returning to the city it was stolen from. There was nothing in him that was his. He had known that since the Archive.', hold: 8 },
+    { ill: 'shoreEnd', text: 'The Regent found the hourglass on the shore where it had all begun, empty and still. He buried it above the tideline, and when the Miller asked what the stone should say, he thought for a long time and wrote only: HE GAVE THEM BACK.', hold: 8 },
+    { title: 'HOLLOW HOURS', sub: '', hold: 4 },
+    { title: 'Thank you for playing', sub: 'Memories found and hours gathered are shown on the map.', hold: 4 },
   ],
 
   shards: [
-    { title: 'Log 1', text: 'The council asks for a map that cannot burn. I have proposed a map that can walk, instead. They laughed. They will stop laughing when the Engine fails, and I would rather they did not have the chance.' },
-    { title: 'Log 2', text: 'The Warden was my first work. I gave it a single instruction: protect the city. I did not say from what. I was young, and I thought the city was made of walls.' },
-    { title: 'Log 3', text: 'The Engine is failing. The engineers lie to the council and the council lies to the streets. I have begun the wayfinder tonight. I have very little iron and less time.' },
-    { title: 'Log 4', text: 'I have named her Ilse, after my daughter, who left for the coast and did not write. A map should have somewhere it is trying to go.' },
-    { title: 'Log 5', text: 'The Warden has closed the gates. It says the ash is the enemy and the walls are the cure. It will not hear me. I made it to be certain, and now it is.' },
-    { title: 'Log 6', text: 'Her dash I took from the Hound\'s furnace core. Her wings from the Choirmaster\'s hymn engine. Her grip from the Bellringer\'s hands. I steal from my own creations to build the one that can undo them. Kessa says this is a kind of prayer. Kessa is kinder than I deserve.' },
-    { title: 'Log 7', text: 'The true lantern I have hung in the Reliquary, where only a climber can reach it. The Warden\'s shadow cannot cross true light. Neither, I am afraid, can I. The ash is in my lungs now, and in the ink.' },
-    { title: 'Log 8', text: 'I will not finish her. I will light her anyway. Ilse, if you are reading this: the Warden is not evil. It is obedient. Show it the way out and it will follow. Everything I ever made follows the map. I am sorry it had to be you who drew it.' },
+    { title: 'A kitchen', text: 'A kitchen with a low ceiling. A woman at the table, younger, laughing, counting coins into stacks. She calls you by a name that is not Tam, a child\'s name, and tells you to stop stealing the sugar.' },
+    { title: 'The Well', text: 'A stone well in a courtyard, dry. People in a line. Your sister sits on the rim with a ledger on her knee and takes each of them by the hand, and when she lets go they walk away a little slower than they came.' },
+    { title: 'An argument', text: '"They owe," she says. "Everyone owes someone." You say that no one owes her their years. She says you have always been soft, and that softness is a thing she can fix, if you keep pushing.' },
+    { title: 'Smoke', text: 'Paper burning in a brazier. Columns of names curling black. Your hands, shaking, feeding them in. Footsteps on the stair behind you and her voice, very gentle: "Oh, Tam."' },
+    { title: 'The chair', text: 'Straps. A chair bolted to the floor beside the Well. She is apologising while she does it, and she means it, which is worse. "I need something that can pass his wards. I need it to be empty. I am so sorry it has to be you."' },
+    { title: 'Pouring', text: 'The hours going in. You feel every one. A fisherman\'s last winter. A girl\'s eleventh birthday. An old man\'s afternoon nap that he was saving for after the war. Four hundred lives, not one of them yours, poured into the space where you used to be.' },
+    { title: 'The shore', text: 'Being carried. Salt. Her voice, close to your ear, rehearsing: "The Regent did this to you. The Regent took your name. Say it back to me." You cannot say anything. She lays you down and walks away without looking back.' },
+    { title: 'The thread', text: 'You understand the bar you have been spending. Every recall, every withering, every stopped second: a stranger\'s hour, burned. You have been paying her debts with their lives since the moment you woke. You stop walking for a while.' },
   ],
 
   abilities: {
-    dash:    { title: 'EMBER DASH', text: 'The Hound\'s fire, bound to a way-seal. Press C, L or Shift to dash. Cracked walls shatter before you.' },
-    djump:   { title: 'ASH WINGS', text: 'The hymn engine\'s breath. Press jump again while in the air to leap a second time.' },
-    cling:   { title: 'IRON GRIP', text: 'The Bellringer\'s hands. Press against a wall to cling and slide. Jump from the wall to leap away.' },
-    lantern: { title: 'TRUE LANTERN', text: 'Orin\'s last light. Shadow walls dissolve before you. Press V or I to cast light as a ranged strike.' },
+    dash:   { title: 'SKIP', color: '#8fb3ff', text: 'Sef\'s seal. C, L or Shift steps you forward faster than the moment can follow. Nothing can touch you mid-skip, and cracked walls shatter.' },
+    wither: { title: 'WITHER', color: '#9fc59a', text: 'The Ferrous Mother\'s decay, held in the hand. Select it with Q / E and cast with V; hold Up to cast upward. Ages whatever it strikes: rust locks crumble, the withered take double harm and slow.' },
+    stall:  { title: 'STALL', color: '#8fb3ff', text: 'The Escapement\'s stolen tempo. Cast it and everything but you moves as if through tar for a few seconds.' },
+    mend:   { title: 'MEND', color: '#7af0d0', text: 'Turn a thing back toward what it was. Nearby ruins rebuild themselves, and wounds you took in the last few seconds close.' },
+    echo:   { title: 'ECHO', color: '#e6d8ff', text: 'Leave the last three seconds of yourself behind. The echo walks where you walked, strikes where you struck, and weighs down what you stood on.' },
+    sever:  { title: 'SEVER', color: '#ff3355', text: 'Sef\'s last gift. Cut the thread: for a breath, time stops for everything but you. It costs more than any other power. You will learn exactly what.' },
   },
 };

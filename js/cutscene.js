@@ -92,6 +92,7 @@ const Cutscene = {
       ctx.strokeStyle = '#15101a'; ctx.lineWidth = 6; ctx.strokeRect(14, 14, VIEW_W - 28, VIEW_H - 28);
       ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 1; ctx.strokeRect(17.5, 17.5, VIEW_W - 35, VIEW_H - 35);
       ctx.fillStyle = '#b8202c'; ctx.fillRect(VIEW_W - 44, 26, 16, 16); ctx.fillStyle = '#e9dfc8'; ctx.fillRect(VIEW_W - 40, 30, 8, 8);
+      if (!s.text && !s.title) return;
     } else if (!this.overlay && s.title) {
       ctx.fillStyle = '#07060a';
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);

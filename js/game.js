@@ -1,32 +1,21 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// Game state machine, save system, room transitions and the main loop.
+// Game state machine, camera, time powers, zone transitions, save system.
 // ---------------------------------------------------------------------------
-const SAVE_KEY = 'ashfall-save-v1';
+const SAVE_KEY = 'hollow-hours-save-v3';
 
 const Game = {
   canvas: null, ctx: null,
-  state: 'title',
-  prevState: 'play',
-  t: 0,
-  acc: 0,
-  last: 0,
+  state: 'title', prevState: 'play',
+  t: 0, acc: 0, last: 0,
   entities: [], projectiles: [], particles: [],
-  player: null,
-  save: null,
-  hitStop: 0,
-  flashWhite: 0,
-  transition: null,   // { dir, to, t, entry }
-  pendingBoss: null,
-  pendingDialogue: null,
-  pendingEnding: false,
-  bossDefeatTimer: 0,
-  defeatedBoss: null,
-  deathT: 0,
-  overlay: null,      // { title, text, color, onClose }
-  debug: false,
-  roomIndex: 0,
-  shardStarts: {},
+  player: null, save: null,
+  cam: { x: 0, y: 0 },
+  hitStop: 0, flashWhite: 0,
+  timeScale: 1, stallT: 0, severT: 0, stopFx: 0,
+  transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
+  deathT: 0, overlay: null, debug: false, manual: false,
+  shardStarts: {}, powerIndex: 0, curScreen: null,
 
   init() {
     this.canvas = document.getElementById('game');
@@ -34,7 +23,6 @@ const Game = {
     this.ctx.imageSmoothingEnabled = false;
     Input.init();
     this.debug = /[?&]debug/.test(location.search);
-    // deterministic shard indices per room
     let n = 0;
     for (const [id, r] of Object.entries(ROOMS)) { this.shardStarts[id] = n; for (const row of r.grid) for (const ch of row) if (ch === 'M') n++; }
     this.save = this.defaultSave();
@@ -52,13 +40,12 @@ const Game = {
   },
 
   // ---- save -------------------------------------------------------------
-  defaultSave() {
-    return { room: 'T1', x: 0, y: 0, hp: 5, maxHp: 5, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, started: false };
-  },
+  defaultSave() { return { zone: 'A1', x: 0, y: 0, maxHp: 5, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
   hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
-  writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* storage unavailable */ } },
+  writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* unavailable */ } },
   readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? Object.assign(this.defaultSave(), JSON.parse(s)) : null; } catch (e) { return null; } },
   has(ab) { return !!this.save.abilities[ab]; },
+  powerList() { return POWER_ORDER.filter((p) => this.has(p)); },
   shardIndexFor(id) { return this.shardStarts[id] || 0; },
   shardCount() { let n = 0; for (let i = 0; i < Story.shards.length; i++) if (this.save.flags['shard:' + i]) n++; return n; },
   heartCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('heart:')) n++; return n; },
@@ -67,16 +54,15 @@ const Game = {
   // ---- flow ---------------------------------------------------------------
   newGame() {
     this.save = this.defaultSave();
-    this.save.started = true;
     this.player = new Player();
     this.playCutscene(Story.prologue, () => {
-      this.loadRoom('T1', 'start');
-      this.save.x = this.player.x; this.save.y = this.player.y;
+      this.loadZone('A1', 'start');
+      this.save.x = this.player.x; this.save.y = this.player.y; this.save.zone = 'A1';
       this.writeSave();
       this.state = 'play';
-      this.playCutscene(Story.firstSteps, null, true);
+      this.playCutscene(Story.wake, null, true);
     }, false, true);
-    AudioSys.playTheme('threshold');
+    AudioSys.playTheme('shore');
   },
   continueGame() {
     const s = this.readSave();
@@ -84,45 +70,72 @@ const Game = {
     this.save = s;
     this.player = new Player();
     this.player.maxHp = s.maxHp; this.player.hp = s.maxHp;
-    this.loadRoom(s.room, 'save');
+    this.loadZone(s.zone, 'save');
     this.state = 'play';
   },
-  loadRoom(id, entry) {
+  loadZone(id, entry) {
     const prevRegion = World.room ? World.room.region : null;
     const specs = World.load(id);
     this.entities = []; this.projectiles = []; this.particles = [];
-    this.pendingBoss = null;
+    this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0;
+    this.timeScale = 1; this.stallT = 0; this.severT = 0;
     const pl = this.player;
-    const room = World.room;
+    pl.anchor = null; pl.history = []; pl.frozen = 0;
+    const f = this.save.flags;
     for (const s of specs) {
       switch (s.cls) {
         case 'enemy': this.entities.push(new Enemy(s.type, s.x, s.y)); break;
         case 'pickup': this.entities.push(new Pickup(s)); break;
         case 'save': this.entities.push(new SavePoint(s)); break;
-        case 'npc': if (!(s.id === 'orin' && this.save.flags.orinGone)) this.entities.push(new Npc(s)); break;
-        case 'bossSpawn': if (room.boss && !this.save.flags['boss:' + room.boss]) { const b = new Boss(room.boss, s.x, s.y); this.entities.push(b); this.pendingBoss = b; } break;
+        case 'plate': this.entities.push(new Plate(s)); break;
+        case 'crusher': this.entities.push(new Crusher(s)); break;
+        case 'npc': {
+          if (s.id === 'sef' && ROOMS.A5 && World.screenAt(s.x * TILE, s.y * TILE).id === 'A5' && f.sefLeftJetty) break;
+          if (s.id === 'sef' && World.screenAt(s.x * TILE, s.y * TILE).id === 'U4' && (!f.regent1 || f.sefLeftRoot)) break;
+          if (s.id === 'sef2' && (!f['boss:regent'] || f['boss:sef'])) break;
+          this.entities.push(new Npc(s)); break;
+        }
+        case 'bossSpawn': {
+          if (f['boss:' + s.boss]) break;
+          if (s.boss === 'regent1' && f.regent1) break;
+          if (s.boss === 'sef' && !f.sefConfront) { this.sefSpawn = s; break; }
+          const b = new Boss(s.boss, s.x, s.y, s.arena); this.entities.push(b); this.pendingBosses.push(b); break;
+        }
       }
     }
-    // place player
-    if (entry === 'start') {
-      for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (room.grid[y][x] === 'P') pl.placeFeet(x, (y + 1) * TILE);
-    } else if (entry === 'save') {
-      pl.x = this.save.x; pl.y = this.save.y;
+    if (entry === 'start') { const p = World.startPosition(); pl.placeFeet(p.tx, p.bottom); }
+    else if (entry === 'save') { pl.x = this.save.x; pl.y = this.save.y; }
+    else if (entry === 'arrival') { const p = World.arrival; pl.placeFeet(p.tx, p.bottom); }
+    if (entry === 'save' || entry === 'start' || entry === 'arrival') { pl.vx = 0; pl.vy = 0; }
+    pl.lastSafe = { x: pl.x, y: pl.y }; pl.dashT = 0; pl.attackT = 0;
+    this.cam.x = clamp(pl.x + pl.w / 2 - VIEW_W / 2, 0, World.W - VIEW_W);
+    this.cam.y = clamp(pl.y - VIEW_H * 0.55, 0, World.H - VIEW_H);
+    AudioSys.playTheme(World.room.region);
+    this.curScreen = null;
+    this.trackScreen(true);
+    if (World.room.region !== prevRegion && Story.regionEnter[World.room.region] && !f['seen:' + World.room.region]) {
+      f['seen:' + World.room.region] = true;
+      this.pendingDialogue = Story.regionEnter[World.room.region];
     }
-    pl.vx = entry === 'save' || entry === 'start' ? 0 : pl.vx;
-    pl.lastSafe = { x: pl.x, y: pl.y };
-    pl.dashT = 0; pl.attackT = 0;
-    // music, banner, first-visit dialogue
-    AudioSys.playTheme(room.region);
-    if (room.region !== prevRegion) UI.showBanner(PALETTES[room.region].name, room.name);
-    else UI.showBanner('', room.name);
-    this.pendingDialogue = null;
-    this.bossDefeatTimer = 0;
-    if (Story.regionEnter[room.region] && !this.save.flags['seen:' + room.region] && !room.ending) {
-      this.save.flags['seen:' + room.region] = true;
-      this.pendingDialogue = Story.regionEnter[room.region];
+    this.onScreenEnter();
+  },
+  trackScreen(force) {
+    const pl = this.player;
+    const sc = World.screenAt(clamp(pl.x + pl.w / 2, 0, World.W - 1), clamp(pl.y + pl.h / 2, 0, World.H - 1));
+    if (!sc) return;
+    if (sc.id !== this.curScreen || force) {
+      const first = !this.save.explored[sc.id];
+      this.save.explored[sc.id] = true;
+      const prev = this.curScreen ? ROOMS[this.curScreen] : null;
+      this.curScreen = sc.id;
+      if (!prev || prev.region !== sc.def.region) UI.showBanner(PALETTES[sc.def.region].name, sc.def.name);
+      else if (first) UI.showBanner('', sc.def.name);
+      if (!force) this.onScreenEnter();
     }
-    if (room.ending) this.pendingEnding = true;
+  },
+  onScreenEnter() {
+    const f = this.save.flags, id = this.curScreen;
+    if (Story.screenEnter[id] && !f['scene:' + id]) { f['scene:' + id] = true; this.pendingDialogue = Story.screenEnter[id]; }
   },
   playCutscene(steps, onDone, overlay, skippable) {
     if (this.state !== 'cutscene') this.prevState = this.state === 'title' ? 'play' : this.state;
@@ -134,133 +147,119 @@ const Game = {
     }, overlay, skippable);
   },
   playEnding() {
-    this.save.completed = true;
-    this.save.flags['boss:warden'] = true;
-    this.writeSave();
+    this.save.completed = true; this.writeSave();
     AudioSys.playTheme('ending');
     this.state = 'cutscene';
-    Cutscene.play(Story.ending, () => {
-      this.state = 'title';
-      UI.menuIndex = 0;
-      AudioSys.playTheme('title');
-    }, false, true);
+    Cutscene.play(Story.ending, () => { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); }, false, true);
   },
+
+  // ---- time powers ------------------------------------------------------
+  stall(d) { this.stallT = d; this.timeScale = 0.3; AudioSys.sfx('shadow'); this.flashWhite = 0.08; },
+  sever(d) { this.severT = d; this.timeScale = 0; AudioSys.sfx('bossdie'); this.flashWhite = 0.15; World.shake = 0.2; },
 
   // ---- events -------------------------------------------------------------
   saveAtLantern() {
     const pl = this.player;
     pl.hp = pl.maxHp;
-    this.save.room = World.roomId;
-    this.save.x = pl.x; this.save.y = pl.y;
-    this.save.hp = pl.hp; this.save.maxHp = pl.maxHp;
+    this.save.zone = World.zoneId; this.save.x = pl.x; this.save.y = pl.y; this.save.maxHp = pl.maxHp;
     this.writeSave();
     AudioSys.sfx('save');
-    UI.showToast('The lantern remembers you. Progress saved.');
+    UI.showToast('The lantern keeps your hour. Progress saved.');
     this.burst(pl.x + pl.w / 2, pl.y + pl.h / 2, '#ffd27a', 16, 80);
   },
   onPickup(p) {
     const pl = this.player;
+    const sc = World.screenAt(p.x, p.y);
     if (p.kind === 'heart') {
-      this.save.flags['heart:' + World.roomId + ':' + p.x / TILE + ':' + p.y / TILE] = true;
+      this.save.flags['heart:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
       pl.maxHp++; pl.hp = pl.maxHp; this.save.maxHp = pl.maxHp;
-      AudioSys.sfx('pickup');
-      this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
-      this.overlay = { title: 'HEART EMBER', text: 'A warm coal from the old city. Maximum health increased.', color: '#ff5a5a' };
+      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
+      this.overlay = { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now. Maximum health increased.', color: '#ff5a5a' };
       this.state = 'overlay';
     } else if (p.kind === 'shard') {
       this.save.flags['shard:' + p.index] = true;
-      AudioSys.sfx('pickup');
-      this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
+      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
       const sh = Story.shards[p.index] || { title: 'Memory', text: '...' };
-      this.overlay = { title: 'MEMORY SHARD — ' + sh.title, text: sh.text, color: '#e6d8ff' };
+      this.overlay = { title: 'MEMORY — ' + sh.title, text: sh.text, color: '#e6d8ff' };
       this.state = 'overlay';
     } else if (p.kind === 'ability') {
       this.save.abilities[p.ability] = true;
-      AudioSys.sfx('ability');
-      this.burst(p.x + 8, p.y + 8, '#fff', 30, 140);
-      World.shake = 0.3;
+      AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
       const ab = Story.abilities[p.ability];
-      this.overlay = { title: ab.title, text: ab.text, color: { dash: '#ff6a2a', djump: '#ffd680', cling: '#7af0d0', lantern: '#e6d8ff' }[p.ability],
-        onClose: () => { if (p.ability === 'lantern' && World.dissolveShadows()) AudioSys.sfx('shadow'); } };
+      this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'sever') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
       this.state = 'overlay';
+      const idx = POWER_ORDER.indexOf(p.ability); if (idx >= 0) this.powerIndex = this.powerList().indexOf(p.ability);
     }
     this.writeSave();
   },
   talkTo(id) {
     const f = this.save.flags;
-    if (id === 'pell') {
-      let lines;
-      if (f['boss:warden']) lines = Story.pell.afterWarden;
-      else if (this.has('lantern')) lines = Story.pell.afterLantern;
-      else if (this.has('cling')) lines = Story.pell.afterCling;
-      else if (this.has('djump')) lines = Story.pell.afterDjump;
-      else if (this.has('dash')) lines = Story.pell.afterDash;
-      else lines = Story.pell.intro;
-      this.playCutscene(lines, null, true);
-    } else if (id === 'kessa') {
-      let lines;
-      if (f['boss:warden']) lines = Story.kessa.afterWarden;
-      else if (f['boss:bell']) lines = Story.kessa.afterBell;
-      else if (f.kessaMet) lines = Story.kessa.again;
-      else { lines = Story.kessa.intro; f.kessaMet = true; }
-      this.playCutscene(lines, null, true);
-    } else if (id === 'orin') {
-      this.playCutscene(Story.orin, () => {
-        this.save.flags.orinGone = true;
-        const n = this.entities.find((e) => e instanceof Npc && e.id === 'orin');
-        if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#e6d8ff', 20, 60); }
-        this.writeSave();
+    const pick = (table) => { for (const [cond, lines] of table) if (cond()) return lines; return null; };
+    if (id === 'sef') {
+      const here = this.curScreen;
+      if (here === 'A5') this.playCutscene(f.sefMet ? Story.sef.jettyAgain : Story.sef.jetty, () => { f.sefMet = true; this.writeSave(); }, true);
+      else this.playCutscene(f.sefRootMet ? Story.sef.rootAgain : Story.sef.root, () => { f.sefRootMet = true; this.writeSave(); }, true);
+    } else if (id === 'sef2') {
+      this.playCutscene(Story.sef.confront, () => {
+        f.sefConfront = true; this.writeSave();
+        const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef2'); if (n) n.dead = true;
+        const s = this.sefSpawn; const b = new Boss('sef', s.x, s.y, s.arena); this.entities.push(b);
+        World.bossActive = true; AudioSys.sfx('gate'); b.active = true; AudioSys.playTheme('boss');
       }, true);
+    } else if (id === 'archivist') {
+      this.playCutscene(pick([[() => f['boss:sef'], Story.archivist.end], [() => f['boss:index'], Story.archivist.afterIndex], [() => f.archMet, Story.archivist.again], [() => true, Story.archivist.intro]]), () => { f.archMet = true; this.writeSave(); }, true);
+    } else if (id === 'miller') {
+      this.playCutscene(pick([[() => f['boss:sef'], Story.miller.end], [() => f['boss:grinder'], Story.miller.afterGrinder], [() => f.millerMet, Story.miller.again], [() => true, Story.miller.intro]]), () => { f.millerMet = true; this.writeSave(); }, true);
     }
   },
   startBoss(b) {
-    this.pendingBoss = null;
+    this.pendingBosses = this.pendingBosses.filter((x) => x !== b);
     World.bossActive = true;
-    AudioSys.sfx('gate');
-    World.shake = 0.3;
-    this.playCutscene(Story.bosses[b.type].intro, () => {
-      b.active = true;
-      AudioSys.playTheme('boss');
-    }, true);
+    AudioSys.sfx('gate'); World.shake = 0.3;
+    const sc = Story.bosses[b.type];
+    this.playCutscene(sc.intro, () => { b.active = true; AudioSys.playTheme('boss'); }, true);
   },
   bossDefeated(b) {
     World.bossActive = false;
     this.save.flags['boss:' + b.type] = true;
     this.writeSave();
-    // clear hostile projectiles and summoned enemies
     for (const p of this.projectiles) if (p.hostile) p.dead = true;
-    for (const e of this.entities) if (e instanceof Enemy) e.dead = true;
+    for (const e of this.entities) if (e instanceof Enemy || e instanceof HostileEcho) e.dead = true;
+    this.player.frozen = 0; this.stopFx = 0;
     AudioSys.playTheme(World.room.region);
-    World.openGates();
-    this.bossDefeatTimer = 0.9;
-    this.defeatedBoss = b.type;
+    World.openGates && World.openGates();
+    this.bossDefeatTimer = 0.9; this.defeatedBoss = b.type;
   },
-  onPlayerDeath() {
-    this.deathT = 0;
-    this.state = 'dead';
+  scriptedLoss() {
+    const f = this.save.flags;
+    f.regent1 = true;
     World.bossActive = false;
+    for (const e of this.entities) if (e instanceof Boss) e.active = false;
+    this.player.frozen = 0;
+    this.playCutscene(Story.loss, () => {
+      this.player = Object.assign(new Player(), { maxHp: this.player.maxHp, hp: this.player.maxHp });
+      this.loadZone('D1', 'arrival');
+      this.save.zone = 'D1'; this.save.x = this.player.x; this.save.y = this.player.y; this.writeSave();
+      this.state = 'play';
+      this.pendingDialogue = Story.underground;
+    }, false, false);
   },
+  onPlayerDeath() { this.deathT = 0; this.state = 'dead'; World.bossActive = false; this.timeScale = 1; },
   respawn() {
     const s = this.readSave() || this.save;
-    // keep collected flags from the current session, respawn at last lantern
-    this.save.room = s.room; this.save.x = s.x; this.save.y = s.y;
+    this.save.zone = s.zone; this.save.x = s.x; this.save.y = s.y;
     this.player = new Player();
     this.player.maxHp = this.save.maxHp; this.player.hp = this.save.maxHp;
-    this.loadRoom(this.save.room, 'save');
+    this.loadZone(this.save.zone, 'save');
     this.state = 'play';
   },
 
-  // ---- particles ----------------------------------------------------------
-  particle(x, y, vx, vy, life, color, size) { if (this.particles.length < 400) this.particles.push(new Particle(x, y, vx, vy, life, color, size)); },
-  burst(x, y, color, n, speed) {
-    speed = speed || 80;
-    for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, s = speed * (0.3 + Math.random()); this.particle(x, y, Math.cos(a) * s, Math.sin(a) * s - 40, 0.4 + Math.random() * 0.5, color, 2 + Math.floor(Math.random() * 3)); }
-  },
+  particle(x, y, vx, vy, life, color, size) { if (this.particles.length < 500) this.particles.push(new Particle(x, y, vx, vy, life, color, size)); },
+  burst(x, y, color, n, speed) { speed = speed || 80; for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, s = speed * (0.3 + Math.random()); this.particle(x, y, Math.cos(a) * s, Math.sin(a) * s - 40, 0.4 + Math.random() * 0.5, color, 2 + Math.floor(Math.random() * 3)); } },
 
   // ---- loop ---------------------------------------------------------------
   frame(ts) {
-    let dt = (ts - this.last) / 1000;
-    this.last = ts;
+    let dt = (ts - this.last) / 1000; this.last = ts;
     if (dt > 0.1) dt = 0.1;
     this.acc += dt;
     if (this.manual) this.acc = 0;
@@ -274,88 +273,95 @@ const Game = {
     if (this.debug) this.debugKeys();
     switch (this.state) {
       case 'title': this.stepTitle(); break;
-      case 'cutscene':
-        Cutscene.update(dt);
-        if (Cutscene.overlay && this.transition === null) { this.stepParticles(dt); }
-        break;
+      case 'cutscene': Cutscene.update(dt); if (Cutscene.overlay) this.stepParticles(dt); break;
       case 'play': this.stepPlay(dt); break;
-      case 'overlay':
-        this.stepParticles(dt);
-        if (Input.hit('confirm')) { const o = this.overlay; this.overlay = null; this.state = 'play'; if (o.onClose) o.onClose(); }
-        break;
+      case 'overlay': this.stepParticles(dt); if (Input.hit('confirm')) { const o = this.overlay; this.overlay = null; this.state = 'play'; if (o.onClose) o.onClose(); } break;
       case 'map': if (Input.hit('map') || Input.hit('pause')) { this.state = 'play'; AudioSys.sfx('menu'); } break;
       case 'pause': this.stepPause(); break;
-      case 'dead':
-        this.deathT += dt;
-        this.stepParticles(dt);
-        if (this.deathT > 1.2 && Input.hit('confirm')) this.respawn();
-        break;
+      case 'dead': this.deathT += dt; this.stepParticles(dt); if (this.deathT > 1.2 && Input.hit('confirm')) this.respawn(); break;
       case 'transition': this.stepTransition(dt); break;
     }
     if (this.hitStop > 0) this.hitStop -= dt;
     if (this.flashWhite > 0) this.flashWhite -= dt;
+    if (this.stopFx > 0) this.stopFx -= dt;
     if (World.shake > 0) World.shake -= dt;
   },
   stepTitle() {
     const items = UI.titleItems();
     if (Input.hit('downDir')) { UI.menuIndex = (UI.menuIndex + 1) % items.length; AudioSys.sfx('menu'); }
     if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + items.length - 1) % items.length; AudioSys.sfx('menu'); }
-    if (Input.hit('confirm')) {
-      AudioSys.sfx('menu');
-      if (items[UI.menuIndex] === 'Continue') this.continueGame(); else this.newGame();
-    }
+    if (Input.hit('confirm')) { AudioSys.sfx('menu'); if (items[UI.menuIndex] === 'Continue') this.continueGame(); else this.newGame(); }
   },
   stepPause() {
-    if (Input.hit('downDir')) { UI.menuIndex = (UI.menuIndex + 1) % 2; AudioSys.sfx('menu'); }
-    if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + 1) % 2; AudioSys.sfx('menu'); }
+    if (Input.hit('downDir') || Input.hit('up')) { UI.menuIndex = (UI.menuIndex + 1) % 2; AudioSys.sfx('menu'); }
     if (Input.hit('pause')) { this.state = 'play'; return; }
-    if (Input.hit('confirm')) {
-      if (UI.menuIndex === 0) this.state = 'play';
-      else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); }
-    }
+    if (Input.hit('confirm')) { if (UI.menuIndex === 0) this.state = 'play'; else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); } }
   },
-  stepParticles(dt) {
-    for (const p of this.particles) p.update(dt);
-    this.particles = this.particles.filter((p) => !p.dead);
-  },
+  stepParticles(dt) { for (const p of this.particles) p.update(dt); this.particles = this.particles.filter((p) => !p.dead); },
   stepPlay(dt) {
     if (Input.hit('pause')) { this.state = 'pause'; UI.menuIndex = 0; AudioSys.sfx('menu'); return; }
     if (Input.hit('map')) { this.state = 'map'; AudioSys.sfx('menu'); return; }
-    this.save.time += dt;
     if (this.pendingDialogue) { const d = this.pendingDialogue; this.pendingDialogue = null; this.playCutscene(d, null, true); return; }
     if (this.pendingEnding) { this.pendingEnding = false; this.playEnding(); return; }
     if (this.bossDefeatTimer > 0) {
       this.bossDefeatTimer -= dt;
-      if (this.bossDefeatTimer <= 0) { this.playCutscene(Story.bosses[this.defeatedBoss].defeat, () => AudioSys.sfx('gate'), true); return; }
+      if (this.bossDefeatTimer <= 0) {
+        const type = this.defeatedBoss;
+        this.playCutscene(Story.bosses[type].defeat, () => { AudioSys.sfx('gate'); if (type === 'sef') this.pendingEnding = true; }, true);
+        return;
+      }
     }
+    this.save.time += dt;
+    // time powers
+    if (this.stallT > 0) { this.stallT -= dt; if (this.stallT <= 0) this.timeScale = 1; }
+    if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) { this.timeScale = this.stallT > 0 ? 0.3 : 1; } }
     if (this.hitStop > 0) { this.stepParticles(dt); return; }
     const pl = this.player;
     pl.update(dt);
     for (const e of this.entities) e.update(dt);
+    World.updateDoors(this.entities.filter((e) => e instanceof Plate), dt);
     for (const p of this.projectiles) p.update(dt);
     this.stepParticles(dt);
     this.entities = this.entities.filter((e) => !e.dead || e instanceof Boss);
     this.projectiles = this.projectiles.filter((p) => !p.dead);
-    if (this.state !== 'play') return; // death or cutscene triggered inside updates
+    if (this.state !== 'play') return;
+    this.trackScreen(false);
     // boss trigger
-    if (this.pendingBoss) {
-      const cx = pl.x + pl.w / 2;
-      if (cx > TILE * 3 && cx < VIEW_W - TILE * 3 && pl.y > TILE * 2 && pl.onGround) this.startBoss(this.pendingBoss);
+    for (const b of this.pendingBosses) {
+      const a = b.arena, cx = pl.x + pl.w / 2;
+      if (cx > a.x + TILE * 3 && cx < a.x + a.w - TILE * 3 && pl.y > a.y + TILE * 2 && pl.y < a.y + a.h && pl.onGround) { this.startBoss(b); break; }
     }
-    // room exits
-    const links = World.room.links;
+    // scripted first encounter
+    const reg = this.entities.find((e) => e instanceof Boss && e.type === 'regent1' && e.active);
+    if (reg && (reg.fightT > 9 || pl.hp <= 2)) { this.scriptedLoss(); return; }
+    // camera
+    this.updateCamera(dt);
+    // zone exits
     const cx = pl.x + pl.w / 2, cy = pl.y + pl.h / 2;
     if (!World.bossActive) {
-      if (cx < 0 && links.left) this.beginTransition('left', links.left);
-      else if (cx > VIEW_W && links.right) this.beginTransition('right', links.right);
-      else if (cy < 0 && links.up) this.beginTransition('up', links.up);
-      else if (cy > VIEW_H && links.down) this.beginTransition('down', links.down);
+      if (cx < 0) this.beginTransition('left'); else if (cx > World.W) this.beginTransition('right');
+      else if (cy < 0) this.beginTransition('up'); else if (cy > World.H) this.beginTransition('down');
     }
-    // safety: never leave the screen without a link
-    if (cx < -20 || cx > VIEW_W + 20 || cy > VIEW_H + 40) { pl.x = pl.lastSafe.x; pl.y = pl.lastSafe.y; pl.vx = 0; pl.vy = 0; }
+    if (cx < -20 || cx > World.W + 20 || cy > World.H + 40) { pl.x = pl.lastSafe.x; pl.y = pl.lastSafe.y; pl.vx = 0; pl.vy = 0; }
   },
-  beginTransition(dir, to) {
-    this.transition = { dir, to, t: 0, loaded: false };
+  updateCamera(dt) {
+    const pl = this.player;
+    let tx = pl.x + pl.w / 2 - VIEW_W / 2 + pl.facing * 30, ty = pl.y - VIEW_H * 0.55;
+    let minx = 0, miny = 0, maxx = World.W - VIEW_W, maxy = World.H - VIEW_H;
+    const boss = this.entities.find((e) => e instanceof Boss && e.active && !e.dead);
+    if (boss) { minx = maxx = boss.arena.x; miny = maxy = boss.arena.y; }
+    tx = clamp(tx, minx, Math.max(minx, maxx)); ty = clamp(ty, miny, Math.max(miny, maxy));
+    const k = 1 - Math.pow(0.001, dt);
+    this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k * 1.3;
+  },
+  beginTransition(dir) {
+    const pl = this.player;
+    const cx = clamp(pl.x + pl.w / 2, 0, World.W - 1), cy = clamp(pl.y + pl.h / 2, 0, World.H - 1);
+    const sc = World.screenAt(cx, cy);
+    if (!sc) { pl.x = pl.lastSafe.x; pl.y = pl.lastSafe.y; return; }
+    const to = sc.def.links[dir];
+    if (!to) { pl.x = pl.lastSafe.x; pl.y = pl.lastSafe.y; pl.vx = 0; pl.vy = 0; return; }
+    this.transition = { dir, to, from: sc, t: 0, loaded: false, relX: pl.x - sc.ox * TILE, relY: pl.y - sc.oy * TILE };
     this.state = 'transition';
   },
   stepTransition(dt) {
@@ -364,60 +370,59 @@ const Game = {
     if (!tr.loaded && tr.t >= 0.18) {
       tr.loaded = true;
       const pl = this.player;
-      this.loadRoom(tr.to, tr.dir);
+      const toZone = SCREEN_ZONE[tr.to];
+      this.loadZone(toZone, 'link');
+      const sc = World.zone.screens[tr.to];
       switch (tr.dir) {
-        case 'left': pl.x = VIEW_W - pl.w - 2; break;
-        case 'right': pl.x = 2; break;
-        case 'up': pl.y = VIEW_H - pl.h - 2; pl.vy = -JUMP_V; pl.boostT = 0.3; pl.canDouble = true; break;
-        case 'down': pl.y = 2; pl.vy = Math.max(pl.vy, 60); break;
+        case 'left': pl.x = sc.ox * TILE + VIEW_W - pl.w - 2; pl.y = sc.oy * TILE + tr.relY; break;
+        case 'right': pl.x = sc.ox * TILE + 2; pl.y = sc.oy * TILE + tr.relY; break;
+        case 'up': pl.x = sc.ox * TILE + tr.relX; pl.y = sc.oy * TILE + VIEW_H - pl.h - 2; pl.vy = -JUMP_V; pl.boostT = 0.3; break;
+        case 'down': pl.x = sc.ox * TILE + tr.relX; pl.y = sc.oy * TILE + 2; pl.vy = Math.max(pl.vy, 60); break;
       }
-      pl.lastSafe = { x: pl.x, y: pl.y };
-      pl.invuln = Math.max(pl.invuln, 0.3);
+      pl.lastSafe = { x: pl.x, y: pl.y }; pl.invuln = Math.max(pl.invuln, 0.3);
+      this.cam.x = clamp(pl.x + pl.w / 2 - VIEW_W / 2, 0, World.W - VIEW_W); this.cam.y = clamp(pl.y - VIEW_H * 0.55, 0, World.H - VIEW_H);
+      this.curScreen = null; this.trackScreen(true);
     }
-    if (tr.t >= 0.36) {
-      this.transition = null;
-      if (this.state === 'transition') this.state = 'play';
-    }
+    if (tr.t >= 0.36) { this.transition = null; if (this.state === 'transition') this.state = 'play'; }
   },
   debugKeys() {
-    const ids = Object.keys(ROOMS);
-    if (Input.pressed['Digit9']) { for (const a of ['dash', 'djump', 'cling', 'lantern']) this.save.abilities[a] = true; World.dissolveShadows && World.room && World.dissolveShadows(); }
-    if (Input.pressed['Digit0']) { this.player.hp = this.player.maxHp = 12; }
+    const ids = Object.keys(ZONES);
+    if (Input.pressed['Digit9']) { for (const a of ['dash', 'wither', 'stall', 'mend', 'echo', 'sever']) this.save.abilities[a] = true; this.player.thread = 9; }
+    if (Input.pressed['Digit0']) { this.player.hp = this.player.maxHp = 12; this.player.thread = 9; }
     if (Input.pressed['BracketRight'] || Input.pressed['BracketLeft']) {
-      this.roomIndex = (ids.indexOf(World.roomId) + (Input.pressed['BracketRight'] ? 1 : ids.length - 1)) % ids.length;
-      this.loadRoom(ids[this.roomIndex], 'debug');
-      this.player.x = 24; this.player.y = 300; this.player.vy = 0;
-      this.state = 'play';
+      const i = (ids.indexOf(World.zoneId) + (Input.pressed['BracketRight'] ? 1 : ids.length - 1)) % ids.length;
+      this.loadZone(ids[i], 'debug'); this.player.x = 24; this.player.y = 300; this.player.vy = 0; this.state = 'play';
     }
   },
 
   // ---- drawing ------------------------------------------------------------
   draw() {
-    const ctx = this.ctx;
-    const t = this.t;
+    const ctx = this.ctx, t = this.t;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, VIEW_W, VIEW_H);
     if (this.state === 'title') { UI.drawTitle(ctx, t); return; }
     if (this.state === 'cutscene' && !Cutscene.overlay) { Cutscene.draw(ctx, t); return; }
     if (!World.room) { ctx.fillStyle = '#07060a'; ctx.fillRect(0, 0, VIEW_W, VIEW_H); return; }
-    // world
-    if (World.shake > 0) ctx.translate(Math.round((Math.random() - 0.5) * 6), Math.round((Math.random() - 0.5) * 6));
-    Art.drawBackground(ctx, World.room.region, t, this.player.x + this.player.w / 2);
-    World.draw(ctx, t);
+    const cam = this.cam;
+    const shx = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0, shy = World.shake > 0 ? Math.round((Math.random() - 0.5) * 6) : 0;
+    Art.drawBackground(ctx, World.room.region, t, cam);
+    ctx.translate(-Math.round(cam.x) + shx, -Math.round(cam.y) + shy);
+    World.draw(ctx, t, cam);
+    const pl = this.player;
+    if (pl.anchor) Art.drawAnchor(ctx, pl.anchor, t);
     for (const e of this.entities) if (!(e instanceof Boss)) e.draw(ctx, t);
     for (const e of this.entities) if (e instanceof Boss) e.draw(ctx, t);
     for (const p of this.projectiles) p.draw(ctx, t);
-    this.player.draw(ctx, t);
+    pl.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
-    // the compass core's light
-    const pl = this.player;
     if (!pl.dead) {
-      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 8, 8, pl.x + pl.w / 2, pl.y + 8, 110);
-      g.addColorStop(0, 'rgba(160,240,220,0.14)'); g.addColorStop(1, 'rgba(160,240,220,0)');
+      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 8, pl.x + pl.w / 2, pl.y + 10, 110);
+      g.addColorStop(0, 'rgba(255,214,150,0.12)'); g.addColorStop(1, 'rgba(255,214,150,0)');
       ctx.fillStyle = g; ctx.fillRect(pl.x - 120, pl.y - 120, 260, 260);
     }
-    Art.drawAtmosphere(ctx, World.room.region, t);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    Art.drawAtmosphere(ctx, World.room.region, t, cam);
+    if (this.timeScale < 1 || this.stopFx > 0) Art.drawTimeFx(ctx, t, this.timeScale, this.stopFx > 0);
     if (this.flashWhite > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 4})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     UI.drawHud(ctx, t);
     switch (this.state) {
@@ -428,7 +433,7 @@ const Game = {
       case 'dead': UI.drawDeath(ctx, t, this.deathT / 1.2); break;
       case 'transition': { const k = this.transition.t < 0.18 ? this.transition.t / 0.18 : 1 - (this.transition.t - 0.18) / 0.18; ctx.fillStyle = `rgba(0,0,0,${clamp(k, 0, 1)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); break; }
     }
-    if (this.debug) { ctx.fillStyle = '#0f0'; ctx.font = '10px monospace'; ctx.fillText(`${World.roomId} ${Math.round(pl.x)},${Math.round(pl.y)} ${this.state}`, 4, VIEW_H - 4); }
+    if (this.debug) { ctx.fillStyle = '#0f0'; ctx.font = '10px monospace'; ctx.fillText(`${World.zoneId}/${this.curScreen} ${Math.round(pl.x)},${Math.round(pl.y)} ${this.state} ts${this.timeScale}`, 4, VIEW_H - 4); }
   },
 };
 
