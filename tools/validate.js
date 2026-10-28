@@ -4,7 +4,7 @@ const fs = require('fs');
 const vm = require('vm');
 const ctx = {};
 vm.createContext(ctx);
-vm.runInContext('const ROOM_W = 40, ROOM_H = 23;' + fs.readFileSync(__dirname + '/../js/rooms.js', 'utf8') + '\nthis.ROOMS = ROOMS; this.ZONES = ZONES;', ctx);
+vm.runInContext('const ROOM_W = 40, ROOM_H = 23;' + require('./roomfiles').source() + '\nthis.ROOMS = ROOMS; this.ZONES = ZONES;', ctx);
 const ROOMS = ctx.ROOMS;
 const W = 40, H = 23;
 const errors = [];
@@ -52,7 +52,7 @@ for (const [id, r] of Object.entries(ROOMS)) {
       const otherOpen = otherEdge.filter(([, ch]) => open(ch)).map(([i]) => i);
       const common = openIdx.filter((i) => otherOpen.includes(i));
       if (!openIdx.length) errors.push(`${id}: link ${dir} but edge closed`);
-      if (common.length < 2) errors.push(`${id}: ${dir} opening ${openIdx} does not line up with ${link} ${otherOpen}`);
+      if (common.length < 2 || openIdx.join() !== otherOpen.join()) errors.push(`${id}: ${dir} opening [${openIdx}] does not match ${link} [${otherOpen}] (the player keeps its offset across a transition, so both edges must open at the same rows/columns)`);
       // map adjacency
       const dx = { left: -1, right: 1, up: 0, down: 0 }[dir];
       const dy = { left: 0, right: 0, up: -1, down: 1 }[dir];

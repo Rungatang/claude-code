@@ -208,7 +208,7 @@ const SOLVER = () => {
   const report = await page.evaluate(SOLVER);
   for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts);
   const last = report.stages[report.stages.length - 1];
-  const all = Object.keys(require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('fs').readFileSync(path.resolve(__dirname, '../js/rooms.js'), 'utf8') + ';ZONES'));
+  const all = Object.keys(require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';ZONES'));
   const everZones = new Set(), everBosses = new Set(), everPlates = new Set(); let maxShards = 0, maxHearts = 0;
   for (const st of report.stages) { st.zones.forEach((z) => everZones.add(z)); st.bosses.forEach((b) => everBosses.add(b)); (st.plates || []).forEach((p) => everPlates.add(p)); maxShards = Math.max(maxShards, st.shards); maxHearts = Math.max(maxHearts, st.hearts); }
   const plateScreens = ['A2', 'R2', 'D2', 'M2', 'U1'];
