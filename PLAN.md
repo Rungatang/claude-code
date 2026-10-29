@@ -12,7 +12,9 @@ step is done.
    traversal and exploration first, with a combat use as a second face.
 4. Lanterns that save, reset enemies, and have no enemy spawning close to them.
 5. A currency and a shop.
-6. A protagonist who is confused for most of the game. He learns only that the big bad wronged him,
+6. Doors that stay open. Timed doors that close behind you after the plate is used and you teleport
+   through are a bad mechanic: they stop you from going back into the room.
+7. A protagonist who is confused for most of the game. He learns only that the big bad wronged him,
    and works out who he really is very late. The story should be told by the world and other
    characters, not by Tam narrating it.
 
@@ -53,7 +55,11 @@ Suspects:
 
 - One-way ledges added where a lower zone meets an upper one, and drop-only entries.
 - Boss gates that stay shut, or that shut behind you after a fight starts.
-- Timed doors and weight gates met from the wrong side, with no way to hold them.
+- Timed doors and weight gates (`d` and `e` tiles). A timed door is opened by a plate, closes again
+  about two seconds after the plate is released, and the intended solution is to set an anchor,
+  press the plate, then Recall through the door before it shuts. The door then closes behind the
+  player, so they cannot walk back into the room they just opened. The player called this a
+  stupid mechanic. Rooms with timed doors today: A2, R2, D2 (and weight gates in M2 and U1).
 - The relic seals before four boss halls.
 - Zones you can only reach by falling (the scripted loss into the archive, shafts entered from above).
 - Rooms whose only exit needs a power you do not own yet, with no marker saying so.
@@ -66,10 +72,32 @@ Tasks:
 2. Add a one-way edge report to `tools/validate.js` (every drop and one-way platform that has no way
    back up) and list them in the plan notes.
 3. Record a short playtest log from the player: which room felt blocked, what they were holding.
-4. Fix the confirmed causes. Typical fixes: shortcut levers and doors that open from the far side,
+4. Replace the closing-door rule everywhere (see "Doors stay open" below).
+5. Fix the confirmed causes. Typical fixes: shortcut levers and doors that open from the far side,
    boss halls that reopen after the fight, ledges that can be climbed as well as dropped.
 
-Done when the return check passes for every room at every stage of the solver.
+### Doors stay open
+
+Rule: a door that has been opened stays open. Nothing that the player unlocks may lock behind them.
+
+- Plate and timed doors (`d`): keep the puzzle, change the ending. The plate opens the door and the
+  door latches open for good (store `door:<screen>` in the save) the first time the player passes it.
+  Until it is passed, it can still close, so the plate-and-anchor puzzle still teaches Recall. After
+  the first pass, it is open from both sides, in both directions, forever.
+- Weight gates (`e`): open while something is on the plate, as now, but latch open once the player has
+  walked through, and add a lever or plate on the near side so the way back never needs the Echo
+  again.
+- Boss gates (`D`) shut only during the fight and always reopen. The failsafe added with the "Stuck?
+  Back to lantern" pause option guards this.
+- One-way drops and returns: any room entered by a drop must have a way back up that does not depend
+  on a power the player cannot have yet.
+- Teach the rule by showing it: when a door latches, play a short click sound and a lit rune on the
+  frame so the player knows it will stay.
+- Solver: model latched doors (a door opened once is open for the rest of the stage) and add the
+  return check, so any room that can still trap the player fails the build.
+
+Done when the return check passes for every room at every stage of the solver, and no door in the
+game can close behind the player after it has been passed.
 
 ## Step 1: lanterns, saves and enemy persistence (1 to 2 days)
 
@@ -238,7 +266,7 @@ Target 4 to 6 hours for a first playthrough, up from about one.
 
 | Milestone | Contents | Checkpoint |
 |---|---|---|
-| M0 | Step 0 audit and fixes | Return check passes; the player can walk back everywhere |
+| M0 | Step 0 audit and fixes, including latching doors | Return check passes; no door closes behind the player; the player can walk back everywhere |
 | M1 | Step 1 lanterns and persistence | Rest, kill memory and safe radius verified |
 | M2 | Step 2 powers, first three | Age, Hold, Cut in with tutorial rooms and solver support |
 | M3 | Step 2 rest of the powers, Step 3 currency, shop, charms | A full economy loop plays through |
