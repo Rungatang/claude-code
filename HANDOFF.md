@@ -66,7 +66,9 @@ rewrites of every `js/art/*.js` module, of movement/combat feel in `js/entities.
 (sculpted terrain, optional screens, secrets with hearts `H` and spools `T`). If some of that is
 missing, redo it in that order.
 
-**Backlog.** Spool pickup on the game side (`Game.onPickup` kind `spool`: `maxThread++`, flag
+**Next phase.** `PLAN.md` is the agreed action plan (audit of blocked rooms, lanterns and persistence, traversal-first powers, currency and shop, exploration rewards, a longer and quieter story). Start there; the backlog below is older.
+
+**Backlog (older).** Spool pickup on the game side (`Game.onPickup` kind `spool`: `maxThread++`, flag
 `spool:<screen>:<x>:<y>`, `Game.spoolCount()`, save `maxThread`, art in `drawPickup`); a Hollow
 Knight style death mechanic (a hostile echo of the lost hour waits where you died and holds part
 of your max thread until struck down); per-speaker text blip voices (`AudioSys.sfx('text', who)`
