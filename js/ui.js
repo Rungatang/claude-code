@@ -162,14 +162,14 @@ const UI = {
     this.frame(ctx, 170, 80, 300, 220);
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PAPER; ctx.font = 'bold 24px Georgia, serif'; ctx.fillText('PAUSED', VIEW_W / 2, 120);
-    ['Resume', 'Quit to Title'].forEach((it, i) => {
+    ['Resume', 'Stuck? Back to lantern', 'Quit to Title'].forEach((it, i) => {
       const sel = i === this.menuIndex;
       ctx.fillStyle = sel ? '#fff' : '#9a9080'; ctx.font = (sel ? 'bold ' : '') + '18px Georgia, serif';
       ctx.fillText((sel ? '▸ ' : '') + it, VIEW_W / 2, 170 + i * 28);
     });
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
-    ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 240);
-    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 270);
+    ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 256);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 280);
     ctx.textAlign = 'left';
   },
 

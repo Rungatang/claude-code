@@ -312,10 +312,22 @@ const Game = {
     if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + items.length - 1) % items.length; AudioSys.sfx('menu'); }
     if (Input.hit('confirm')) { AudioSys.sfx('menu'); if (items[UI.menuIndex] === 'Continue') this.continueGame(); else this.newGame(); }
   },
+  // Escape hatch for any soft lock: go back to the last lantern, keeping everything found so far.
+  unstick() {
+    const s = this.readSave() || { zone: 'A1', x: 0, y: 0 };
+    this.save.zone = s.zone; this.save.x = s.x; this.save.y = s.y;
+    const hp = this.player.maxHp, mt = this.player.maxThread;
+    this.player = new Player(); this.player.maxHp = hp; this.player.hp = hp; this.player.maxThread = mt; this.player.thread = mt;
+    World.bossActive = false;
+    this.loadZone(this.save.zone, s.x || s.y ? 'save' : 'start');
+    this.state = 'play';
+    UI.showToast('Back at the last lantern. Everything you found is kept.');
+  },
   stepPause() {
-    if (Input.hit('downDir') || Input.hit('up')) { UI.menuIndex = (UI.menuIndex + 1) % 2; AudioSys.sfx('menu'); }
+    if (Input.hit('downDir')) { UI.menuIndex = (UI.menuIndex + 1) % 3; AudioSys.sfx('menu'); }
+    if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + 2) % 3; AudioSys.sfx('menu'); }
     if (Input.hit('pause')) { this.state = 'play'; return; }
-    if (Input.hit('confirm')) { if (UI.menuIndex === 0) this.state = 'play'; else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); } }
+    if (Input.hit('confirm')) { if (UI.menuIndex === 0) this.state = 'play'; else if (UI.menuIndex === 1) this.unstick(); else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); } }
   },
   stepParticles(dt) {
     for (const p of this.particles) p.update(dt); this.particles = this.particles.filter((p) => !p.dead);
@@ -329,6 +341,12 @@ const Game = {
   spark(x, y, dir, big) { if (this.floaters.length < 40) this.floaters.push({ x, y, vy: 0, t: 0, life: 0.14, dir, big, kind: 'spark' }); },
   stepPlay(dt) {
     this.gatePrompt(dt); World.openNeedGates();
+    // Failsafe: a fight with no living boss to fight must not keep the hall shut.
+    if (World.bossActive && !Cutscene.active) {
+      const live = this.entities.some((e) => e instanceof Boss && !e.dead);
+      if (!live) { World.bossActive = false; World.tileVersion++; }
+      else { const b = this.entities.find((e) => e instanceof Boss && !e.dead && !e.active && !this.pendingBosses.includes(e)); if (b) b.active = true; }
+    }
     if (Input.hit('pause')) { this.state = 'pause'; UI.menuIndex = 0; AudioSys.sfx('menu'); return; }
     if (Input.hit('map')) { this.state = 'map'; AudioSys.sfx('menu'); return; }
     if (this.pendingDialogue) { const d = this.pendingDialogue; this.pendingDialogue = null; this.playCutscene(d, null, true); return; }
