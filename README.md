@@ -114,3 +114,7 @@ raises health, and `[` / `]` jump between zones.
 - Enemies, bosses and their projectiles run at 70% speed (`TEMPO` in `js/util.js`), so every telegraph and recovery is longer.
 - Hits throw both sides: enemies and bosses are knocked back, the player is thrown away from the blow, and damage numbers, impact sparks and a red edge flash show what landed.
 - Focus (hold H or G, standing still): converts 3 thread into 1 hour in about one second. Taking a hit interrupts it.
+
+## Controller
+
+Any standard gamepad works (plug it in and press a button): left stick or d-pad move, A jump, X strike, B dash, Y cast, LB / RB choose a power, LT set or return to the anchor, hold RT to focus, Select map, Start pause. Up on the stick reads tablets, talks and rests at lanterns.

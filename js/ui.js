@@ -150,8 +150,9 @@ const UI = {
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
     ctx.fillText('Arrows / WASD move    Z / Space jump    X strike (Up+X, Down+X in air)    C / Shift skip', VIEW_W / 2, 296);
     ctx.fillText('F anchor / return    Q / E choose power    V cast    Up talk / rest    M map    Esc pause    N mute', VIEW_W / 2, 312);
-    ctx.fillStyle = '#7a5a5a'; ctx.fillText('Contains themes of coercion and death. Not for children.', VIEW_W / 2, 330);
-    ctx.fillStyle = '#5a5050'; ctx.fillText('press Enter', VIEW_W / 2, 350);
+    ctx.fillText('Controller: A jump   X strike   B dash   Y cast   LB / RB choose power   LT anchor   hold RT focus   Select map   Start pause', VIEW_W / 2, 322);
+    ctx.fillStyle = '#7a5a5a'; ctx.fillText('Contains themes of coercion and death. Not for children.', VIEW_W / 2, 338);
+    ctx.fillStyle = '#5a5050'; ctx.fillText('press Enter or A', VIEW_W / 2, 354);
     ctx.textAlign = 'left';
   },
   titleItems() { return ['New Game', Game.hasSave() ? 'Continue' : null].filter(Boolean); },

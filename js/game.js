@@ -280,6 +280,7 @@ const Game = {
     let dt = (ts - this.last) / 1000; this.last = ts;
     if (dt > 0.1) dt = 0.1;
     this.acc += dt;
+    Input.poll();
     if (this.manual) this.acc = 0;
     while (this.acc >= DT) { this.step(DT); this.acc -= DT; Input.flush(); }
     this.draw();

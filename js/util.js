@@ -65,22 +65,22 @@ const Input = {
   pressed: {},
   anyPressed: false,
   bindings: {
-    left: ['ArrowLeft', 'KeyA'],
-    right: ['ArrowRight', 'KeyD'],
-    up: ['ArrowUp', 'KeyW'],
-    downDir: ['ArrowDown', 'KeyS'],
-    jump: ['KeyZ', 'Space', 'KeyK'],
-    attack: ['KeyX', 'KeyJ'],
-    dash: ['KeyC', 'KeyL', 'ShiftLeft', 'ShiftRight'],
-    cast: ['KeyV', 'KeyI'],
-    anchor: ['KeyF', 'KeyR'],
-    heal: ['KeyH', 'KeyG'],
-    spellPrev: ['KeyQ', 'KeyU'],
-    spellNext: ['KeyE', 'KeyO'],
-    map: ['KeyM', 'Tab'],
-    pause: ['Escape', 'KeyP'],
-    confirm: ['Enter', 'KeyZ', 'Space', 'KeyK', 'KeyX', 'KeyJ'],
-    skip: ['Escape'],
+    left: ['ArrowLeft', 'KeyA', 'PadLeft'],
+    right: ['ArrowRight', 'KeyD', 'PadRight'],
+    up: ['ArrowUp', 'KeyW', 'PadUp'],
+    downDir: ['ArrowDown', 'KeyS', 'PadDown'],
+    jump: ['KeyZ', 'Space', 'KeyK', 'PadA'],
+    attack: ['KeyX', 'KeyJ', 'PadX'],
+    dash: ['KeyC', 'KeyL', 'ShiftLeft', 'ShiftRight', 'PadB'],
+    cast: ['KeyV', 'KeyI', 'PadY'],
+    anchor: ['KeyF', 'KeyR', 'PadLT'],
+    heal: ['KeyH', 'KeyG', 'PadRT'],
+    spellPrev: ['KeyQ', 'KeyU', 'PadLB'],
+    spellNext: ['KeyE', 'KeyO', 'PadRB'],
+    map: ['KeyM', 'Tab', 'PadSelect'],
+    pause: ['Escape', 'KeyP', 'PadStart'],
+    confirm: ['Enter', 'KeyZ', 'Space', 'KeyK', 'KeyX', 'KeyJ', 'PadA', 'PadX', 'PadStart'],
+    skip: ['Escape', 'PadSelect'],
   },
   init() {
     window.addEventListener('keydown', (e) => {
@@ -96,6 +96,33 @@ const Input = {
     window.addEventListener('blur', () => {
       this.down = {};
     });
+  },
+  // Gamepad (standard mapping): the pad is folded into the same down/pressed tables as the keyboard
+  // under 'Pad*' codes, so every binding above works for both at once.
+  padPrev: {},
+  padActive: false,
+  poll() {
+    if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
+    const pads = navigator.getGamepads(); let pad = null;
+    for (const p of pads) if (p && p.connected) { pad = p; break; }
+    const now = {};
+    if (pad) {
+      const b = (i) => !!(pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5));
+      const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dz = 0.45;
+      now.PadLeft = b(14) || ax < -dz; now.PadRight = b(15) || ax > dz;
+      now.PadUp = b(12) || ay < -dz; now.PadDown = b(13) || ay > dz;
+      now.PadA = b(0); now.PadB = b(1); now.PadX = b(2); now.PadY = b(3);
+      now.PadLB = b(4); now.PadRB = b(5); now.PadLT = b(6); now.PadRT = b(7);
+      now.PadSelect = b(8); now.PadStart = b(9);
+      if (!this.padActive) { this.padActive = true; if (typeof UI !== 'undefined' && UI.showToast) UI.showToast('Controller connected'); }
+    }
+    let any = false;
+    for (const k of ['PadLeft', 'PadRight', 'PadUp', 'PadDown', 'PadA', 'PadB', 'PadX', 'PadY', 'PadLB', 'PadRB', 'PadLT', 'PadRT', 'PadSelect', 'PadStart']) {
+      const on = !!now[k];
+      if (on && !this.padPrev[k]) { this.pressed[k] = true; any = true; }
+      this.down[k] = on; this.padPrev[k] = on;
+    }
+    if (any) { this.anyPressed = true; if (typeof AudioSys !== 'undefined') AudioSys.unlock(); }
   },
   held(action) {
     const b = this.bindings[action];
