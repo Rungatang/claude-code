@@ -9,6 +9,7 @@ const path = require('path');
 const SOLVER = () => {
   const macroCache = {};
   let curKey = null;
+  let relicsKnown = 0; // shards + hearts + spools reached so far; opens the relic-sealed boss gates
   const setInput = (held, taps) => { Input.down = {}; Input.pressed = {}; for (const k of held) Input.down[k] = true; for (const k of taps || []) { Input.down[k] = true; Input.pressed[k] = true; } };
   const prepZone = (zoneId, abilities) => {
     Game.manual = true;
@@ -31,13 +32,13 @@ const SOLVER = () => {
       if (ch === 'R' && abilities.includes('mend')) World.tiles[y][x] = '#';
       if (ch === 'd') World.tiles[y][x] = '.';
       if (ch === 'e') World.tiles[y][x] = abilities.includes('echo') ? '.' : '#';
-      if (ch === 'G') { const sc = World.screenAt(x * TILE, y * TILE); const flag = sc && sc.def.gateFlag; if (!flag || Game.save.flags[flag]) World.tiles[y][x] = '.'; }
+      if (ch === 'G') { const sc = World.screenAt(x * TILE, y * TILE); const flag = sc && sc.def.gateFlag; if (sc && sc.def.gateNeeds && relicsKnown >= sc.def.gateNeeds) World.tiles[y][x] = '.'; else if (!flag || Game.save.flags[flag]) World.tiles[y][x] = '.'; }
     }
     if (!abilities.includes('stall')) for (const s of specs) if (s.cls === 'crusher') {
       let ty = s.y + 1; while (ty < World.zone.H && !World.isSolid(World.tile(s.x, ty)) && World.tile(s.x, ty) !== '=') ty++;
       for (let yy = s.y; yy < ty; yy++) for (let xx = s.x; xx < s.x + s.w; xx++) if (World.tiles[yy][xx] === '.') World.tiles[yy][xx] = '^';
     }
-    curKey = zoneId + '|' + abilities.join(',');
+    curKey = zoneId + '|' + abilities.join(',') + '|' + relicsKnown;
     if (!macroCache[curKey]) macroCache[curKey] = {};
     return specs;
   };
@@ -157,41 +158,47 @@ const SOLVER = () => {
   const report = { stages: [] };
   const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
   for (let stage = 0; stage < 8; stage++) {
-    const visited = new Set();
-    const queue = [['A1', { kind: 'start' }]];
-    const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, spools: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set() };
-    const found = new Set();
-    while (queue.length) {
-      const [zone, entry] = queue.shift();
-      const vk = zone + ':' + JSON.stringify(entry);
-      if (visited.has(vk)) continue; visited.add(vk);
-      reached.zones.add(zone);
-      const es = entrySeeds(zone, abilities, entry);
-      const { out, sp } = explore(zone, abilities, es.seeds);
-      for (const t of es.touched) out.touched.add(t);
-      for (const i of out.touched) {
-        const s = sp[i]; reached.screens.add(s.screen);
-        const k = zone + ':' + s.x + ':' + s.y; if (found.has(k)) continue; found.add(k);
-        const def = ROOMS[s.screen];
-        if (s.ch === 'A') reached.abilities.add(def.ability);
-        if (s.ch === 'M') reached.shards++;
-        if (s.ch === 'H') reached.hearts++;
-        if (s.ch === 'T') reached.spools++;
-        if (s.ch === 'S') { reached.saves.add(s.screen); queue.push([zone, { kind: 'save' }]); }
-        if (s.ch === 'B') reached.bosses.add(def.boss);
-        if (s.ch === 'N') reached.npcs.add(def.npc);
-        if (s.ch === 'p') reached.plates.add(s.screen);
+    let info;
+    for (let pass = 0; pass < 8; pass++) {
+      const visited = new Set();
+      const queue = [['A1', { kind: 'start' }]];
+      const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, spools: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set() };
+      const found = new Set();
+      while (queue.length) {
+        const [zone, entry] = queue.shift();
+        const vk = zone + ':' + JSON.stringify(entry);
+        if (visited.has(vk)) continue; visited.add(vk);
+        reached.zones.add(zone);
+        const es = entrySeeds(zone, abilities, entry);
+        const { out, sp } = explore(zone, abilities, es.seeds);
+        for (const t of es.touched) out.touched.add(t);
+        for (const i of out.touched) {
+          const s = sp[i]; reached.screens.add(s.screen);
+          const k = zone + ':' + s.x + ':' + s.y; if (found.has(k)) continue; found.add(k);
+          const def = ROOMS[s.screen];
+          if (s.ch === 'A') reached.abilities.add(def.ability);
+          if (s.ch === 'M') reached.shards++;
+          if (s.ch === 'H') reached.hearts++;
+          if (s.ch === 'T') reached.spools++;
+          if (s.ch === 'S') { reached.saves.add(s.screen); queue.push([zone, { kind: 'save' }]); }
+          if (s.ch === 'B') reached.bosses.add(def.boss);
+          if (s.ch === 'N') reached.npcs.add(def.npc);
+          if (s.ch === 'p') reached.plates.add(s.screen);
+        }
+        // the scripted loss: reaching the Regent's hall without sever drops you into the Archive
+        if (reached.bosses.has('regent1') && !abilities.includes('sever')) queue.push(['D1', { kind: 'arrival' }]);
+        for (const [dir, cx, cy] of out.exits) {
+          const sc = World.screenAt(clamp(cx, 0, World.W - 1), clamp(cy, 0, World.H - 1));
+          if (!sc) continue;
+          const to = sc.def.links[dir]; if (!to) continue;
+          queue.push([SCREEN_ZONE[to], { kind: 'edge', screen: to, dir: opposite[dir] }]);
+        }
       }
-      // the scripted loss: reaching the Regent's hall without sever drops you into the Archive
-      if (reached.bosses.has('regent1') && !abilities.includes('sever')) queue.push(['D1', { kind: 'arrival' }]);
-      for (const [dir, cx, cy] of out.exits) {
-        const sc = World.screenAt(clamp(cx, 0, World.W - 1), clamp(cy, 0, World.H - 1));
-        if (!sc) continue;
-        const to = sc.def.links[dir]; if (!to) continue;
-        queue.push([SCREEN_ZONE[to], { kind: 'edge', screen: to, dir: opposite[dir] }]);
-      }
+      info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, spools: reached.spools, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates] };
+      const relics = info.shards + info.hearts + info.spools;
+      if (relics <= relicsKnown) break;
+      relicsKnown = relics;
     }
-    const info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, spools: reached.spools, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates] };
     report.stages.push(info);
     if (!info.newAbilities.length) break;
     for (const a of info.newAbilities) abilities.push(a);

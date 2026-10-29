@@ -45,11 +45,8 @@ const Story = {
     jetty: [
       { who: 'sef', name: '???', text: 'Easy. Easy. You are shaking. The Warden had you by the chain and you cut through it like it was thread. Sit a moment.' },
       { who: 'you', name: '???', text: 'Who are you? Who am I? Why is there glass in my chest?' },
-      { who: 'sef', name: 'Sef', text: 'Sef. We knew each other, before. As for you: your name is Tam, and the glass is what the Regent left you instead of a memory.', mood: 'sad' },
-      { who: 'sef', name: 'Sef', text: 'He rules the city from the clocktower. He takes the hours of the people below and keeps the Great Clock locked so no one can take them back. He took yours. He took everything you were and left you on the shore to rot.' },
-      { who: 'you', name: 'Tam', text: 'Then why am I not rotting? Why can I fold the moment and step back through it?' },
-      { who: 'sef', name: 'Sef', text: 'Because he could not take all of you. What is left is enough to climb. Enough to reach him. I have been waiting a long time for someone who could.', mood: 'stern' },
-      { who: 'sef', name: 'Sef', text: 'Take this. It is a seal I kept from the old guild: a skip in time, a step you can take faster than anything can follow. Go up through the rust. I will find you on the way.' },
+      { who: 'sef', name: 'Sef', text: 'Sef. Your name is Tam. That much I can give you. The rest is not mine to say yet. Walk a while, and let the city show you.', mood: 'sad' },
+      { who: 'sef', name: 'Sef', text: 'Take this. A seal I kept from the old guild: a skip in time. Go up through the rust. I will find you on the way.' },
     ],
     jettyAgain: [{ who: 'sef', name: 'Sef', text: 'Up through the Scrapyard, Tam. The seal is on the stone there. I will be behind you.' }],
     afterDash: [
@@ -196,7 +193,7 @@ const Story = {
     A1: [{ title: 'ON THE TIDELINE', text: 'Whoever reads this woke on the shore, as we all did. The sea brings only two things to this city: the drowned, and those the Hourwright is finished with. Learn which you are. Walk right. Strike with X; the first blow makes room for a second and a third.' }],
     A2: [{ title: 'THE FIRST LESSON', text: 'A door that closes behind you is not a wall. Fix a point in time where you stand (F) and the stair will remember you there. Press what must be pressed, then return. The city teaches this to every child. Few remember being taught.' }],
     A3: [{ title: 'ON THE DROWNED', text: 'The husks were people who paid everything and kept walking. They pull back before they lunge: the whole body coils and the eyes go green. That pause is a courtesy. Use it. Step back or strike first; do not stand and wait.' }],
-    A5: [{ title: 'ON THE JETTY', text: 'Here the Hourwrights kept their boats. They did not sail them. They stood at the end of the planks and gave the sea the ones who could not pay. Someone has scratched beneath this, in a newer hand: SHE STILL COMES HERE.' }],
+    A5: [{ title: 'ON THE JETTY', text: 'Here the Hourwrights kept their boats. They did not sail them. They stood at the end of the planks and gave the sea the ones who could not pay. Someone has scratched beneath this, in a newer hand: SHE STILL COMES HERE. And below that, older: THE GUARDIANS KEEP SEALS. A SEAL OPENS FOR THE CITY\'S REMEMBERED THINGS: MEMORIES, UNSPENT HOURS, WOUND THREAD. LOOK IN THE CORNERS.' }],
     R1: [{ title: 'ON THE DISTRICT', text: 'Iron rusts because time is poured into it faster than it can bear. Everything in this district was aged by hand. The knights do not know they are a hundred years dead. Their shields face forward: go over, go behind, or wait for the hammer to fall and the arms to tire.' }],
     R4: [{ title: 'ON WITHERING', text: 'To wither is to give a thing its own future all at once. A lock becomes the dust it was always going to be. A living thing slows, and breaks sooner. The Mother in the foundry learned this and it ate her from the inside. Point it upward (Up and V) at what hangs above you.' }],
     H1: [{ title: 'ON THE CATHEDRAL', text: 'The Great Clock was not built to tell the hour. It was built to hold them. Every gear in these walls is turning somebody\'s afternoon. Listen: that ticking is four hundred heartbeats, kept.' }],

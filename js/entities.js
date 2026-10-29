@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 const GRAVITY = 1500;
 const MAX_FALL = 520;
-const RUN_SPEED = 175;
+const RUN_SPEED = 158;
 const JUMP_V = 430;
 const DASH_SPEED = 580;
 const DASH_TIME = 0.17;
@@ -139,7 +139,7 @@ class Player {
       // Movement curves: a quick first response that eases into full speed (~0.12 s from rest), a hard
       // stop when the stick is released, a visible skid when reversing at speed, softer control in the air.
       const vx = this.vx;
-      if (this.hurtT > 0) this.vx = Feel.approach(vx, 0, 0, 220, dt); // thrown: nearly frictionless while reeling
+      if (this.hurtT > 0) this.vx = Feel.approach(vx, 0, 0, 520, dt); // thrown a short way while reeling
       else if (lunging) this.vx = Feel.approach(vx, target, 0, 1900, dt);
       else if (this.onGround) {
         if (target === 0) this.vx = this.attackT > 0 && this.attackPhase() !== 'recover' ? Feel.approach(vx, 0, 12, 300, dt) : Feel.approach(vx, 0, 30, 2400, dt);
@@ -415,7 +415,7 @@ class Player {
     this.recentDamage.push({ n: dmg, t: Game.t });
     this.invuln = 1.3; this.hurtT = 0.3;
     // recoil: thrown away from the source with a short hop, the sprite flinches and the world holds a beat
-    this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 270; this.vy = -250; this.healT = 0;
+    this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 150; this.vy = -190; this.healT = 0;
     Game.floaty(this.x + this.w / 2, this.y - 4, '-' + dmg, '#ff6a6a'); Game.hurtFlash = 0.45;
     this.dashT = 0; this.castT = 0; this.attackT = 0; this.anim = 'hurt';
     Feel.kick(this, 0.8, 1.15); Game.hitStop = Math.max(Game.hitStop, 0.05);
@@ -522,7 +522,7 @@ class Enemy {
     this.y = (ty + 1) * TILE - this.h;
     this.homeX = this.x; this.homeY = this.y;
     this.vx = 0; this.vy = 0; this.dir = -1;
-    this.hp = { husk: 3, hourfly: 2, archer: 3, knight: 7, wraith: 3, hound: 4 }[type];
+    this.hp = { husk: 4, hourfly: 3, archer: 4, knight: 8, wraith: 4, hound: 5 }[type];
     this.flash = 0; this.dead = false; this.stun = 0; this.withered = 0; this.poise = 0;
     this.timer = Math.random() * 1.5; this.tele = 0; this.state = 'idle'; this.cool = 0; this.aim = 0; this.phase = Math.random() * 6;
     // animation contract (read by js/art/enemies.js) and movement smoothing state
@@ -547,7 +547,7 @@ class Enemy {
     if (this.type !== 'archer') {
       const away = this.x + this.w / 2 < fromX ? -1 : 1, heavy = o.heavy || o.kind === 'pogo';
       const mass = this.type === 'knight' ? 0.5 : this.type === 'hound' ? 0.8 : 1;
-      this.vx = away * (heavy ? 300 : 120) * mass; if (this.type !== 'hourfly') this.vy = heavy ? -190 : -80;
+      this.vx = away * (heavy ? 180 : 80) * mass; if (this.type !== 'hourfly') this.vy = heavy ? -130 : -60;
       if (heavy && this.type !== 'knight') this.stun = Math.max(this.stun, 0.35);
       if (this.state === 'lunge' || this.state === 'charge' || this.state === 'dive') { this.state = 'idle'; this.cool = Math.max(this.cool, 0.9); }
       if (this.tele > 0) { this.tele = 0; this.cool = Math.max(this.cool, 0.7); }
@@ -893,6 +893,9 @@ const BOSS_DEFS = {
     ] },
 };
 
+// Bosses are long fights, not short ones: more health to work through, with the poise bar unchanged.
+for (const k in BOSS_DEFS) if (!BOSS_DEFS[k].scripted) BOSS_DEFS[k].hp = Math.round(BOSS_DEFS[k].hp * 1.5);
+
 class Boss {
   constructor(type, tx, ty, arena) {
     this.type = type; const def = BOSS_DEFS[type]; this.def = def;
@@ -915,7 +918,7 @@ class Boss {
     if (this.withered > 0) dmg *= 2;
     if (this.state === 'stagger') dmg *= 1.5;
     this.hp -= dmg; this.flash = 0.12; this.hitKick = 1;
-    this.kbv = (this.x + this.w / 2 < fromX ? -1 : 1) * (o && o.heavy ? 150 : 90);
+    this.kbv = (this.x + this.w / 2 < fromX ? -1 : 1) * (o && o.heavy ? 90 : 50);
     Feel.kick(this, 0.93, 1.06);
     AudioSys.sfx('hit');
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe08a', 6);

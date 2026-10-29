@@ -49,6 +49,15 @@ const Game = {
   shardIndexFor(id) { return this.shardStarts[id] || 0; },
   shardCount() { let n = 0; for (let i = 0; i < Story.shards.length; i++) if (this.save.flags['shard:' + i]) n++; return n; },
   spoolCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('spool:')) n++; return n; },
+  // The seal before a guardian's hall: tells the player how much of the city's memory it wants.
+  gatePrompt(dt) {
+    this.gateMsgT = (this.gateMsgT || 0) - dt; if (this.gateMsgT > 0) return;
+    const pl = this.player; const sc = World.screenAt(pl.x + pl.w / 2, pl.y + pl.h / 2); if (!sc || !sc.def.gateNeeds || this.relicCount() >= sc.def.gateNeeds) return;
+    for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (World.tiles[sc.oy + y][sc.ox + x] === 'G' && Math.abs((sc.ox + x) * TILE - pl.x) < 48 && Math.abs((sc.oy + y) * TILE - pl.y) < 90) {
+      UI.showToast('A seal of hours bars the way: ' + this.relicCount() + ' of ' + sc.def.gateNeeds + ' memories, hours and spools found.'); this.gateMsgT = 4; return;
+    }
+  },
+  relicCount() { return this.shardCount() + this.heartCount() + this.spoolCount(); },
   heartCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('heart:')) n++; return n; },
   playTime() { const s = Math.floor(this.save.time); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); },
 
@@ -317,6 +326,7 @@ const Game = {
   // A slash-shaped impact flash where a blow lands.
   spark(x, y, dir, big) { if (this.floaters.length < 40) this.floaters.push({ x, y, vy: 0, t: 0, life: 0.14, dir, big, kind: 'spark' }); },
   stepPlay(dt) {
+    this.gatePrompt(dt); World.openNeedGates();
     if (Input.hit('pause')) { this.state = 'pause'; UI.menuIndex = 0; AudioSys.sfx('menu'); return; }
     if (Input.hit('map')) { this.state = 'map'; AudioSys.sfx('menu'); return; }
     if (this.pendingDialogue) { const d = this.pendingDialogue; this.pendingDialogue = null; this.playCutscene(d, null, true); return; }

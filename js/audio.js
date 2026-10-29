@@ -808,6 +808,8 @@ const AudioSys = {
     if (!theme) return;
     const ctx = this.ctx, now = ctx.currentTime;
     const tr = mMakeTrack(this.g, theme, now + 0.08);
+    // the soundtrack sits clearly above the effects, and a fight is louder than exploration
+    this.g.music.gain.setTargetAtTime(key.indexOf('boss') === 0 ? 0.78 : 0.55, now, 0.4);
     for (const f of tr.fades) { f.gain.setValueAtTime(0, now); f.gain.linearRampToValueAtTime(1, now + 1.5); }
     this.g.delay.delayTime.setTargetAtTime((theme.delayBeats || 0.75) * 60 / theme.bpm, now, 0.3);
     this.tracks.push(tr);
