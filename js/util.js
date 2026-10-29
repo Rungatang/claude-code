@@ -105,16 +105,19 @@ const Input = {
   // Gamepad (standard mapping): the pad is folded into the same down/pressed tables as the keyboard
   // under 'Pad*' codes, so every binding above works for both at once.
   padPrev: {},
+  stickMag: 0,
+  keyMove() { return !!(this.down.ArrowLeft || this.down.ArrowRight || this.down.KeyA || this.down.KeyD); },
   padActive: false,
   poll() {
     if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
     const pads = navigator.getGamepads(); let pad = null;
     for (const p of pads) if (p && p.connected) { pad = p; break; }
-    const now = {};
+    const now = {}; this.stickMag = 0;
     if (pad) {
       const b = (i) => !!(pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5));
       const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0, dz = 0.45;
-      now.PadLeft = ax < -dz; now.PadRight = ax > dz; now.PadDLeft = b(14); now.PadDRight = b(15);
+      const sdz = 0.22; this.stickMag = Math.abs(ax) > sdz ? Math.min(1, (Math.abs(ax) - sdz) / (0.85 - sdz)) : 0;
+      now.PadLeft = ax < -sdz; now.PadRight = ax > sdz; now.PadDLeft = b(14); now.PadDRight = b(15);
       now.PadUp = b(12) || ay < -dz; now.PadDown = b(13) || ay > dz;
       now.PadA = b(0); now.PadB = b(1); now.PadX = b(2); now.PadY = b(3);
       now.PadLB = b(4); now.PadRB = b(5); now.PadLT = b(6); now.PadRT = b(7);

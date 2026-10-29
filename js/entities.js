@@ -135,7 +135,7 @@ class Player {
       if (this.dashT <= 0) this.vx = this.dashDir * RUN_SPEED * 0.6;
     } else {
       const lunging = this.attackT > 0 && this.step === 2 && this.attackKind === 'slash' && this.attackPhase() === 'active';
-      let target = move * RUN_SPEED;
+      let target = move * RUN_SPEED * (Input.stickMag > 0 && !Input.keyMove() ? Input.stickMag : 1); // analog stick: partial tilt walks slower
       if (this.attackT > 0 && this.onGround && this.attackKind !== 'pogo') target *= 0.4;
       if (lunging) target = this.facing * 260;
       // Movement curves: a quick first response that eases into full speed (~0.12 s from rest), a hard
@@ -144,12 +144,12 @@ class Player {
       if (this.hurtT > 0) this.vx = Feel.approach(vx, 0, 0, 520, dt); // thrown a short way while reeling
       else if (lunging) this.vx = Feel.approach(vx, target, 0, 1900, dt);
       else if (this.onGround) {
-        if (target === 0) this.vx = this.attackT > 0 && this.attackPhase() !== 'recover' ? Feel.approach(vx, 0, 12, 300, dt) : Feel.approach(vx, 0, 30, 2400, dt);
+        if (target === 0) this.vx = this.attackT > 0 && this.attackPhase() !== 'recover' ? Feel.approach(vx, 0, 10, 260, dt) : Feel.approach(vx, 0, 12, 760, dt);
         else if (vx !== 0 && sign(vx) !== sign(target)) { if (Math.abs(vx) > 120) { if (this.skidT <= 0) Feel.kick(this, 1.1, 0.92); this.skidT = 0.08; if (Math.random() < 0.5) Feel.dust(this, 1, 0.7, -move); } this.vx = Feel.approach(vx, 0, 0, 1900, dt); }
-        else if (Math.abs(target) > Math.abs(vx)) this.vx = Feel.approach(vx, target, 24, 1000, dt);
-        else this.vx = Feel.approach(vx, target, 30, 2400, dt);
+        else if (Math.abs(target) > Math.abs(vx)) this.vx = Feel.approach(vx, target, 10, 480, dt);
+        else this.vx = Feel.approach(vx, target, 14, 800, dt);
       } else {
-        if (target === 0) this.vx = Feel.approach(vx, 0, 10, 900, dt);
+        if (target === 0) this.vx = Feel.approach(vx, 0, 8, 600, dt);
         else this.vx = Feel.approach(vx, target, 15, 700, dt);
       }
       if (move !== 0 && controllable && this.attackT <= 0 && this.castT <= 0) this.facing = move;
