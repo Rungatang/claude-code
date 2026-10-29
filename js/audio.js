@@ -390,7 +390,7 @@ MUSIC_THEMES.title = {
     bpm: 104, beats: 5, delayBeats: 1,
     voices: { clock: { inst: 'drums', vol: 0.7, pan: 0.2 }, strings: { inst: 'strings', vol: 0.5, pan: -0.15 }, stabs: { inst: 'stab', vol: 0.5, pan: 0.25 }, bass: { inst: 'subbass', vol: 0.6 }, bell: { inst: 'bell', vol: 0.35, pan: -0.3 }, pizz: { inst: 'basspluck', vol: 0.4, pan: -0.1 } },
     sections: {
-      intro: { bars: 4, clock: mRep(clock, 4), bass: '39/10 | 39/10', bell: 'r/15 75/5@.6', pizz: 'r/10 ' + mRep(pizz(51), 2) },
+      intro: { bars: 4, clock: mRep(clock, 2) + ' ' + mRep(clockFast, 2), bass: '39/10 | 39/10', bell: 'r/15 75/5@.6', stabs: 'r/10 ' + mRep('r/2.5 63+64/.5@.7 r/2', 2), pizz: 'r/10 ' + mRep(pizz(51), 2) },
       A: { bars: 8, clock: mRep(clock, 8), strings: motifAug, bass: '39/5 | 39/5 | 35/5 | 34/5 | 39/5 | 39/5 | 37/5 | 34/5', pizz: [51, 51, 47, 46, 51, 51, 49, 46].map(pizz).join(' | '),
         stabs: mRep('r/2.5 63+64/.5@.9 r/2', 4) + ' ' + mRep('r/1.5 63+64/.5@.9 r/2.5 70+71/.5@.7', 4),
         bell: ['r/35 70/5@.5', '75/5@.5 r/15 70/5@.5 r/15'] },
@@ -410,7 +410,7 @@ MUSIC_THEMES.title = {
 // archive: drowned and slow. A detuned pad that sinks flat, a whole-tone
 // glass line, a choir that bends, and water drips for percussion.
 {
-  const dripsA = 'r/1.5 76/.5@.7 r/1 81/.25@.4 r/.75 | r/.75 84/.25@.3 r/2 79/.5@.6 r/.5 | r/.5 74/.5@.7 r/1.75 86/.25@.35 r/1 | r/2 83/.5@.4 r/1 77/.25@.3 r/.25 | r/2.5 81/.5@.6 r/1 | r/1 76/.5@.7 r/1.5 88/.25@.3 r/.75 | r/1 85/.25@.3 r/2.5 72/.5@.7 | r/2 79/.5@.6 74/.5@.6 r/1';
+  const dripsA = 'r/1.5 76/.5@.7 r/1 81/.25@.4 r/.75 | r/.75 84/.25@.3 r/2 79/.5@.6 r/.5 | r/.5 74/.5@.7 r/1.75 86/.25@.35 r/1 | r/2 83/.5@.4 r/1 77/.25@.3 r/.25 | r/2.5 81/.5@.6 r/1 | r/1 76/.5@.7 r/1.5 88/.25@.3 r/.75 | r/1 85/.25@.3 r/2.25 72/.5@.7 | r/2 79/.5@.6 74/.5@.6 r/1';
   const dripsB = 'r/.5 79/.5@.6 r/3 | r/2 84/.25@.4 r/1.75 | r/1 76/.5@.7 r/1.5 88/.25@.3 r/.75 | r/3.5 81/.5@.5 | r/1.5 74/.5@.7 r/2 | r/2.5 86/.25@.35 r/1.25 | r/.5 79/.5@.6 r/2 72/.5@.6 r/.5 | r/1 83/.25@.3 r/2.75';
   const glassA = 'r/2 64/2@.6 | 66/2@.6 68/2@.6 | 70/4@.6 | r/4 | 68/2@.6 66/2@.6 | 62/4@.6 | r/4 | 60/2@.6 r/2';
   // a slow octatonic figure for the celesta, like something turning over in the dark
@@ -419,7 +419,7 @@ MUSIC_THEMES.title = {
     bpm: 56, beats: 4, delayBeats: 1.5, revMul: 1.3,
     voices: { pad: { inst: 'drowned', vol: 0.7 }, choir: { inst: 'choirFlat', vol: 0.5 }, glass: { inst: 'glass', vol: 0.5, pan: -0.2 }, drips: { inst: 'drips', vol: 0.8, pan: 0.3 }, sub: { inst: 'drone', vol: 0.5 }, cel: { inst: 'celesta', vol: 0.3, pan: 0.15 } },
     sections: {
-      intro: { bars: 2, pad: '48+55+58/8', drips: 'r/1 70/1@.6 r/1 74/.5@.6 r/.5 | r/.5 79/.25@.4 r/1.25 79/1@.6 r/1', sub: '36/8', cel: 'r/4 | 72/1@.4 70/1@.4 68/2@.4' },
+      intro: { bars: 2, pad: '48+55+58/8', drips: 'r/1 70/1@.6 r/1 74/.5@.6 r/.5 | r/.5 79/.25@.4 r/1.25 79/1@.6 r/1', sub: '36/8', cel: 'r/4 | 72/1@.4 70/1@.4 67/1@.4 68/1@.4' },
       A: { bars: 8, glass: glassA, pad: '48+55+58/8 | 46+54+58/8 | 48+55+58/8 | 44+50+56/8', choir: 'r/8 | 60+64+67/8@.6 | r/8 | 58+62+66/8@.6', drips: dripsA, sub: '36/16 | 34/16', cel: celA },
       B: { bars: 8, glass: '72/4@.6 | 70/2@.6 68/2@.6 | r/8 | 66/4@.6 | 64/2@.6 62/2@.6 | 60/4@.6 | r/4', pad: '48+55+58/8 | r/8 | 44+50+56/8 | r/4 46+54+58/4', choir: 'r/16 | 56+60+63/8@.6 | r/8', drips: dripsB, sub: 'r/8 36/8 | r/16' },
       A2: { bars: 8, glass: mInv(glassA, 66), pad: '48+55+58/8 | 46+54+58/8 | 48+55+58/8 | 44+50+56/8', choir: ['r/8 | 60+64+67/8@.6 | r/8 | 58+62+66/8@.6', '60+64+67/8@.6 | r/8 | 58+62+66/8@.6 | 59+63+66/8@.5'], drips: dripsA, sub: '36/16 | 34/16', cel: mInv(celA, 66) },
@@ -548,14 +548,14 @@ MUSIC_THEMES.title = {
     bpm: 66, beats: 4, delayBeats: 0.75,
     voices: { box: { inst: 'musicbox', vol: 0.8, pan: -0.1 }, strings: { inst: 'stringsPad', vol: 0.6 }, harp: { inst: 'harp', vol: 0.45, pan: 0.25 }, bass: { inst: 'subbass', vol: 0.45 }, bell: { inst: 'bell', vol: 0.4, pan: -0.3 }, flute: { inst: 'flute', vol: 0.5, pan: 0.15 } },
     sections: {
-      intro: { bars: 2, strings: '48+55+60+64/8', harp: mArp('48+55+60+64/4 48+55+60+64/4', '0 1 2 3 2 1 0 1', 0.5), bass: '36/8' },
-      A: { bars: 8, box: boxA, strings: chordsA, harp: mArp(chordsA, '0 1 2 3 2 1 0 1', 0.5), bass: '36/4 41/4 45/4 43/4 36/4 41/4 43/4 36/4',
+      intro: { bars: 2, strings: '48+55+60+64/8', harp: mArp('48+55+60+64/4 48+55+60+64/4', '0 1 2 3 2 1 0 1', 0.25), bass: '36/8' },
+      A: { bars: 8, box: boxA, strings: chordsA, harp: mArp(chordsA, '0 1 2 3 2 1 0 1', 0.25), bass: '36/4 41/4 45/4 43/4 36/4 41/4 43/4 36/4',
         flute: ['r/32', 'r/16 | 60/1@.45 67/1.5@.45 67/.5@.45 65/1@.45 | 64/1@.45 65/1@.45 60/2@.45 | 60/1@.45 62/1@.45 64/1@.45 65/1@.45 | 67/4@.45'] },
       B: { bars: 8, box: '76/1 77/1 79/2 | 81/1 79/1 77/2 | 76/1 74/1 72/2 | 74/2 r/2 | 76/1 77/1 79/2 | 81/1 83/1 84/2 | 84/1 81/1 79/1 77/1 | 79/4',
         strings: chordsB, harp: mArp(chordsB, '0 2 1 3 2 1 0 2', 0.5), bass: '41/4 43/4 36/4 38/4 41/4 48/4 41/2 43/2 43/4',
         flute: 'r/4 | 72/2@.5 71/2@.5 | 72/4@.5 | 69/2@.5 71/2@.5 | 72/4@.5 | 74/2@.5 76/2@.5 | 77/2@.5 74/2@.5 | 71/4@.5' },
-      A2: { bars: 8, box: mTr(boxA, 12), strings: chordsA, harp: mArp(chordsA, '0 1 2 3 4 3 2 1', 0.5), bass: '36/4 41/4 45/4 43/4 36/4 41/4 43/4 36/4', bell: '84/4@.5 r/12 | 79/4@.5 r/12', flute: mTr(boxA, 0).replace(/\/([\d.]+)/g, '/$1@.4') },
-      coda: { bars: 6, box: '72/2 74/2 | 71/2 74/2 | 72/8 | r/8', strings: '53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/16', harp: mArp('53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/4 48+55+60+64/4', '0 1 2 3 4 3 2 1', 0.5) + ' r/8', bass: '41/4 43/4 36/16', bell: 'r/8 84/16@.5' },
+      A2: { bars: 8, box: mTr(boxA, 12), strings: chordsA, harp: mArp(chordsA, '0 1 2 3 4 3 2 1', 0.25), bass: '36/4 41/4 45/4 43/4 36/4 41/4 43/4 36/4', bell: '84/4@.5 r/12 | 79/4@.5 r/12', flute: mTr(boxA, 0).replace(/\/([\d.]+)/g, '/$1@.4') },
+      coda: { bars: 6, box: '72/2 74/2 | 71/2 74/2 | 72/8 | r/8', strings: '53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/16', harp: mArp('53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/4 48+55+60+64/4', '0 1 2 3 4 3 2 1', 0.25) + ' r/8', bass: '41/4 43/4 36/16', bell: 'r/8 84/16@.5' },
     },
     form: ['intro', 'A', 'B', 'A2', 'coda'],
   };
