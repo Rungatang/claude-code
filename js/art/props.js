@@ -31,6 +31,12 @@ Object.assign(Art, {
       ctx.fillStyle = 'rgba(255,210,122,0.25)'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
       Ink.line(ctx, [[-4, -7], [4, -7], [0.5, -1], [4, 6], [-4, 6], [0.5, -1]], { fill: '#2a2a36', close: true, w: 1, color: '#ffd27a', jit: 0.3, t });
       ctx.fillStyle = '#ffd27a'; ctx.fillRect(-1, 2, 3, 3); ctx.fillRect(0, -5, 1.2, 3);
+    } else if (p.kind === 'spool') {
+      ctx.fillStyle = 'rgba(143,179,255,0.25)'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+      Ink.line(ctx, [[-3, -7], [3, -7], [3, 7], [-3, 7]], { fill: '#3a3246', close: true, w: 1, color: '#15101a', jit: 0.3, t });
+      for (let i = -5; i <= 5; i += 2) { ctx.fillStyle = i % 4 === -1 || i % 4 === 3 ? '#6f93e0' : '#8fb3ff'; ctx.fillRect(-4, i, 8, 1.2); }
+      ctx.fillStyle = '#c9a24a'; ctx.fillRect(-4, -8.5, 8, 1.5); ctx.fillRect(-4, 7, 8, 1.5);
+      ctx.strokeStyle = '#8fb3ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(4, 0); ctx.quadraticCurveTo(10, 2 + Math.sin(t * 3) * 2, 13, -4); ctx.stroke();
     } else if (p.kind === 'ability') {
       const col = (Story.abilities[p.ability] || {}).color || '#fff';
       ctx.globalAlpha = 0.25; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 17 + Math.sin(t * 4) * 3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;

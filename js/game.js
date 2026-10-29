@@ -40,7 +40,7 @@ const Game = {
   },
 
   // ---- save -------------------------------------------------------------
-  defaultSave() { return { zone: 'A1', x: 0, y: 0, maxHp: 5, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
+  defaultSave() { return { zone: 'A1', x: 0, y: 0, maxHp: 5, maxThread: 9, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
   hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
   writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* unavailable */ } },
   readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? Object.assign(this.defaultSave(), JSON.parse(s)) : null; } catch (e) { return null; } },
@@ -48,6 +48,7 @@ const Game = {
   powerList() { return POWER_ORDER.filter((p) => this.has(p)); },
   shardIndexFor(id) { return this.shardStarts[id] || 0; },
   shardCount() { let n = 0; for (let i = 0; i < Story.shards.length; i++) if (this.save.flags['shard:' + i]) n++; return n; },
+  spoolCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('spool:')) n++; return n; },
   heartCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('heart:')) n++; return n; },
   playTime() { const s = Math.floor(this.save.time); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); },
 
@@ -69,7 +70,7 @@ const Game = {
     if (!s) { this.newGame(); return; }
     this.save = s;
     this.player = new Player();
-    this.player.maxHp = s.maxHp; this.player.hp = s.maxHp;
+    this.player.maxHp = s.maxHp; this.player.hp = s.maxHp; this.player.maxThread = s.maxThread || 9;
     this.loadZone(s.zone, 'save');
     this.state = 'play';
   },
@@ -89,6 +90,7 @@ const Game = {
         case 'save': this.entities.push(new SavePoint(s)); break;
         case 'plate': this.entities.push(new Plate(s)); break;
         case 'crusher': this.entities.push(new Crusher(s)); break;
+        case 'tablet': this.entities.push(new Tablet(s)); break;
         case 'npc': {
           if (s.id === 'sef' && ROOMS.A5 && World.screenAt(s.x * TILE, s.y * TILE).id === 'A5' && f.sefLeftJetty) break;
           if (s.id === 'sef' && World.screenAt(s.x * TILE, s.y * TILE).id === 'U4' && (!f.regent1 || f.sefLeftRoot)) break;
@@ -171,7 +173,13 @@ const Game = {
   onPickup(p) {
     const pl = this.player;
     const sc = World.screenAt(p.x, p.y);
-    if (p.kind === 'heart') {
+    if (p.kind === 'spool') {
+      this.save.flags['spool:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
+      pl.maxThread = Math.min(15, pl.maxThread + 1); pl.thread = pl.maxThread; this.save.maxThread = pl.maxThread;
+      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#8fb3ff', 16, 90);
+      this.overlay = { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' };
+      this.state = 'overlay';
+    } else if (p.kind === 'heart') {
       this.save.flags['heart:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
       pl.maxHp++; pl.hp = pl.maxHp; this.save.maxHp = pl.maxHp;
       AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
@@ -238,7 +246,7 @@ const Game = {
     for (const e of this.entities) if (e instanceof Boss) e.active = false;
     this.player.frozen = 0;
     this.playCutscene(Story.loss, () => {
-      this.player = Object.assign(new Player(), { maxHp: this.player.maxHp, hp: this.player.maxHp });
+      this.player = Object.assign(new Player(), { maxHp: this.player.maxHp, hp: this.player.maxHp, maxThread: this.player.maxThread });
       this.loadZone('D1', 'arrival');
       this.save.zone = 'D1'; this.save.x = this.player.x; this.save.y = this.player.y; this.writeSave();
       this.state = 'play';
@@ -250,7 +258,7 @@ const Game = {
     const s = this.readSave() || this.save;
     this.save.zone = s.zone; this.save.x = s.x; this.save.y = s.y;
     this.player = new Player();
-    this.player.maxHp = this.save.maxHp; this.player.hp = this.save.maxHp;
+    this.player.maxHp = this.save.maxHp; this.player.hp = this.save.maxHp; this.player.maxThread = this.save.maxThread || 9;
     this.loadZone(this.save.zone, 'save');
     this.state = 'play';
   },

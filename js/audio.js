@@ -100,6 +100,7 @@ const AudioSys = {
       case 'die': this.tone(300, 0.8, 'sawtooth', 0.25, 0.15); this.noise(0.5, 0.3, 500); break;
       case 'roar': this.tone(70, 0.9, 'sawtooth', 0.35, 0.6); this.noise(0.6, 0.4, 400); break;
       case 'bossdie': for (let i = 0; i < 5; i++) { this.noise(0.4, 0.3, 500); this.tone(120 - i * 15, 0.5, 'square', 0.2, 0.5, this.ctx ? this.ctx.currentTime + i * 0.15 : 0); } break;
+      case 'tell': this.tone(1500, 0.07, 'square', 0.07, 0.6); this.tone(900, 0.12, 'triangle', 0.06, 1.3, this.ctx ? this.ctx.currentTime + 0.05 : 0); break;
       case 'menu': this.tone(500, 0.05, 'square', 0.08); break;
       case 'text': this.tone(1200, 0.02, 'square', 0.03); break;
       case 'gate': this.tone(60, 0.6, 'square', 0.25, 0.7); this.noise(0.4, 0.3, 300); break;

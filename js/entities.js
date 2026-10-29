@@ -26,6 +26,22 @@ const RECALL_COST = 2;
 // changes and the damped squash/stretch springs the art reads (sqX, sqY, lean,
 // hitKick: see the animation contract in the art files).
 const Feel = {
+  // The attack warning: a glyph that rises and fills from white to red over the telegraph, so the
+  // player always has a readable window before an enemy strikes. k runs 0..1 over the telegraph.
+  drawTell(ctx, x, y, k, t) {
+    ctx.save();
+    const rise = Math.min(1, k * 4), pulse = 1 + Math.sin(t * 30) * 0.08 * k;
+    ctx.translate(Math.round(x), Math.round(y - 6 * rise));
+    ctx.scale(pulse, pulse); ctx.globalAlpha = 0.55 + 0.45 * rise;
+    ctx.fillStyle = `rgb(255,${Math.round(240 - 190 * k)},${Math.round(230 - 200 * k)})`;
+    ctx.strokeStyle = '#0a0810'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(-1.6, -9); ctx.lineTo(1.6, -9); ctx.lineTo(1, -2); ctx.lineTo(-1, -2); ctx.closePath(); ctx.stroke(); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 1.2, 1.5, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
+    // the ring closes as the strike comes
+    ctx.globalAlpha = 0.35 + 0.4 * k; ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, -4, 11 - 6 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  },
   // Move v toward target with an exponential ease (rate per second, 0 = linear) and a
   // minimum linear acceleration so the value actually arrives instead of creeping.
   approach(v, target, rate, minAcc, dt) {
@@ -377,7 +393,7 @@ class Player {
     if (this.invuln > 0 || this.dead) return;
     this.hp -= dmg;
     this.recentDamage.push({ n: dmg, t: Game.t });
-    this.invuln = 1.0; this.hurtT = 0.22;
+    this.invuln = 1.3; this.hurtT = 0.22;
     // recoil: thrown away from the source with a short hop, the sprite flinches and the world holds a beat
     this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 180; this.vy = -200;
     this.dashT = 0; this.castT = 0; this.attackT = 0; this.anim = 'hurt';
@@ -521,14 +537,14 @@ class Enemy {
         // shambles with a lurching gait, hesitates and turns at edges, then lunges when close
         this.cool -= dt;
         if (stunned) this.vx *= 0.8;
-        else if (this.state === 'lunge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 260 * spd, 0, 8000, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 1.4; } }
+        else if (this.state === 'lunge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 215 * spd, 0, 8000, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 2.0; } }
         else if (this.tele > 0) { this.vx = Feel.approach(this.vx, 0, 0, 400, dt); if (this.tele <= 0.01) { this.state = 'lunge'; this.timer = 0.3; Feel.kick(this, 1.32, 0.78); if (this.onGround) Feel.dust(this, 3, 0.8, -this.dir); } }
         else if (Math.abs(this.vx) > 60) this.vx *= 0.9;
         else if (this.turnT > 0) { this.turnT -= dt; this.vx = Feel.approach(this.vx, 0, 0, 300, dt); if (this.turnT <= 0.16 && !this.turned) { this.turned = true; this.dir *= -1; } }
         else {
           const lurch = 0.72 + 0.75 * Math.max(0, Math.sin(this.walkPhase * 2));
           this.vx = Feel.approach(this.vx, this.dir * 45 * spd * lurch, 0, 260, dt);
-          if (this.cool <= 0 && Math.abs(dy) < 30 && Math.abs(dx) < 110 && sign(dx) === this.dir) { this.tele = 0.35; }
+          if (this.cool <= 0 && Math.abs(dy) < 30 && Math.abs(dx) < 110 && sign(dx) === this.dir) this.tell(0.6);
         }
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
         const res = World.moveBody(this, dt);
@@ -540,14 +556,14 @@ class Enemy {
       case 'hourfly': {
         // hovers above on a smoothed heading, shivers, then dives in a straight line and overshoots
         this.timer += dt; this.cool -= dt;
-        if (this.state === 'dive') { this.x += this.vx * dt; this.y += this.vy * dt; this.dur -= dt; if (this.dur <= 0 || this.x < 4 || this.x + this.w > World.W - 4 || World.solidAt(Math.floor(cx / TILE), Math.floor(cy / TILE))) { this.state = 'idle'; this.cool = 1.2; } }
-        else if (this.tele > 0) { this.vx *= 0.9; this.vy *= 0.9; this.x += Math.sin(this.timer * 40) * 0.6; if (this.tele <= 0.01) { this.state = 'dive'; const a = Math.atan2(dy, dx); this.vx = Math.cos(a) * 330 * spd; this.vy = Math.sin(a) * 330 * spd; this.dur = 0.5; Feel.kick(this, 1.3, 0.75); } }
+        if (this.state === 'dive') { this.x += this.vx * dt; this.y += this.vy * dt; this.dur -= dt; if (this.dur <= 0 || this.x < 4 || this.x + this.w > World.W - 4 || World.solidAt(Math.floor(cx / TILE), Math.floor(cy / TILE))) { this.state = 'idle'; this.cool = 1.9; } }
+        else if (this.tele > 0) { this.vx *= 0.9; this.vy *= 0.9; this.x += Math.sin(this.timer * 40) * 0.6; if (this.tele <= 0.01) { this.state = 'dive'; const a = Math.atan2(dy, dx); this.vx = Math.cos(a) * 270 * spd; this.vy = Math.sin(a) * 270 * spd; this.dur = 0.5; Feel.kick(this, 1.3, 0.75); } }
         else {
           const hx = d < 180 ? pcx + Math.sin(this.timer * 1.5) * 50 : this.homeX, hy = d < 180 ? pcy - 70 : this.homeY;
           this.vx = Feel.approach(this.vx, clamp(hx - this.x, -90, 90) * spd, 6, 120, dt);
           this.vy = Feel.approach(this.vy, clamp(hy - this.y, -70, 70) * spd, 6, 100, dt);
           this.x += this.vx * dt; this.y += this.vy * dt + Math.sin(this.timer * 6) * 0.4;
-          if (this.cool <= 0 && d < 150 && !stunned) this.tele = 0.4;
+          if (this.cool <= 0 && d < 150 && !stunned) this.tell(0.7);
         }
         if (Math.abs(this.vx) > 12) this.dir = sign(this.vx);
         this.x = clamp(this.x, 4, World.W - this.w - 4); this.y = clamp(this.y, 4, World.H - this.h - 4);
@@ -557,8 +573,8 @@ class Enemy {
         // aims with a visible line, then looses a fast arrow
         this.aim = Math.atan2(dy, dx); this.dir = sign(dx) || this.dir;
         this.cool -= dt;
-        if (!stunned && d < 320 && this.cool <= 0 && this.tele <= 0) this.tele = 0.65;
-        if (this.tele > 0 && this.tele <= 0.01) { this.tele = 0; this.cool = 1.6; Game.projectiles.push(new Projectile(cx + Math.cos(this.aim) * 10, cy - 4 + Math.sin(this.aim) * 10, Math.cos(this.aim) * 360, Math.sin(this.aim) * 360, 4, true, 'arrow')); Feel.kick(this, 0.92, 1.06); AudioSys.sfx('shoot'); }
+        if (!stunned && d < 320 && this.cool <= 0 && this.tele <= 0) this.tell(0.95);
+        if (this.tele > 0 && this.tele <= 0.01) { this.tele = 0; this.cool = 2.3; Game.projectiles.push(new Projectile(cx + Math.cos(this.aim) * 10, cy - 4 + Math.sin(this.aim) * 10, Math.cos(this.aim) * 300, Math.sin(this.aim) * 300, 4, true, 'arrow')); Feel.kick(this, 0.92, 1.06); AudioSys.sfx('shoot'); }
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt); this.vx *= 0.8;
         const res = World.moveBody(this, dt);
         this.onGround = res.ground;
@@ -574,7 +590,7 @@ class Enemy {
         else {
           if (Math.abs(dx) > 30 && Math.abs(dy) < 40 && d < 260) this.dir = sign(dx);
           this.vx = Feel.approach(this.vx, this.dir * 34 * spd, 0, 140, dt);
-          if (this.cool <= 0 && Math.abs(dy) < 36 && Math.abs(dx) < 50) this.tele = 0.4;
+          if (this.cool <= 0 && Math.abs(dy) < 36 && Math.abs(dx) < 50) this.tell(0.7);
         }
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
         const res = World.moveBody(this, dt);
@@ -585,10 +601,10 @@ class Enemy {
       case 'wraith': {
         // paper wraith: sways where it hangs, blinks beside you, pauses, slashes; its paper lifts before it goes
         this.cool -= dt;
-        if (this.state === 'gone') { this.timer -= dt; if (this.timer <= 0) { this.state = 'idle'; this.visible = true; const side = Math.random() < 0.5 ? -1 : 1; this.x = clamp(pcx + side * 40 - this.w / 2, 8, World.W - this.w - 8); this.y = pl.y - 2; this.dir = -side; this.tele = 0.45; this.vx = 0; this.fadeT = 0; Feel.kick(this, 0.55, 1.45); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 10, 60); } }
+        if (this.state === 'gone') { this.timer -= dt; if (this.timer <= 0) { this.state = 'idle'; this.visible = true; const side = Math.random() < 0.5 ? -1 : 1; this.x = clamp(pcx + side * 40 - this.w / 2, 8, World.W - this.w - 8); this.y = pl.y - 2; this.dir = -side; this.tell(0.7); this.vx = 0; this.fadeT = 0; Feel.kick(this, 0.55, 1.45); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 10, 60); } }
         else if (this.tele > 0) { if (this.tele <= 0.01) { this.cool = 1.6; const hb = { x: this.x + (this.dir > 0 ? this.w : -26), y: this.y, w: 26, h: this.h }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); this.slashT = 0.2; Feel.kick(this, 1.18, 0.9); AudioSys.sfx('swing'); } }
         else if (this.fadeT > 0) { this.fadeT -= dt; if (this.fadeT <= 0) { this.state = 'gone'; this.visible = false; this.timer = 0.36; Game.burst(cx, cy, '#e8e0d0', 10, 60); } }
-        else if (!stunned && this.cool <= 0 && d < 200) { this.fadeT = 0.14; }
+        else if (!stunned && this.cool <= 0 && d < 200) { this.fadeT = 0.22; }
         else { this.y += Math.sin(this.phase + Game.t * 2) * 0.2; this.vx = Feel.approach(this.vx, Math.sin(this.phase + Game.t * 0.7) * 4, 3, 20, dt); this.x += this.vx * dt; }
         if (this.slashT > 0) this.slashT -= dt;
         break;
@@ -597,10 +613,10 @@ class Enemy {
         // mill hound: trots, gathers itself, charges fast and ricochets off walls
         this.cool -= dt;
         if (stunned) this.vx *= 0.85;
-        else if (this.state === 'charge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 300 * spd, 0, 3600, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 1.0; } }
+        else if (this.state === 'charge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 260 * spd, 0, 3600, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 1.6; } }
         else if (this.tele > 0) { this.vx *= 0.7; if (this.tele <= 0.01) { this.state = 'charge'; this.timer = 1.1; this.dir = sign(dx) || this.dir; Feel.kick(this, 1.35, 0.75); if (this.onGround) Feel.dust(this, 4, 1, -this.dir); } }
         else if (this.turnT > 0) { this.turnT -= dt; this.vx = Feel.approach(this.vx, 0, 0, 500, dt); if (this.turnT <= 0.12 && !this.turned) { this.turned = true; this.dir *= -1; } }
-        else { this.vx = Feel.approach(this.vx, this.dir * 60 * spd, 0, 320, dt); if (this.cool <= 0 && Math.abs(dy) < 40 && d < 240) this.tele = 0.3; }
+        else { this.vx = Feel.approach(this.vx, this.dir * 60 * spd, 0, 320, dt); if (this.cool <= 0 && Math.abs(dy) < 40 && d < 240) this.tell(0.55); }
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
         const res = World.moveBody(this, dt);
         this.onGround = res.ground;
@@ -640,7 +656,13 @@ class Enemy {
     this.lean = Feel.smooth(this.lean, lt, 14, dt0);
     Feel.spring(this, dt0, restX, restY);
   }
-  draw(ctx, t) { if (!this.dead && this.visible !== false) Art.drawEnemy(ctx, this, t); }
+  // Start a telegraph: every attack announces itself with a pause, a rising glyph and a sound.
+  tell(dur) { this.tele = dur; this.teleDur = dur; AudioSys.sfx('tell'); }
+  draw(ctx, t) {
+    if (this.dead || this.visible === false) return;
+    Art.drawEnemy(ctx, this, t);
+    if (this.tele > 0 && this.teleDur) Feel.drawTell(ctx, this.x + this.w / 2, this.y - 8, 1 - this.tele / this.teleDur, t);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -717,6 +739,39 @@ class SavePoint {
   }
   draw(ctx, t) { Art.drawSavePoint(ctx, this, t, this.near); if (this.near) UI.prompt(ctx, this.x + this.w / 2, this.y - 10, 'UP: rest'); }
 }
+// An inscribed tablet: stand before it and press Up to read (Story.tablets[screen][index]).
+class Tablet {
+  constructor(spec) { this.w = 14; this.h = 18; this.x = spec.x * TILE + 1; this.y = (spec.y + 1) * TILE - this.h; this.screen = spec.screen; this.index = spec.index; this.dead = false; this.cool = 0; this.near = false; this.glow = 0; }
+  text() { const list = Story.tablets[this.screen] || []; return list[this.index] || { title: 'WORN AWAY', text: 'The inscription has been rubbed smooth by many hands.' }; }
+  update(dt) {
+    this.cool -= dt;
+    const pl = Game.player;
+    this.near = !pl.dead && rectsOverlap({ x: this.x - 10, y: this.y - 6, w: this.w + 20, h: this.h + 6 }, pl);
+    this.glow += ((this.near ? 1 : 0) - this.glow) * Math.min(1, dt * 8);
+    if (this.near && Input.hit('up') && this.cool <= 0 && pl.onGround) {
+      this.cool = 1; const tb = this.text();
+      Game.save.flags['tablet:' + this.screen + ':' + this.index] = true;
+      AudioSys.sfx('save'); Game.burst(this.x + this.w / 2, this.y + 4, '#c8b890', 8, 40);
+      Game.overlay = { title: tb.title, text: tb.text, color: '#c8b890' }; Game.state = 'overlay';
+    }
+  }
+  draw(ctx, t) {
+    const read = Game.save.flags['tablet:' + this.screen + ':' + this.index];
+    const cx = this.x + this.w / 2, by = this.y + this.h;
+    ctx.save();
+    // a leaning slab of dark stone with a chipped top, inscribed with glyph rows that glow when near
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(cx, by, 9, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    Ink.line(ctx, [[cx - 6, by], [cx - 6.5, by - 14], [cx - 3, by - 18], [cx + 4, by - 17.5], [cx + 6.5, by - 13], [cx + 6, by]], { fill: '#2c2a34', close: true, w: 1.2, color: '#0a0810', jit: 0.3, t, seed: 3 });
+    ctx.fillStyle = '#3a3846'; ctx.fillRect(cx - 4.5, by - 15, 9, 1);
+    const g = read ? 0.35 : 0.6 + 0.4 * Math.sin(t * 3) * 0.5 + this.glow * 0.4;
+    ctx.fillStyle = `rgba(200,184,144,${g})`;
+    for (let r = 0; r < 4; r++) { const y = by - 13 + r * 3; const w = 3 + Ink.n(r + this.index * 7, 2) * 5; ctx.fillRect(cx - 4 + (r % 2), y, w, 1); }
+    if (this.near) { ctx.fillStyle = `rgba(200,184,144,${0.12 * this.glow})`; ctx.beginPath(); ctx.arc(cx, by - 9, 16, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    if (this.near) UI.prompt(ctx, cx, this.y - 10, 'UP: read');
+  }
+}
+
 class Npc {
   constructor(spec) { this.id = spec.id; this.w = 16; this.h = 32; this.x = spec.x * TILE; this.y = (spec.y + 1) * TILE - this.h; this.dead = false; this.cool = 0; }
   update(dt) {
