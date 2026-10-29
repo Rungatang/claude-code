@@ -178,6 +178,8 @@ const BZ_DRAW = {
     ctx.fillStyle = ec; ctx.globalAlpha = 0.9; ctx.fillRect(-7, shY - 12, 14, 2.2); ctx.globalAlpha = 1;
     ctx.fillStyle = dark; for (let i = 0; i < 4; i++) ctx.fillRect(-6.5 + i * 3.6, shY - 12, 1.6, 7);
     ctx.fillStyle = ec; ctx.globalAlpha = 0.5; for (let i = 0; i < 3; i++) ctx.fillRect(-4.6 + i * 3.6, shY - 9, 1.8, 3); ctx.globalAlpha = 1;
+    // bubbles escaping the visor
+    ctx.strokeStyle = 'rgba(159,224,200,0.6)'; ctx.lineWidth = 0.7; for (let i = 0; i < (p.p2 ? 3 : 2); i++) { const ph = (t * 0.5 + i * 0.41) % 1; ctx.beginPath(); ctx.arc(-4 + i * 5 + Math.sin(ph * 7 + i) * 2, shY - 20 - ph * 22, 0.8 + ph * 1.2, 0, Math.PI * 2); ctx.stroke(); }
     // water dripping from the helm
     ctx.fillStyle = 'rgba(159,224,200,0.7)'; for (let i = 0; i < 3; i++) { const ph = (t * 0.7 + i * 0.37) % 1; ctx.fillRect(-8 + i * 7, shY - 2 + ph * 14, 1, 2.5 - ph); }
     ctx.restore();
@@ -299,6 +301,8 @@ const BZ_DRAW = {
     ctx.fillStyle = dark; for (let i = 0; i < 6; i++) ctx.fillRect(-11 + i * 4.4, mawY - 1, 1.8, mh * 0.55 + 1);
     for (let i = 0; i < 5; i++) ctx.fillRect(-9 + i * 4.4, mawY + mh - mh * 0.4, 1.8, mh * 0.4 + 1);
     Ink.line(ctx, [[-13, mawY - 1], [13, mawY - 1], [13, mawY + mh + 1], [-13, mawY + mh + 1]], { close: true, w: 1.5, color: ink, jit: 0.4, t, seed: 70 });
+    // molten drips off the lip of the maw, thicker as the fire builds
+    ctx.fillStyle = hot; for (let i = 0; i < 3; i++) { const ph = (t * 0.8 + i * 0.37) % 1; ctx.globalAlpha = 1 - ph * 0.6; ctx.fillRect(-7 + i * 7, mawY + mh + 1 + ph * 12, 1.4, 2 + (1 - ph) * 2 + (p.tele ? p.k * 2 : 0)); } ctx.globalAlpha = 1;
     // embers drifting up out of the maw
     ctx.fillStyle = hotter; for (let i = 0; i < (p.p2 ? 6 : 3); i++) { const ph = (t * 0.9 + i * 0.29) % 1; ctx.globalAlpha = 1 - ph; ctx.fillRect(-8 + (i * 7) % 16 + Math.sin(ph * 9 + i) * 2, mawY - ph * 26, 1.5, 1.5); } ctx.globalAlpha = 1;
     // the head: a small riveted dome sunk into the shoulders, two slit eyes
@@ -418,6 +422,16 @@ const BZ_DRAW = {
     const fingers = (x, y, a, c) => { ctx.strokeStyle = c; ctx.lineWidth = 1; ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a + i * 0.22) * 5, y + Math.sin(a + i * 0.22) * 5); } ctx.stroke(); };
     fingers(oh[2], oh[3], hands ? 0 : stop || summon ? -1.6 : 1.4, skin);
     if (hands || stop) bzGlow(ctx, oh[2] + (hands ? 3 : 0), oh[3] - (stop ? 3 : 0), 10, red, 0.4 + 0.3 * Math.sin(t * 14));
+    // the mantle: a heavy cape with sharp shoulders hanging down his back, lined in red
+    {
+      const fl = Math.sin(t * 2.0) * 1.2 - p.mov * 4 - (dash ? 6 : 0);
+      Ink.line(ctx, [[-4, shY - 2], [-13, shY + 1], [-17 + fl, shY + 14], [-19 + fl * 1.4, hipY + 6], [-12 + fl * 0.6, hipY + 12], [-6, hipY - 2]], { fill: robeD, close: true, w: 1.5, color: ink, jit: 0.7, t, seed: 14 });
+      Ink.line(ctx, [[-13, shY + 1], [-17 + fl, shY + 14], [-19 + fl * 1.4, hipY + 6]], { w: 1.6, color: red, jit: 0.4, t, seed: 15 });
+      // spiked shoulder
+      Ink.line(ctx, [[-6, shY - 1], [-15, shY - 4], [-10, shY + 4]], { fill: robe, close: true, w: 1.2, color: ink, jit: 0.3, t, seed: 16 });
+      Ink.line(ctx, [[7, shY - 1], [16, shY - 4], [11, shY + 4]], { fill: robe, close: true, w: 1.2, color: ink, jit: 0.3, t, seed: 17 });
+      ctx.fillStyle = gold; ctx.fillRect(-15, shY - 4.5, 1.5, 1.5); ctx.fillRect(14.5, shY - 4.5, 1.5, 1.5);
+    }
     // torso: narrow shoulders, a high collar
     Ink.line(ctx, [[-9, shY], [9, shY], [10, hipY - 4], [-10, hipY - 4]], { fill: robe, close: true, w: 1.6, color: ink, jit: 0.6, t, seed: 2 });
     ctx.fillStyle = gold; ctx.fillRect(-9, shY, 18, 1.2);
@@ -466,6 +480,7 @@ const BZ_DRAW = {
     ctx.fillStyle = gold; ctx.fillRect(4, -0.6, bl - 18, 1.2);
     ctx.restore();
     ctx.restore();
+    if (p.p2 && !p.stagger) { ctx.fillStyle = '#ffd27a'; for (let i = 0; i < 6; i++) { const ph = (t * 0.55 + i * 0.17) % 1; ctx.globalAlpha = (1 - ph) * 0.8; ctx.fillRect(-12 + i * 5 + Math.sin(ph * 6 + i) * 2, -52 + ph * 52, 1.2, 1.2); } ctx.globalAlpha = 1; }
     // time rings while he stops the clock
     if (stop && p.act) { ctx.strokeStyle = 'rgba(255,51,85,0.5)'; ctx.lineWidth = 1.5; for (let i = 0; i < 2; i++) { ctx.globalAlpha = 0.6 - i * 0.25; ctx.beginPath(); ctx.arc(0, -30, 20 + ((t * 60 + i * 25) % 50), 0, Math.PI * 2); ctx.stroke(); } ctx.globalAlpha = 1; }
   },
@@ -582,6 +597,8 @@ const BZ_DRAW = {
     // ribs as the grooves of the stone
     for (let i = 0; i < 8; i++) { ctx.save(); ctx.rotate(i / 8 * Math.PI * 2); Ink.line(ctx, [[0, 6], [1.5, 11], [0.5, 17]], { w: 2.4, color: bone, jit: 0.25, t, seed: 10 + i }); ctx.restore(); }
     if (p.p2) { ctx.globalAlpha = 0.65 + 0.35 * Math.sin(t * 8); for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(i * 2.1 + 0.4); Ink.line(ctx, [[3, 4], [8, 9], [7, 15]], { w: 1.1, color: marrow, jit: 0.3, t, seed: 20 + i }); ctx.restore(); } ctx.globalAlpha = 1; bzGlow(ctx, 0, 0, 10, marrow, 0.5); }
+    // grit shedding from the grinding stone
+    ctx.fillStyle = 'rgba(200,180,150,0.7)'; for (let i = 0; i < 3; i++) { const ph = (t * 0.9 + i * 0.33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillRect(Math.cos(i * 2.1) * 14, 14 + ph * 10, 1.2, 1.2); } ctx.globalAlpha = 1;
     // the square eye of the millstone
     ctx.fillStyle = '#15101a'; ctx.fillRect(-3.5, -3.5, 7, 7);
     ctx.restore();
@@ -694,6 +711,7 @@ const BZ_DRAW = {
     const down = Math.sin(ka) > 0; // tip lower than the hilt
     const s0 = down ? bl - 9 : 2, s1 = down ? bl - 1 : 9;
     ctx.fillStyle = '#ffd27a'; ctx.fillRect(s0, -0.8, s1 - s0, 1.6);
+    if (!p.stagger && Math.abs(Math.sin(ka)) > 0.4) { ctx.fillStyle = '#ffd27a'; for (let i = 0; i < 3; i++) { const ph = (t * 1.3 + i * 0.33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillRect(down ? bl - 0.5 : 1, (down ? 1 : -1) * ph * 12, 0.9, 0.9); } ctx.globalAlpha = 1; }
     ctx.fillStyle = '#fff'; for (let i = 0; i < 3; i++) ctx.fillRect(s0 + 1 + Ink.n(i + Ink.boil(t * 0.5), 1) * (s1 - s0 - 2), -0.5 + Ink.n(i, 2), 0.8, 0.8);
     ctx.restore();
     ctx.restore();
@@ -718,12 +736,24 @@ Object.assign(Art, {
     if (p.p2 && (b.type === 'regent' || b.type === 'regent1' || b.type === 'sef')) bzGlow(ctx, cx, b.y + b.h * 0.45, b.w * 1.2, '#ff3355', 0.08 + 0.03 * Math.sin(t * 3));
     ctx.restore();
     // the body: hit recoil, squash about the feet, mirrored by facing
-    const body = (c) => {
+    // weight shift while idle / guarding, anticipation squash while telegraphing, slump when staggered
+    const calm = !flying && (p.idle || p.guard || p.recover);
+    const swayX = calm ? Math.sin(t * (p.p2 ? 1.5 : 0.9)) * 0.9 : 0;
+    const swayR = calm ? Math.sin(t * (p.p2 ? 1.5 : 0.9) + 0.6) * 0.014 : 0;
+    const antY = p.tele ? 1 - 0.05 * bzEase(p.k) : 1, antX = p.tele ? 1 + 0.04 * bzEase(p.k) : 1;
+    const slump = p.stagger ? 0.94 + Math.sin(t * 3.2) * 0.012 : 1;
+    const body = (c, ghost) => {
       c.scale(p.dir, 1);
-      c.translate(-p.kick * 3, p.kick * 1);
-      c.scale(p.sqX, p.sqY);
+      c.translate(-p.kick * 3 + swayX - (ghost || 0), p.kick * 1);
+      c.rotate(swayR + p.kick * 0.03);
+      c.scale(p.sqX * antX, p.sqY * antY * slump);
       draw(c, b, p);
     };
+    // afterimages behind fast moves
+    const fast = p.act && (p.mv === 'dash' || p.mv === 'leap' || (p.mv === 'combo' && p.strike > 0.2 && p.strike < 0.95 && b.type !== 'index'));
+    if (fast && !(b.flash > 0) && Math.abs(p.vx) > 60) {
+      for (let g = 2; g >= 1; g--) { ctx.save(); ctx.globalAlpha = 0.16 * (3 - g) / 2; ctx.translate(cx, bottom); body(ctx, g * 9); ctx.restore(); }
+    }
     if (b.flash > 0 || b.withered > 0) {
       const cv = bzFlash.get(), oc = cv.getContext('2d');
       oc.setTransform(1, 0, 0, 1, 0, 0); oc.clearRect(0, 0, bzFlash.W, bzFlash.H);
