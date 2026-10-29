@@ -526,7 +526,9 @@ class Enemy {
     if (this.flash > 0) this.flash -= dt0;
     if (this.stun > 0) this.stun -= dt;
     if (this.withered > 0) this.withered -= dt;
-    if (this.tele > 0) this.tele -= dt;
+    // The telegraph counts down to exactly one frame inside (0, 0.01], which is the frame every
+    // type fires on; a plain subtraction can step straight past that window at a fixed 1/60 step.
+    if (this.tele > 0) { const nt = this.tele - dt; this.tele = nt <= 0.01 && this.tele > 0.01 ? 0.01 : nt; }
     const pl = Game.player;
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
