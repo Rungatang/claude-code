@@ -117,4 +117,4 @@ raises health, and `[` / `]` jump between zones.
 
 ## Controller
 
-Any standard gamepad works (plug it in and press a button): left stick or d-pad move, A jump, X strike, B dash, Y cast, LB / RB choose a power, LT set or return to the anchor, hold RT to focus, Select map, Start pause. Up on the stick reads tablets, talks and rests at lanterns.
+Any standard gamepad works (plug it in and press a button). Left stick moves (up reads tablets, talks and rests at lanterns). A jump, X strike, RT dash, hold B to heal (focus), Y set or return the anchor. D-pad left and right choose a power and RB casts it. LB casts Wither and LT casts Stall directly (change `QUICK_POWERS` in `js/entities.js`). Select map, Start pause.

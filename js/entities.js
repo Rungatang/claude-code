@@ -18,6 +18,8 @@ const POWERS = {
   echo:   { name: 'Echo', cost: 3, cd: 1.5, windup: 0.1, color: '#e6d8ff', hint: 'Leave behind the last three seconds of yourself. The echo walks, strikes and weighs what you did.' },
   sever:  { name: 'Sever', cost: 5, cd: 6.0, windup: 0.2, color: '#ff3355', hint: 'Cut the thread. Time stops for everything but you, briefly.' },
 };
+// Controller quick-cast slots (LB and LT): the power each fires. RB casts the power picked with the d-pad.
+const QUICK_POWERS = { castA: 'wither', castB: 'stall' };
 const POWER_ORDER = ['wither', 'stall', 'mend', 'echo', 'sever'];
 const RECALL_COST = 2;
 
@@ -229,6 +231,8 @@ class Player {
         if (Game.powerIndex >= list.length) Game.powerIndex = 0;
         if (Input.hit('cast') && this.castT <= 0 && this.dashT <= 0 && this.attackT <= 0) this.beginCast(list[Game.powerIndex]);
       }
+      // quick-cast slots on the controller shoulder buttons: each fires one fixed power (if owned)
+      for (const [action, id] of Object.entries(QUICK_POWERS)) if (Input.hit(action) && list.includes(id) && this.castT <= 0 && this.dashT <= 0 && this.attackT <= 0) this.beginCast(id);
       if (Input.hit('anchor') && this.dashT <= 0) this.anchorKey();
     }
     if (this.castT > 0) {
