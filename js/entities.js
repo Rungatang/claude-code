@@ -91,7 +91,7 @@ class Player {
     // animation contract (read by js/art/player.js)
     this.anim = 'idle'; this.runPhase = 0; this.idleT = 0; this.turnT = 99; this.landImpact = 0;
     Feel.initAnim(this);
-    this.landLock = 0; this.skidT = 0; this.wasMoving = false; this.prevVx = 0;
+    this.landLock = 0; this.skidT = 0; this.wasMoving = false; this.prevVx = 0; this.peakVx = 0; this.stopT = 0;
     this.lastSafe = { x: 0, y: 0 };
     this.dead = false;
     this.history = [];
@@ -100,7 +100,7 @@ class Player {
   placeFeet(tx, bottomY) { this.x = tx * TILE + (TILE - this.w) / 2; this.y = bottomY - this.h; }
 
   update(dt) {
-    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf']) if (this[k] > 0) this[k] -= dt;
+    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT']) if (this[k] > 0) this[k] -= dt;
     for (const k in this.cds) if (this.cds[k] > 0) this.cds[k] -= dt;
     this.recentDamage = this.recentDamage.filter((d) => Game.t - d.t < 5);
     this.attackStarted = false;
@@ -167,8 +167,10 @@ class Player {
     if (this.facing !== prevFacing) this.turnT = 0;
     // feet: the run cycle advances with distance covered; a puff of dust on the first step and every other footfall
     const moving = this.onGround && Math.abs(this.vx) > 20;
+    // peakVx remembers how fast the last run was (decaying slowly) so a hard stop after a sprint can plant the feet
+    this.peakVx = Math.max(Math.abs(this.vx), this.peakVx * Math.exp(-dt * 3));
     if (moving && !this.wasMoving && wasGround) { this.runPhase = 0; Feel.kick(this, 0.94, 1.06); Feel.dust(this, 2, 0.6, -sign(this.vx)); }
-    else if (!moving && this.wasMoving && this.onGround && Math.abs(this.prevVx) > 100 && this.skidT <= 0 && this.hurtT <= 0) { Feel.kick(this, 1.07, 0.94); Feel.dust(this, 1, 0.5, 0); }
+    else if (!moving && this.wasMoving && this.onGround && this.peakVx > 120 && this.skidT <= 0 && this.hurtT <= 0) { this.stopT = 0.12; this.peakVx = 0; Feel.kick(this, 1.08, 0.93); Feel.dust(this, 1, 0.5, 0); }
     this.wasMoving = moving;
     if (this.onGround && !dashing) {
       const prev = this.runPhase;
@@ -180,6 +182,7 @@ class Player {
     else if (!this.onGround) this.anim = this.vy < 0 ? 'jump' : 'fall';
     else if (this.landLock > 0) this.anim = 'land';
     else if (this.skidT > 0) this.anim = 'skid';
+    else if (this.stopT > 0 && Math.abs(this.vx) <= 20 && this.attackT <= 0 && this.castT <= 0) this.anim = 'stop';
     else this.anim = Math.abs(this.vx) > 20 ? 'run' : 'idle';
     if (this.hurtT > 0) this.anim = 'hurt';
     if (res.ground && !res.platform) {
@@ -269,7 +272,8 @@ class Player {
     else {
       const f = this.facing, acc = dt > 0 ? (this.vx - this.prevVx) / dt : 0;
       lt = clamp(this.vx * f / RUN_SPEED, -1, 1) * 0.12 + clamp(acc * f, -2500, 2500) * 0.00004;
-      if (!this.onGround) lt *= 0.6;
+      // in the air the body pitches with the arc: nose up on the rise, tipped forward on the way down
+      if (!this.onGround) lt = lt * 0.6 + clamp(this.vy / 300, -1, 1) * 0.09;
     }
     this.lean = Feel.smooth(this.lean, lt, 18, dt);
     this.prevVx = this.vx;
@@ -316,13 +320,14 @@ class Player {
       this.hitSet.add(e);
       if (e instanceof Crusher) { if (this.attackKind === 'pogo') { this.vy = -400; this.canDash = true; } AudioSys.sfx('hit'); continue; }
       const bossState = e instanceof Boss ? e.state : null;
-      const result = e.hurt(dmg, this.x + this.w / 2, { kind: this.attackKind, from: 'player' });
+      const result = e.hurt(dmg, this.x + this.w / 2, { kind: this.attackKind, from: 'player', heavy: dmg >= 2 });
       if (result === 'blocked') { this.vx = -this.facing * 160; Game.hitStop = 0.03; Feel.kick(this, 0.9, 1.08); AudioSys.sfx('gate'); continue; }
       this.gainThread(1);
       // hit-stop and shake: a tick for a hit, longer for a kill, longest when a boss is knocked into a stagger
-      let stop = this.step === 2 && this.attackKind === 'slash' ? 0.055 : 0.045, shake = 0.08;
-      if (e.dead) { stop = 0.08; shake = 0.2; }
-      else if (bossState !== null && bossState !== 'stagger' && e.state === 'stagger') { stop = 0.1; shake = 0.25; }
+      // (Game.step decrements hitStop on the frame it is set, so 0.06 holds 3 frames, 0.09 five, 0.12 seven)
+      let stop = this.step === 2 && this.attackKind === 'slash' ? 0.09 : 0.06, shake = 0.08;
+      if (e.dead) { stop = 0.12; shake = 0.2; }
+      else if (bossState !== null && bossState !== 'stagger' && e.state === 'stagger') { stop = 0.13; shake = 0.25; }
       Game.hitStop = Math.max(Game.hitStop, stop); World.shake = Math.max(World.shake, shake);
       Feel.kick(this, 1.08, 0.94);
       if (this.attackKind === 'pogo') { this.vy = -400; this.dashCd = 0; }
@@ -512,7 +517,8 @@ class Enemy {
     if (o.stun) this.stun = Math.max(this.stun, o.stun);
     AudioSys.sfx('hit');
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe08a', 5);
-    if (this.type !== 'archer') { this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 110; if (this.type !== 'hourfly') this.vy = -90; }
+    // light cuts nudge (so the second strike of the combo still reaches); the finisher and pogo throw
+    if (this.type !== 'archer') { this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * (o.heavy || o.kind === 'pogo' ? 110 : 60); if (this.type !== 'hourfly') this.vy = o.heavy || o.kind === 'pogo' ? -90 : -70; }
     if (this.hp <= 0) {
       this.dead = true;
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#9a9aa8', 14, 120);
@@ -526,9 +532,11 @@ class Enemy {
     if (this.flash > 0) this.flash -= dt0;
     if (this.stun > 0) this.stun -= dt;
     if (this.withered > 0) this.withered -= dt;
-    // The telegraph counts down to exactly one frame inside (0, 0.01], which is the frame every
-    // type fires on; a plain subtraction can step straight past that window at a fixed 1/60 step.
-    if (this.tele > 0) { const nt = this.tele - dt; this.tele = nt <= 0.01 && this.tele > 0.01 ? 0.01 : nt; }
+    // the strike lands on the frame the telegraph runs out (a single edge, so a fixed step can never skip it);
+    // a short cooldown floor keeps an enemy from re-telling on the very next frame
+    const strike = this.tele > 0 && this.tele - dt <= 0;
+    this.tele = Math.max(0, this.tele - dt);
+    if (strike) this.cool = Math.max(this.cool, 0.6);
     const pl = Game.player;
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
@@ -540,7 +548,7 @@ class Enemy {
         this.cool -= dt;
         if (stunned) this.vx *= 0.8;
         else if (this.state === 'lunge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 215 * spd, 0, 8000, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 2.0; } }
-        else if (this.tele > 0) { this.vx = Feel.approach(this.vx, 0, 0, 400, dt); if (this.tele <= 0.01) { this.state = 'lunge'; this.timer = 0.3; Feel.kick(this, 1.32, 0.78); if (this.onGround) Feel.dust(this, 3, 0.8, -this.dir); } }
+        else if (this.tele > 0 || strike) { this.vx = Feel.approach(this.vx, 0, 0, 400, dt); if (strike) { this.state = 'lunge'; this.timer = 0.3; Feel.kick(this, 1.32, 0.78); if (this.onGround) Feel.dust(this, 3, 0.8, -this.dir); } }
         else if (Math.abs(this.vx) > 60) this.vx *= 0.9;
         else if (this.turnT > 0) { this.turnT -= dt; this.vx = Feel.approach(this.vx, 0, 0, 300, dt); if (this.turnT <= 0.16 && !this.turned) { this.turned = true; this.dir *= -1; } }
         else {
@@ -559,7 +567,7 @@ class Enemy {
         // hovers above on a smoothed heading, shivers, then dives in a straight line and overshoots
         this.timer += dt; this.cool -= dt;
         if (this.state === 'dive') { this.x += this.vx * dt; this.y += this.vy * dt; this.dur -= dt; if (this.dur <= 0 || this.x < 4 || this.x + this.w > World.W - 4 || World.solidAt(Math.floor(cx / TILE), Math.floor(cy / TILE))) { this.state = 'idle'; this.cool = 1.9; } }
-        else if (this.tele > 0) { this.vx *= 0.9; this.vy *= 0.9; this.x += Math.sin(this.timer * 40) * 0.6; if (this.tele <= 0.01) { this.state = 'dive'; const a = Math.atan2(dy, dx); this.vx = Math.cos(a) * 270 * spd; this.vy = Math.sin(a) * 270 * spd; this.dur = 0.5; Feel.kick(this, 1.3, 0.75); } }
+        else if (this.tele > 0 || strike) { this.vx *= 0.9; this.vy *= 0.9; this.x += Math.sin(this.timer * 40) * 0.6; if (strike) { this.state = 'dive'; const a = Math.atan2(dy, dx); this.vx = Math.cos(a) * 270 * spd; this.vy = Math.sin(a) * 270 * spd; this.dur = 0.5; Feel.kick(this, 1.3, 0.75); } }
         else {
           const hx = d < 180 ? pcx + Math.sin(this.timer * 1.5) * 50 : this.homeX, hy = d < 180 ? pcy - 70 : this.homeY;
           this.vx = Feel.approach(this.vx, clamp(hx - this.x, -90, 90) * spd, 6, 120, dt);
@@ -575,8 +583,8 @@ class Enemy {
         // aims with a visible line, then looses a fast arrow
         this.aim = Math.atan2(dy, dx); this.dir = sign(dx) || this.dir;
         this.cool -= dt;
-        if (!stunned && d < 320 && this.cool <= 0 && this.tele <= 0) this.tell(0.95);
-        if (this.tele > 0 && this.tele <= 0.01) { this.tele = 0; this.cool = 2.3; Game.projectiles.push(new Projectile(cx + Math.cos(this.aim) * 10, cy - 4 + Math.sin(this.aim) * 10, Math.cos(this.aim) * 300, Math.sin(this.aim) * 300, 4, true, 'arrow')); Feel.kick(this, 0.92, 1.06); AudioSys.sfx('shoot'); }
+        if (strike) { this.cool = 2.3; Game.projectiles.push(new Projectile(cx + Math.cos(this.aim) * 10, cy - 4 + Math.sin(this.aim) * 10, Math.cos(this.aim) * 300, Math.sin(this.aim) * 300, 4, true, 'arrow')); Feel.kick(this, 0.92, 1.06); AudioSys.sfx('shoot'); }
+        else if (!stunned && d < 320 && this.cool <= 0 && this.tele <= 0) this.tell(0.95);
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt); this.vx *= 0.8;
         const res = World.moveBody(this, dt);
         this.onGround = res.ground;
@@ -587,7 +595,7 @@ class Enemy {
         this.cool -= dt;
         if (stunned) { this.vx *= 0.8; }
         else if (this.state === 'slam') { this.timer -= dt; this.vx = 0; if (this.timer <= 0) { this.state = 'idle'; this.cool = 1.5; } }
-        else if (this.tele > 0) { this.vx = Feel.approach(this.vx, 0, 0, 300, dt); if (this.tele <= 0.01) { this.state = 'slam'; this.timer = 0.35; const hb = { x: this.x + (this.dir > 0 ? this.w : -34), y: this.y - 6, w: 34, h: this.h + 6 }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); Game.projectiles.push(new Projectile(cx + this.dir * 20, this.y + this.h - 6, this.dir * 200, 0, 6, true, 'wave')); World.shake = 0.2; Feel.kick(this, 1.22, 0.82); if (this.onGround) Feel.dust(this, 4, 1, 0); AudioSys.sfx('gate'); } }
+        else if (this.tele > 0 || strike) { this.vx = Feel.approach(this.vx, 0, 0, 300, dt); if (strike) { this.state = 'slam'; this.timer = 0.35; const hb = { x: this.x + (this.dir > 0 ? this.w : -34), y: this.y - 6, w: 34, h: this.h + 6 }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); Game.projectiles.push(new Projectile(cx + this.dir * 20, this.y + this.h - 6, this.dir * 200, 0, 6, true, 'wave')); World.shake = 0.2; Feel.kick(this, 1.22, 0.82); if (this.onGround) Feel.dust(this, 4, 1, 0); AudioSys.sfx('gate'); } }
         else if (this.turnT > 0) { this.turnT -= dt; this.vx = Feel.approach(this.vx, 0, 0, 200, dt); if (this.turnT <= 0.25 && !this.turned) { this.turned = true; this.dir *= -1; } }
         else {
           if (Math.abs(dx) > 30 && Math.abs(dy) < 40 && d < 260) this.dir = sign(dx);
@@ -604,7 +612,7 @@ class Enemy {
         // paper wraith: sways where it hangs, blinks beside you, pauses, slashes; its paper lifts before it goes
         this.cool -= dt;
         if (this.state === 'gone') { this.timer -= dt; if (this.timer <= 0) { this.state = 'idle'; this.visible = true; const side = Math.random() < 0.5 ? -1 : 1; this.x = clamp(pcx + side * 40 - this.w / 2, 8, World.W - this.w - 8); this.y = pl.y - 2; this.dir = -side; this.tell(0.7); this.vx = 0; this.fadeT = 0; Feel.kick(this, 0.55, 1.45); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 10, 60); } }
-        else if (this.tele > 0) { if (this.tele <= 0.01) { this.cool = 1.6; const hb = { x: this.x + (this.dir > 0 ? this.w : -26), y: this.y, w: 26, h: this.h }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); this.slashT = 0.2; Feel.kick(this, 1.18, 0.9); AudioSys.sfx('swing'); } }
+        else if (this.tele > 0 || strike) { if (strike) { this.cool = 1.6; const hb = { x: this.x + (this.dir > 0 ? this.w : -26), y: this.y, w: 26, h: this.h }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); this.slashT = 0.2; Feel.kick(this, 1.18, 0.9); AudioSys.sfx('swing'); } }
         else if (this.fadeT > 0) { this.fadeT -= dt; if (this.fadeT <= 0) { this.state = 'gone'; this.visible = false; this.timer = 0.36; Game.burst(cx, cy, '#e8e0d0', 10, 60); } }
         else if (!stunned && this.cool <= 0 && d < 200) { this.fadeT = 0.22; }
         else { this.y += Math.sin(this.phase + Game.t * 2) * 0.2; this.vx = Feel.approach(this.vx, Math.sin(this.phase + Game.t * 0.7) * 4, 3, 20, dt); this.x += this.vx * dt; }
@@ -616,7 +624,7 @@ class Enemy {
         this.cool -= dt;
         if (stunned) this.vx *= 0.85;
         else if (this.state === 'charge') { this.timer -= dt; this.vx = Feel.approach(this.vx, this.dir * 260 * spd, 0, 3600, dt); if (this.timer <= 0) { this.state = 'idle'; this.cool = 1.6; } }
-        else if (this.tele > 0) { this.vx *= 0.7; if (this.tele <= 0.01) { this.state = 'charge'; this.timer = 1.1; this.dir = sign(dx) || this.dir; Feel.kick(this, 1.35, 0.75); if (this.onGround) Feel.dust(this, 4, 1, -this.dir); } }
+        else if (this.tele > 0 || strike) { this.vx *= 0.7; if (strike) { this.state = 'charge'; this.timer = 1.1; this.dir = sign(dx) || this.dir; Feel.kick(this, 1.35, 0.75); if (this.onGround) Feel.dust(this, 4, 1, -this.dir); } }
         else if (this.turnT > 0) { this.turnT -= dt; this.vx = Feel.approach(this.vx, 0, 0, 500, dt); if (this.turnT <= 0.12 && !this.turned) { this.turned = true; this.dir *= -1; } }
         else { this.vx = Feel.approach(this.vx, this.dir * 60 * spd, 0, 320, dt); if (this.cool <= 0 && Math.abs(dy) < 40 && d < 240) this.tell(0.55); }
         this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
@@ -865,7 +873,7 @@ class Boss {
     this.name = def.name; this.fightT = 0; this.rewound = false; this.guarding = false; this.hitsLeft = 0; this.floatY = this.y;
     this.withered = 0;
     // animation contract (read by js/art/bosses.js)
-    Feel.initAnim(this); this.stateT = 0; this.prevState = this.state; this.onGround = false; this.wasGround = false; this.swingKick = 0;
+    Feel.initAnim(this); this.stateT = 0; this.prevState = this.state; this.onGround = false; this.wasGround = false; this.swingKick = 0; this.walkPhase = 0; this.pinT = 0; this.leapVx = 0;
   }
   hurt(dmg, fromX, o) {
     if (!this.active || this.dead || !this.visible) return 'none';
@@ -956,12 +964,31 @@ class Boss {
       this.x = clamp(this.x, a.x + 20, a.x + a.w - 20 - this.w); this.y = clamp(this.y, a.y + 20, a.y + a.h - 40 - this.h);
     }
     this.keepInside();
+    this.escapePin(dt);
     this.animTick(dt0, dt);
     // contact and move hitboxes
     if (this.visible && !pl.dead && pl.invuln <= 0) {
       if (rectsOverlap(this, pl)) pl.hurt(1, cx);
       for (const hb of this.hitboxes) if (rectsOverlap(hb, pl)) { pl.hurt(hb.dmg || 1, cx); break; }
     }
+  }
+  // A boss standing at its arena clamp with the player trapped in the pocket between it and the wall
+  // would be unfair (its reach covers the pocket and recoil is nullified): after a beat it blinks to the
+  // open side, or, lacking a blink, steps back to let the player out.
+  escapePin(dt) {
+    if (!this.def.ground || this.state === 'act' || this.state === 'stagger') { this.pinT = 0; return; }
+    const a = this.arena, pl = Game.player;
+    const atL = this.x <= a.x + TILE * 2 + 1, atR = this.x + this.w >= a.x + a.w - TILE * 2 - 1;
+    const pcx = pl.x + pl.w / 2, cx = this.x + this.w / 2;
+    const pinned = (atL && pcx < cx) || (atR && pcx > cx);
+    if (!pinned) { this.pinT = 0; return; }
+    this.pinT += dt;
+    if (this.pinT < 0.45) return;
+    this.pinT = 0;
+    const away = atL ? 1 : -1;
+    const blink = this.def.moves.find((m) => m.type === 'teleport' && (!m.phase || m.phase <= this.phase));
+    if (blink) { this.move = blink; this.lastMove = blink; this.state = 'tele'; this.timer = 0.12; this.visible = false; this.hitboxes = []; this.guarding = false; Game.burst(cx, this.y + this.h / 2, '#e8e0d0', 12, 60); }
+    else { this.vx = away * 300; this.dir = -away; this.state = 'recover'; this.timer = 0.35; this.hitboxes = []; this.guarding = false; Feel.kick(this, 0.9, 1.1); if (this.onGround) Feel.dust(this, 3, 0.8, -away); }
   }
   // Animation bookkeeping: state timing, anticipation squash while telegraphing, stretch through
   // dashes and leaps, reeling lean while staggered, hit flinch decay. dt0 real time, dt time-scaled.
@@ -972,6 +999,9 @@ class Boss {
     this.wasGround = this.onGround;
     if (this.hitKick > 0) this.hitKick = Math.max(0, this.hitKick - dt0 * 4);
     if (this.swingKick > 0) this.swingKick -= dt;
+    // gait advances with distance covered, so the legs match the ground speed (a slow drift for flyers)
+    if (!this.def.ground) this.walkPhase += (Math.hypot(this.vx, this.vy) * 0.03 + 2) * dt;
+    else if (this.onGround) this.walkPhase += Math.abs(this.vx) * dt * (this.w > 50 ? 0.05 : 0.08);
     const mv = this.move ? this.move.type : '';
     let lt = 0, restX = 1, restY = 1;
     switch (this.state) {
@@ -997,14 +1027,15 @@ class Boss {
     switch (m.type) {
       case 'combo': this.stepT = 0; break;
       case 'dash': this.facePlayer(); this.timer = m.dur; Feel.kick(this, 1.25, 0.82); if (this.onGround) Feel.dust(this, 5, 1, -this.dir); AudioSys.sfx('dash'); break;
-      case 'leap': this.facePlayer(); this.vy = m.vy; this.vx = clamp((pl.x - this.x) / 0.7, -320, 320); this.landed = false; Feel.kick(this, 0.8, 1.26); Feel.dust(this, 5, 1, 0); AudioSys.sfx('jump'); break;
+      case 'leap': this.facePlayer(); this.vy = m.vy; this.leapVx = clamp((pl.x - this.x) / 0.7, -320, 320); this.vx *= 0.3; this.landed = false; Feel.kick(this, 0.8, 1.26); Feel.dust(this, 5, 1, 0); AudioSys.sfx('jump'); break;
       case 'volley': this.timer = 0.25; break;
       case 'rain': this.timer = 0.3; break;
       case 'hook': this.timer = 0.6; break;
       case 'spin': this.timer = m.dur; this.facePlayer(); break;
       case 'summon': this.timer = 0.3; break;
       case 'teleport': {
-        const side = Math.random() < 0.5 ? -1 : 1;
+        let side = Math.random() < 0.5 ? -1 : 1;
+        if (pl.x + side * 46 - this.w / 2 < a.x + TILE * 2 || pl.x + side * 46 + this.w / 2 > a.x + a.w - TILE * 2) side = -side;
         this.x = clamp(pl.x + side * 46 - this.w / 2, a.x + TILE * 2, a.x + a.w - TILE * 2 - this.w);
         if (this.def.ground) this.y = pl.y + pl.h - this.h; else this.y = pl.y - 30;
         this.visible = true; this.facePlayer(); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 12, 60);
@@ -1030,13 +1061,16 @@ class Boss {
         this.stepT -= dt;
         if (this.stepT <= 0 && this.hitsLeft > 0) {
           this.hitsLeft--; this.stepT = m.step / spd; this.facePlayer();
-          this.vx = this.dir * m.advance / (m.step / spd) * 0.5;
+          // step-and-plant: lunge into the cut at twice the mean speed and settle to a stop over the step
+          // (the same ground is covered as a constant advance / step * 0.5 would)
+          this.vx = this.dir * m.advance / (m.step / spd);
           this.swing = { t: 0.14, dmg: m.dmg }; this.swingKick = 0.14;
           Feel.kick(this, 1.1, 0.93);
           AudioSys.sfx('swing');
           if (m.shock) { Game.projectiles.push(new Projectile(cx + this.dir * 30, this.y + this.h - 6, this.dir * 220, 0, 6, true, 'wave')); World.shake = 0.2; }
           if (this.hitsLeft === 0) this.timer = m.step / spd;
         }
+        this.vx = Feel.approach(this.vx, 0, 0, m.advance / Math.pow(m.step / spd, 2), dt);
         if (this.swing && this.swing.t > 0) { this.swing.t -= dt; this.hitboxes.push({ x: this.dir > 0 ? this.x + this.w - 6 : this.x - m.range + 6, y: this.y - 4, w: m.range, h: this.h + 4, dmg: this.swing.dmg }); }
         if (this.hitsLeft === 0 && this.stepT <= 0) this.endAct(0.45);
         break;
@@ -1049,7 +1083,7 @@ class Boss {
         if (this.timer <= 0) this.endAct(0.4);
         break;
       }
-      case 'leap': { if (this.actT > 2) this.endAct(0.3); break; }
+      case 'leap': { this.vx = Feel.approach(this.vx, this.leapVx, 0, 2600, dt); if (this.actT > 2) this.endAct(0.3); break; }
       case 'volley': {
         if (!this.fired && this.timer <= 0) {
           this.fired = true;
