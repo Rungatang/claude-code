@@ -282,7 +282,8 @@ const Game = {
     this.acc += dt;
     Input.poll();
     if (this.manual) this.acc = 0;
-    while (this.acc >= DT) { this.step(DT); this.acc -= DT; Input.flush(); }
+    const live = this.state === 'play' || this.state === 'transition' || this.state === 'dead';
+    while (this.acc >= DT) { this.step(live ? DT * GAME_SPEED : DT); this.acc -= DT; Input.flush(); }
     this.draw();
     requestAnimationFrame((t2) => this.frame(t2));
   },

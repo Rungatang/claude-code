@@ -12,6 +12,9 @@ const ZOOM = 2;
 // Combat tempo: enemies, bosses and their projectiles run at this fraction of real time, which stretches
 // every telegraph, attack and recovery so fights can be read and answered.
 const TEMPO = 0.7;
+// World speed: while playing, every simulation step advances this fraction of a frame of game time, which
+// slows movement, combat, animation and effects together without touching menus, dialogue or music.
+const GAME_SPEED = 0.8;
 const HEAL_COST = 3, HEAL_TIME = 0.95;
 const VW = VIEW_W / ZOOM;
 const VH = VIEW_H / ZOOM;
