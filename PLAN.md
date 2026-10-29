@@ -78,6 +78,11 @@ Tasks:
 
 ### Doors stay open
 
+Status: plate and weight doors already latch open for good once the player has crossed them (done in
+`World.updateDoors`, saved as `door:<screen>`). The player hit the exact trap this fixes: they opened the
+Rust Street door with a plate and a teleport, arrived at the Foundry whose boss gate was sealed, and the
+door behind them had closed. The solver model and return check below are still to do.
+
 Rule: a door that has been opened stays open. Nothing that the player unlocks may lock behind them.
 
 - Plate and timed doors (`d`): keep the puzzle, change the ending. The plate opens the door and the

@@ -25,7 +25,12 @@ const World = {
     this.bossActive = false; this.arena = null; this.arrival = null;
     this.tileVersion++;
     this.doors = {};
-    for (const sc of Object.values(zone.screens)) this.doors[sc.id] = { open: false, timer: 0, hold: sc.def.doorHold || 2 };
+    for (const sc of Object.values(zone.screens)) {
+      // x of the door column (world px), so crossing it can be detected; a door passed once stays open for good
+      let dx = -1; sc.def.grid.forEach((row) => { for (let x = 0; x < row.length; x++) if ((row[x] === 'd' || row[x] === 'e') && dx < 0) dx = x; });
+      const latched = !!Game.save.flags['door:' + sc.id];
+      this.doors[sc.id] = { open: latched, latched, timer: latched ? 1e9 : 0, hold: sc.def.doorHold || 2, x: dx < 0 ? -1 : (sc.ox + dx) * TILE + TILE / 2, side: 0 };
+    }
     const ents = [];
     const flags = Game.save.flags;
     for (let y = 0; y < zone.H; y++) { this.tiles.push(zone.grid[y].slice()); this.decor.push(new Array(zone.W).fill('.')); }
@@ -98,12 +103,22 @@ const World = {
   updateDoors(plates, dt) {
     for (const id in this.doors) {
       const d = this.doors[id];
+      if (d.latched) { d.open = true; continue; }
       const pressed = plates.some((p) => p.screen === id && p.pressed);
       const def = ROOMS[id]; const flat = def.grid.join('');
       const weight = flat.includes('e');
       if (pressed) { d.timer = d.hold; if (!d.open) { d.open = true; AudioSys.sfx('gate'); } }
       else if (weight) { if (d.open) { d.open = false; AudioSys.sfx('gate'); } }
       else { d.timer -= dt; if (d.timer <= 0 && d.open) { d.open = false; AudioSys.sfx('gate'); } }
+      // Latch: once the player has walked or teleported through an open door it stays open from both sides.
+      if (d.x >= 0) {
+        const pl = Game.player, side = sign(pl.x + pl.w / 2 - d.x);
+        if (d.open && !d.side) d.side = side || 1;
+        if (!d.open) d.side = 0;
+        if (d.open && d.side && side === -d.side && Math.abs(pl.x + pl.w / 2 - d.x) > TILE * 1.5) {
+          d.latched = true; Game.save.flags['door:' + id] = true; AudioSys.sfx('save'); UI.showToast('The way stays open behind you.'); Game.writeSave();
+        }
+      }
     }
   },
   dissolveLock(tx, ty) {
