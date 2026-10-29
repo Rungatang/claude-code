@@ -109,6 +109,18 @@ class Player {
     const controllable = this.hurtT <= 0;
     let move = 0;
     if (controllable) move = (Input.held('right') ? 1 : 0) - (Input.held('left') ? 1 : 0);
+    // Focus: hold H while standing still to turn thread back into hours (HEAL_COST thread per hour).
+    const canFocus = controllable && this.onGround && this.attackT <= 0 && this.castT <= 0 && this.dashT <= 0 && this.hp < this.maxHp && this.thread >= HEAL_COST && !this.dead;
+    this.focusing = canFocus && Input.held('heal');
+    if (this.focusing) {
+      move = 0; this.healT = (this.healT || 0) + dt;
+      if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2, r = 22; Game.particle(this.x + this.w / 2 + Math.cos(a) * r, this.y + this.h / 2 + Math.sin(a) * r, -Math.cos(a) * 60, -Math.sin(a) * 60, 0.35, '#ffd27a', 2); }
+      if (this.healT >= HEAL_TIME) {
+        this.healT = 0; this.hp = Math.min(this.maxHp, this.hp + 1); this.thread -= HEAL_COST;
+        Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe9a8', 18, 90); Game.floaty(this.x + this.w / 2, this.y - 4, '+1', '#ffd27a');
+        Feel.kick(this, 1.12, 0.92); AudioSys.sfx('heal'); Game.flashWhite = Math.max(Game.flashWhite, 0.05);
+      }
+    } else this.healT = 0;
     if (Input.hit('jump') && controllable) this.jumpBuf = 0.12;
     if (Input.hit('attack') && controllable) this.atkBuf = 0.15;
 
@@ -127,7 +139,8 @@ class Player {
       // Movement curves: a quick first response that eases into full speed (~0.12 s from rest), a hard
       // stop when the stick is released, a visible skid when reversing at speed, softer control in the air.
       const vx = this.vx;
-      if (lunging) this.vx = Feel.approach(vx, target, 0, 1900, dt);
+      if (this.hurtT > 0) this.vx = Feel.approach(vx, 0, 0, 220, dt); // thrown: nearly frictionless while reeling
+      else if (lunging) this.vx = Feel.approach(vx, target, 0, 1900, dt);
       else if (this.onGround) {
         if (target === 0) this.vx = this.attackT > 0 && this.attackPhase() !== 'recover' ? Feel.approach(vx, 0, 12, 300, dt) : Feel.approach(vx, 0, 30, 2400, dt);
         else if (vx !== 0 && sign(vx) !== sign(target)) { if (Math.abs(vx) > 120) { if (this.skidT <= 0) Feel.kick(this, 1.1, 0.92); this.skidT = 0.08; if (Math.random() < 0.5) Feel.dust(this, 1, 0.7, -move); } this.vx = Feel.approach(vx, 0, 0, 1900, dt); }
@@ -323,6 +336,8 @@ class Player {
       const result = e.hurt(dmg, this.x + this.w / 2, { kind: this.attackKind, from: 'player', heavy: dmg >= 2 });
       if (result === 'blocked') { this.vx = -this.facing * 160; Game.hitStop = 0.03; Feel.kick(this, 0.9, 1.08); AudioSys.sfx('gate'); continue; }
       this.gainThread(1);
+      Game.spark(e.x + e.w / 2 - this.facing * 4, e.y + e.h * 0.45, this.facing, dmg >= 2);
+      Game.floaty(e.x + e.w / 2, e.y - 2, String(dmg * (e.withered > 0 ? 2 : 1)), dmg >= 2 ? '#ffd27a' : '#ffffff');
       // hit-stop and shake: a tick for a hit, longer for a kill, longest when a boss is knocked into a stagger
       // (Game.step decrements hitStop on the frame it is set, so 0.06 holds 3 frames, 0.09 five, 0.12 seven)
       let stop = this.step === 2 && this.attackKind === 'slash' ? 0.09 : 0.06, shake = 0.08;
@@ -398,9 +413,10 @@ class Player {
     if (this.invuln > 0 || this.dead) return;
     this.hp -= dmg;
     this.recentDamage.push({ n: dmg, t: Game.t });
-    this.invuln = 1.3; this.hurtT = 0.22;
+    this.invuln = 1.3; this.hurtT = 0.3;
     // recoil: thrown away from the source with a short hop, the sprite flinches and the world holds a beat
-    this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 180; this.vy = -200;
+    this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * 270; this.vy = -250; this.healT = 0;
+    Game.floaty(this.x + this.w / 2, this.y - 4, '-' + dmg, '#ff6a6a'); Game.hurtFlash = 0.45;
     this.dashT = 0; this.castT = 0; this.attackT = 0; this.anim = 'hurt';
     Feel.kick(this, 0.8, 1.15); Game.hitStop = Math.max(Game.hitStop, 0.05);
     AudioSys.sfx('hurt'); World.shake = Math.max(World.shake, 0.2);
@@ -422,7 +438,17 @@ class Player {
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffd27a', 24, 160);
     Game.onPlayerDeath();
   }
-  draw(ctx, t) { if (!this.dead) Art.drawPlayer(ctx, this, t); }
+  draw(ctx, t) {
+    if (this.dead) return;
+    Art.drawPlayer(ctx, this, t);
+    if (this.focusing && this.healT > 0) {
+      // the focus ring tightens as the hour is wound back in
+      const k = this.healT / HEAL_TIME, cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+      ctx.save(); ctx.strokeStyle = `rgba(255,210,122,${0.3 + 0.5 * k})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(cx, cy, 22 - 12 * k, 0, Math.PI * 2 * k); ctx.stroke();
+      ctx.fillStyle = `rgba(255,210,122,${0.1 + 0.15 * k})`; ctx.beginPath(); ctx.arc(cx, cy, 14 + 4 * Math.sin(t * 14), 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -518,7 +544,14 @@ class Enemy {
     AudioSys.sfx('hit');
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe08a', 5);
     // light cuts nudge (so the second strike of the combo still reaches); the finisher and pogo throw
-    if (this.type !== 'archer') { this.vx = (this.x + this.w / 2 < fromX ? -1 : 1) * (o.heavy || o.kind === 'pogo' ? 110 : 60); if (this.type !== 'hourfly') this.vy = o.heavy || o.kind === 'pogo' ? -90 : -70; }
+    if (this.type !== 'archer') {
+      const away = this.x + this.w / 2 < fromX ? -1 : 1, heavy = o.heavy || o.kind === 'pogo';
+      const mass = this.type === 'knight' ? 0.5 : this.type === 'hound' ? 0.8 : 1;
+      this.vx = away * (heavy ? 300 : 120) * mass; if (this.type !== 'hourfly') this.vy = heavy ? -190 : -80;
+      if (heavy && this.type !== 'knight') this.stun = Math.max(this.stun, 0.35);
+      if (this.state === 'lunge' || this.state === 'charge' || this.state === 'dive') { this.state = 'idle'; this.cool = Math.max(this.cool, 0.9); }
+      if (this.tele > 0) { this.tele = 0; this.cool = Math.max(this.cool, 0.7); }
+    }
     if (this.hp <= 0) {
       this.dead = true;
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#9a9aa8', 14, 120);
@@ -528,7 +561,7 @@ class Enemy {
     return 'hit';
   }
   update(dt0) {
-    const dt = dt0 * Game.timeScale;
+    const dt = dt0 * Game.timeScale * TEMPO;
     if (this.flash > 0) this.flash -= dt0;
     if (this.stun > 0) this.stun -= dt;
     if (this.withered > 0) this.withered -= dt;
@@ -685,7 +718,7 @@ class Projectile {
     this.owner = o.owner || null; this.returning = false; this.gravity = kind === 'ember' || kind === 'page' || kind === 'shard';
   }
   update(dt0) {
-    const dt = this.hostile ? dt0 * Game.timeScale : dt0;
+    const dt = this.hostile ? dt0 * Game.timeScale * TEMPO : dt0;
     this.life -= dt; this.age += dt;
     if (this.gravity) this.vy += 700 * dt;
     if (this.kind === 'gear' && this.owner && this.age > 0.7) { const ox = this.owner.x + this.owner.w / 2, oy = this.owner.y + this.owner.h / 2; const a = Math.atan2(oy - this.y, ox - this.x); this.vx += Math.cos(a) * 900 * dt; this.vy += Math.sin(a) * 900 * dt; if (dist(this.x, this.y, ox, oy) < 20 && this.age > 1) this.dead = true; }
@@ -882,6 +915,7 @@ class Boss {
     if (this.withered > 0) dmg *= 2;
     if (this.state === 'stagger') dmg *= 1.5;
     this.hp -= dmg; this.flash = 0.12; this.hitKick = 1;
+    this.kbv = (this.x + this.w / 2 < fromX ? -1 : 1) * (o && o.heavy ? 150 : 90);
     Feel.kick(this, 0.93, 1.06);
     AudioSys.sfx('hit');
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe08a', 6);
@@ -910,10 +944,11 @@ class Boss {
     return cands[0];
   }
   update(dt0) {
-    const dt = dt0 * Game.timeScale;
+    const dt = dt0 * Game.timeScale * TEMPO;
     if (this.flash > 0) this.flash -= dt0;
     if (this.withered > 0) this.withered -= dt;
     if (!this.active || this.dead) return;
+    if (this.kbv) { this.x += this.kbv * dt0; this.kbv *= Math.exp(-9 * dt0); if (Math.abs(this.kbv) < 8) this.kbv = 0; this.keepInside(); }
     this.fightT += dt; this.stateT += dt;
     const pl = Game.player, a = this.arena, def = this.def;
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;

@@ -70,6 +70,7 @@ const UI = {
       ctx.fillRect(tx0 + i * 9, ty0, 7, 5);
     }
     ctx.fillStyle = '#9fb0d0'; ctx.font = '9px Georgia, serif'; ctx.fillText('thread', tx0 + pl.maxThread * 9 + 4, ty0 + 5);
+    if (pl.hp < pl.maxHp && pl.thread >= HEAL_COST) { ctx.fillStyle = pl.focusing ? '#ffd27a' : '#c8b890'; ctx.font = '10px Georgia, serif'; ctx.fillText(pl.focusing ? 'focusing...' : 'Hold H: focus (' + HEAL_COST + ' thread = 1 hour)', 14, 68); }
     // anchor
     if (pl.anchor) { ctx.fillStyle = '#ffd27a'; ctx.font = '10px Georgia, serif'; ctx.fillText('\u2693 anchor set  (F returns, ' + RECALL_COST + ' thread)', 14, 56); }
     else if (Game.save.flags['scene:A2']) { ctx.fillStyle = '#6a6a7a'; ctx.font = '10px Georgia, serif'; ctx.fillText('F: set anchor', 14, 56); }

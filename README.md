@@ -108,3 +108,9 @@ node tools/solve.js      # needs playwright + chromium; proves every power,
 
 Add `?debug` to the URL for a debug build: `9` grants every power, `0`
 raises health, and `[` / `]` jump between zones.
+
+## Combat notes
+
+- Enemies, bosses and their projectiles run at 70% speed (`TEMPO` in `js/util.js`), so every telegraph and recovery is longer.
+- Hits throw both sides: enemies and bosses are knocked back, the player is thrown away from the blow, and damage numbers, impact sparks and a red edge flash show what landed.
+- Focus (hold H or G, standing still): converts 3 thread into 1 hour in about one second. Taking a hit interrupts it.

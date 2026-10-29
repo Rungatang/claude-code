@@ -11,7 +11,7 @@ const Game = {
   entities: [], projectiles: [], particles: [],
   player: null, save: null,
   cam: { x: 0, y: 0 },
-  hitStop: 0, flashWhite: 0,
+  hitStop: 0, flashWhite: 0, hurtFlash: 0, floaters: [],
   timeScale: 1, stallT: 0, severT: 0, stopFx: 0,
   transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
   deathT: 0, overlay: null, debug: false, manual: false,
@@ -77,7 +77,7 @@ const Game = {
   loadZone(id, entry) {
     const prevRegion = World.room ? World.room.region : null;
     const specs = World.load(id);
-    this.entities = []; this.projectiles = []; this.particles = [];
+    this.entities = []; this.projectiles = []; this.particles = []; this.floaters = [];
     this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0;
     this.timeScale = 1; this.stallT = 0; this.severT = 0;
     const pl = this.player;
@@ -306,7 +306,16 @@ const Game = {
     if (Input.hit('pause')) { this.state = 'play'; return; }
     if (Input.hit('confirm')) { if (UI.menuIndex === 0) this.state = 'play'; else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); } }
   },
-  stepParticles(dt) { for (const p of this.particles) p.update(dt); this.particles = this.particles.filter((p) => !p.dead); },
+  stepParticles(dt) {
+    for (const p of this.particles) p.update(dt); this.particles = this.particles.filter((p) => !p.dead);
+    for (const f of this.floaters) { f.t += dt; f.y += f.vy * dt; f.vy *= 0.94; }
+    this.floaters = this.floaters.filter((f) => f.t < f.life);
+    if (this.hurtFlash > 0) this.hurtFlash -= dt;
+  },
+  // A rising number (damage dealt or taken, hours restored).
+  floaty(x, y, text, color) { if (this.floaters.length < 40) this.floaters.push({ x: x + (Math.random() - 0.5) * 6, y, vy: -46, t: 0, life: 0.8, text, color, kind: 'text' }); },
+  // A slash-shaped impact flash where a blow lands.
+  spark(x, y, dir, big) { if (this.floaters.length < 40) this.floaters.push({ x, y, vy: 0, t: 0, life: 0.14, dir, big, kind: 'spark' }); },
   stepPlay(dt) {
     if (Input.hit('pause')) { this.state = 'pause'; UI.menuIndex = 0; AudioSys.sfx('menu'); return; }
     if (Input.hit('map')) { this.state = 'map'; AudioSys.sfx('menu'); return; }
@@ -446,6 +455,18 @@ const Game = {
     for (const p of this.projectiles) p.draw(ctx, t);
     pl.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
+    for (const f of this.floaters) {
+      const k = f.t / f.life;
+      if (f.kind === 'spark') {
+        ctx.save(); ctx.translate(f.x, f.y); ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#fff'; ctx.lineCap = 'round';
+        const r = (f.big ? 16 : 11) * (0.6 + k * 0.8);
+        for (let i = -1; i <= 1; i++) { const a = (i * 0.5 - 0.25) * f.dir + (f.dir > 0 ? 0 : Math.PI); ctx.lineWidth = i === 0 ? 2.4 : 1.4; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); ctx.stroke(); }
+        ctx.restore();
+      } else {
+        ctx.save(); ctx.globalAlpha = Math.min(1, (1 - k) * 2); ctx.font = 'bold 7px Georgia, serif'; ctx.textAlign = 'center';
+        ctx.lineWidth = 2; ctx.strokeStyle = '#0a0810'; ctx.strokeText(f.text, f.x, f.y); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); ctx.restore();
+      }
+    }
     if (!pl.dead) {
       const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 6, pl.x + pl.w / 2, pl.y + 10, 80);
       g.addColorStop(0, 'rgba(255,214,150,0.12)'); g.addColorStop(1, 'rgba(255,214,150,0)');
@@ -454,6 +475,7 @@ const Game = {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     Art.drawAtmosphere(ctx, World.room.region, t, cam);
     if (this.timeScale < 1 || this.stopFx > 0) Art.drawTimeFx(ctx, t, this.timeScale, this.stopFx > 0);
+    if (this.hurtFlash > 0) { const a = Math.min(0.5, this.hurtFlash); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85); g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, `rgba(200,10,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.flashWhite > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 4})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     UI.drawHud(ctx, t);
     switch (this.state) {
