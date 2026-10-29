@@ -391,7 +391,7 @@ MUSIC_THEMES.title = {
     voices: { clock: { inst: 'drums', vol: 0.7, pan: 0.2 }, strings: { inst: 'strings', vol: 0.5, pan: -0.15 }, stabs: { inst: 'stab', vol: 0.5, pan: 0.25 }, bass: { inst: 'subbass', vol: 0.6 }, bell: { inst: 'bell', vol: 0.35, pan: -0.3 }, pizz: { inst: 'basspluck', vol: 0.4, pan: -0.1 } },
     sections: {
       intro: { bars: 4, clock: mRep(clock, 2) + ' ' + mRep(clockFast, 2), bass: '39/10 | 39/10', bell: 'r/15 75/5@.6', stabs: 'r/10 ' + mRep('r/2.5 63+64/.5@.7 r/2', 2), pizz: 'r/10 ' + mRep(pizz(51), 2) },
-      A: { bars: 8, clock: mRep(clock, 8), strings: motifAug, bass: '39/5 | 39/5 | 35/5 | 34/5 | 39/5 | 39/5 | 37/5 | 34/5', pizz: [51, 51, 47, 46, 51, 51, 49, 46].map(pizz).join(' | '),
+      A: { bars: 8, clock: mRep(clockFast, 2) + ' ' + mRep(clock, 6), strings: motifAug, bass: '39/5 | 39/5 | 35/5 | 34/5 | 39/5 | 39/5 | 37/5 | 34/5', pizz: [51, 51, 47, 46, 51, 51, 49, 46].map(pizz).join(' | '),
         stabs: mRep('r/2.5 63+64/.5@.9 r/2', 4) + ' ' + mRep('r/1.5 63+64/.5@.9 r/2.5 70+71/.5@.7', 4),
         bell: ['r/35 70/5@.5', '75/5@.5 r/15 70/5@.5 r/15'] },
       B: { bars: 8, clock: mRep(clock, 6) + ' ' + mRep(clockFast, 2),
