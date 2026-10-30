@@ -14,7 +14,9 @@ step is done.
 5. A currency and a shop.
 6. Doors that stay open. Timed doors that close behind you after the plate is used and you teleport
    through are a bad mechanic: they stop you from going back into the room.
-7. A protagonist who is confused for most of the game. He learns only that the big bad wronged him,
+7. A one-word title that only makes sense after playing for a while (replaces HOLLOW HOURS).
+8. Bigger rooms, with more to explore in each.
+9. A protagonist who is confused for most of the game. He learns only that the big bad wronged him,
    and works out who he really is very late. The story should be told by the world and other
    characters, not by Tam narrating it.
 
@@ -256,6 +258,48 @@ Target 4 to 6 hours for a first playthrough, up from about one.
 3. Draft the script from the ladder, then trim every line Tam says that is not a reaction.
 4. Add the new regions only after steps 1 to 4 land, so they use the final powers and lanterns.
 
+## Step 4b: a one-word title (half a day, decide early so the title screen and files can change once)
+
+The title should read as a plain word on the title screen and turn over in the player's head later,
+once they know what Tam is and what the thread costs. Candidates, with the moment that gives them
+their meaning:
+
+- **DEBTOR**: the city runs on owed hours; Tam learns late that he is four hundred debtors poured
+  into one body. Reads as a job title at first.
+- **SPENT**: every power spends a stranger's hour; at the end, he is spent. Reads as tiredness first.
+- **OVERDUE**: an hour kept past its time; Tam is the city's overdue debt walking home.
+- **WOUND**: a clock is wound, a wound is a hurt, and the thread is wound on spools. All three fit.
+- **REMAINDER**: what is left when the hours are taken out of a man.
+- **TITHE**: the share the Hourwrights took from everyone; Tam is the tithe.
+
+Recommendation: WOUND (three meanings, all earned in play) with DEBTOR as the alternative. The player
+decides. Then: title screen in `js/ui.js`, story title card in `js/story.js`, save key in `js/game.js`
+(bump it, old saves are not compatible anyway after the next steps), `README.md`, `HANDOFF.md`, the
+artifact page and its description, the `<title>` in `index.html`.
+
+## Step 4c: bigger rooms with more to explore (2 to 4 days, after the powers in step 2)
+
+Today every screen is a fixed 40x23 tiles (`ROOM_W`, `ROOM_H` in `js/util.js`), and a zone is a
+straight row or column of such screens stitched together. Bigger rooms do not need a different tile
+size; they need zones that are two screens tall and two or three wide, with the camera free inside
+them, and real content filling the space.
+
+- Engine: let a zone be any rectangle of screens, not just a straight line (`js/zones.js` already
+  builds a `cols x rows` grid; the restriction is in the design tool briefs and the validator). Keep
+  the screen as the unit of authoring so the validator, solver and map keep working. Boss arenas may
+  span two screens horizontally.
+- Target sizes: ordinary rooms 2x1 or 1x2 screens, hub rooms 2x2, the final arenas 2x1. The 39
+  current screens become about 25 larger zones, then new regions add to that.
+- Content per big room, enforced by a lint in `tools/validate.js`: a main path, at least two optional
+  nooks, one secret, one vertical element (shaft, chimney or climb) and one set piece (bridge,
+  machine, water, ruin). Every nook pays something: grains, a tablet, a view that shows a locked door,
+  an enemy with a reward, or a shortcut.
+- Camera: wider look-ahead in large rooms and a brief pull-back when entering one, so the size reads.
+- Map: zones draw at their real size; unexplored parts of a zone stay dark until walked.
+- Process: same as the level redesign that produced the current rooms (one designer agent per
+  region in an isolated worktree, validator plus solver plus whole-zone renders, critic review),
+  with the new size rule and the content lint in the brief.
+
 ## Step 6: carry-over items from earlier
 
 - The tower arenas scored 5 out of 10 in review and were left as the original boxes: redo them.
@@ -275,7 +319,8 @@ Target 4 to 6 hours for a first playthrough, up from about one.
 | M1 | Step 1 lanterns and persistence | Rest, kill memory and safe radius verified |
 | M2 | Step 2 powers, first three | Age, Hold, Cut in with tutorial rooms and solver support |
 | M3 | Step 2 rest of the powers, Step 3 currency, shop, charms | A full economy loop plays through |
-| M4 | Step 4 map and fast travel; step 5 story bible agreed | Player signs off the bible |
+| M4 | Step 4 map and fast travel; step 4b title chosen; step 5 story bible agreed | Player signs off the bible and the title |
+| M4b | Step 4c bigger rooms for the existing regions | Every zone passes the content lint; the solver passes |
 | M5 | Rewrite existing script plus first new region | New region playable end to end |
 | M6 | Remaining new regions and bosses | Playtest, balance, publish |
 
@@ -290,4 +335,5 @@ snapshot, and ask the player to play it before starting the next one.
 4. Do any of the current power names need to stay (Wither, Stall, Mend, Echo, Sever)? The plan renames
    three of them.
 5. Endings: one ending, or a choice at the end tied to what Tam learns about Sef?
-6. Should extra movement upgrades (wall cling, second jump) be added alongside the time powers?
+6. Title: WOUND, DEBTOR, or another word from the list in step 4b?
+7. Should extra movement upgrades (wall cling, second jump) be added alongside the time powers?
