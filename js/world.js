@@ -54,7 +54,7 @@ const World = {
           case 'i': { const idx = tabletIndex++; ents.push({ cls: 'tablet', x: gx, y: gy, screen: def.id, index: idx }); ch = '.'; break; }
           case 'B': ents.push({ cls: 'bossSpawn', x: gx, y: gy, boss: def.boss, arena: { x: sc.ox * TILE, y: sc.oy * TILE, w: VIEW_W, h: VIEW_H } }); ch = '.'; break;
           case 'Q': this.arrival = { tx: gx, bottom: (gy + 1) * TILE }; ch = '.'; break;
-          case 'G': if (flags[def.gateFlag] || (def.boss && flags['boss:' + def.boss]) || (def.gateNeeds && Game.relicCount() >= def.gateNeeds)) ch = '.'; break;
+          case 'G': if (flags[def.gateFlag] || (def.gateFlag && Game.has(def.gateFlag)) || (def.boss && flags['boss:' + def.boss]) || (def.gateNeeds && Game.relicCount() >= def.gateNeeds)) ch = '.'; break;
           case 'L': if (flags['lock:' + def.id + ':' + x + ':' + y]) ch = '.'; break;
           case 'R': if (flags['mend:' + def.id + ':' + x + ':' + y]) ch = '#'; break;
           case 'p': ents.push({ cls: 'plate', x: gx, y: gy, screen: def.id }); ch = '.'; break;
@@ -179,7 +179,10 @@ const World = {
   openNeedGates() {
     if (!this.zone) return;
     for (const sc of Object.values(this.zone.screens)) {
-      const need = sc.def.gateNeeds; if (!need || Game.relicCount() < need) continue;
+      // a seal opens for the relics it wants, or for the ability its gateFlag names (the tower seal needs Sever)
+      const need = sc.def.gateNeeds, flag = sc.def.gateFlag;
+      const byRelics = need && Game.relicCount() >= need, byFlag = flag && (Game.save.flags[flag] || Game.has(flag));
+      if (!byRelics && !byFlag) continue;
       let opened = false;
       for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[sc.oy + y][sc.ox + x] === 'G') { this.tiles[sc.oy + y][sc.ox + x] = '.'; opened = true; }
       if (opened) { this.tileVersion++; AudioSys.sfx('gate'); UI.showToast('A seal gives way. The way to the guardian is open.'); this.shake = Math.max(this.shake, 0.2); }
