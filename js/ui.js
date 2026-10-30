@@ -138,8 +138,7 @@ const UI = {
     ctx.fillStyle = this.PAPER; ctx.fillRect(90, 70, 14, 14); ctx.fillRect(90, 92, 14, 3); ctx.fillRect(90, 100, 14, 3); ctx.fillRect(90, 110, 6, 40); ctx.fillRect(98, 110, 6, 40);
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PAPER; ctx.font = 'bold 54px Georgia, serif'; ctx.fillText('HOLLOW HOURS', VIEW_W / 2, 122);
-    ctx.fillStyle = this.GOLD; ctx.font = 'italic 16px Georgia, serif'; ctx.fillText('a debt paid in other people\'s time', VIEW_W / 2, 152);
-    ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 60, 164, 120, 1.5);
+    ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 60, 142, 120, 1.5);
     const items = this.titleItems();
     items.forEach((it, i) => {
       const sel = i === this.menuIndex;
@@ -147,19 +146,14 @@ const UI = {
       ctx.font = (sel ? 'bold ' : '') + '18px Georgia, serif';
       ctx.fillText((sel ? '▸ ' : '') + it, VIEW_W / 2, 218 + i * 28);
     });
-    ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
-    ctx.fillText('Arrows / WASD move    Z / Space jump    X strike (Up+X, Down+X in air)    C / Shift skip', VIEW_W / 2, 296);
-    ctx.fillText('F anchor / return    Q / E choose power    V cast    Up talk / rest    M map    Esc pause    N mute', VIEW_W / 2, 312);
-    ctx.fillText('Pad: A jump  X strike  RT dash  hold B heal  Y anchor  D-pad L/R choose power  RB cast it  LB wither  LT stall  Select map  Start pause', VIEW_W / 2, 322);
-    ctx.fillStyle = '#7a5a5a'; ctx.fillText('Contains themes of coercion and death. Not for children.', VIEW_W / 2, 338);
-    ctx.fillStyle = '#5a5050'; ctx.fillText('press Enter or A', VIEW_W / 2, 354);
+    ctx.fillStyle = '#5a5050'; ctx.font = '11px Georgia, serif'; ctx.fillText('press Enter or A', VIEW_W / 2, 354);
     ctx.textAlign = 'left';
   },
   titleItems() { return ['New Game', Game.hasSave() ? 'Continue' : null].filter(Boolean); },
 
   drawPause(ctx, t) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    this.frame(ctx, 170, 80, 300, 220);
+    this.frame(ctx, 120, 80, 400, 230);
     ctx.textAlign = 'center';
     ctx.fillStyle = this.PAPER; ctx.font = 'bold 24px Georgia, serif'; ctx.fillText('PAUSED', VIEW_W / 2, 120);
     ['Resume', 'Stuck? Back to lantern', 'Quit to Title'].forEach((it, i) => {
@@ -168,8 +162,11 @@ const UI = {
       ctx.fillText((sel ? '▸ ' : '') + it, VIEW_W / 2, 170 + i * 28);
     });
     ctx.fillStyle = '#8a8070'; ctx.font = '11px Georgia, serif';
-    ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 256);
-    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 280);
+    ctx.fillStyle = '#8a8070'; ctx.font = '10px Georgia, serif';
+    ctx.fillText('Keys: arrows move  Z jump  X strike  C dash  V cast  Q/E power  F anchor  hold H focus  M map', VIEW_W / 2, 246);
+    ctx.fillText('Pad: A jump  X strike  RT dash  RB cast  d-pad power  Y anchor  hold B focus  LB/LT quick cast  Select map', VIEW_W / 2, 258);
+    ctx.font = '11px Georgia, serif'; ctx.fillText('Quitting loses progress since your last rest.', VIEW_W / 2, 272);
+    ctx.fillText('Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 288);
     ctx.textAlign = 'left';
   },
 
