@@ -1,4 +1,4 @@
-# HOLLOW HOURS: story bible
+# WOUND: story bible
 
 Status: draft for review with the player (PLAN.md step 5, process item 1). Nothing in `js/story.js` has
 been changed to match it yet. The working title stays HOLLOW HOURS until step 4b picks the one-word title;

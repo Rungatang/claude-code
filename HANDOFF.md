@@ -1,4 +1,4 @@
-# HOLLOW HOURS: handoff for a new session
+# WOUND: handoff for a new session
 
 Paste the block below as the first message of a new Claude Code chat opened in a clone of this
 branch. It tells the next session what the game is, how it is built and tested, what is in flight
@@ -6,7 +6,7 @@ and what the player (you) has asked for.
 
 ---
 
-I am continuing HOLLOW HOURS, a dark browser metroidvania in this repo (branch
+I am continuing WOUND (formerly Hollow Hours), a dark browser metroidvania in this repo (branch
 `claude/eager-wright-e73jp5`, GitHub Rungatang/claude-code). Read `HANDOFF.md` and `README.md`
 first, then `tools/check.sh quick` to confirm the game runs.
 

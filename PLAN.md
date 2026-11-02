@@ -1,4 +1,4 @@
-# HOLLOW HOURS: action plan for the next phase
+# WOUND: action plan for the next phase
 
 Status: planning only. No game code was changed for this plan. Read `HANDOFF.md` first for how the
 project is built and tested; this file says what to build next, in what order, and how to know each
@@ -14,7 +14,7 @@ step is done.
 5. A currency and a shop.
 6. Doors that stay open. Timed doors that close behind you after the plate is used and you teleport
    through are a bad mechanic: they stop you from going back into the room.
-7. A one-word title that only makes sense after playing for a while (replaces HOLLOW HOURS).
+7. A one-word title that only makes sense after playing for a while (replaces HOLLOW HOURS). Done: WOUND.
 8. Bigger rooms, with more to explore in each.
 9. A protagonist who is confused for most of the game. He learns only that the big bad wronged him,
    and works out who he really is very late. The story should be told by the world and other

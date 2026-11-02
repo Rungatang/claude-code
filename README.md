@@ -1,4 +1,7 @@
-# Hollow Hours
+# WOUND
+
+Formerly titled Hollow Hours. A clock is wound; a wound is a hurt; the thread Tam spends is wound on
+spools. The title earns all three meanings in play.
 
 A dark, story-driven metroidvania that runs in the browser with no
 dependencies and no build step. Everything, from the inked characters and

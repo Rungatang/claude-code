@@ -1,5 +1,5 @@
 'use strict';
-// Reachability solver for HOLLOW HOURS. Drives the real physics in headless
+// Reachability solver for WOUND. Drives the real physics in headless
 // Chromium through every zone, with each power's gate modelled, and checks
 // that powers, bosses, lanterns, memories, hours and the ending are reachable
 // in the intended order. Usage: node tools/solve.js

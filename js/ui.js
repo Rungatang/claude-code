@@ -143,7 +143,7 @@ const UI = {
     ctx.fillStyle = this.SEAL; ctx.fillRect(84, 60, 26, 110);
     ctx.fillStyle = this.PAPER; ctx.fillRect(90, 70, 14, 14); ctx.fillRect(90, 92, 14, 3); ctx.fillRect(90, 100, 14, 3); ctx.fillRect(90, 110, 6, 40); ctx.fillRect(98, 110, 6, 40);
     ctx.textAlign = 'center';
-    ctx.fillStyle = this.PAPER; ctx.font = 'bold 54px Georgia, serif'; ctx.fillText('HOLLOW HOURS', VIEW_W / 2, 122);
+    ctx.fillStyle = this.PAPER; ctx.font = 'bold 54px Georgia, serif'; ctx.fillText('WOUND', VIEW_W / 2, 122);
     ctx.fillStyle = this.SEAL; ctx.fillRect(VIEW_W / 2 - 60, 142, 120, 1.5);
     const items = this.titleItems();
     items.forEach((it, i) => {

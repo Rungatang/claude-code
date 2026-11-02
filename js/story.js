@@ -1,6 +1,6 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// The script of HOLLOW HOURS.
+// The script of WOUND.
 //   { ill, text, hold }        illustrated panel
 //   { who, name, text, mood }  dialogue line
 //   { title, sub, hold }       title card
@@ -159,7 +159,7 @@ const Story = {
     { ill: 'clock', text: 'He opened the Great Clock. The hands had been held at the same minute for a hundred years, and they were cold to the touch.', hold: 6 },
     { ill: 'giving', text: 'Then he gave the hours back. Four hundred of them, out of the glass and into the gears, each one a stranger\'s unspent afternoon returning to the city it was stolen from. There was nothing in him that was his.', hold: 8 },
     { ill: 'shoreEnd', text: 'The Regent found the hourglass on the shore where it had all begun, empty and still. He buried it above the tideline, and when the Miller asked what the stone should say, he thought for a long time and wrote only: HE GAVE THEM BACK.', hold: 8 },
-    { title: 'HOLLOW HOURS', sub: '', hold: 4 },
+    { title: 'WOUND', sub: '', hold: 4 },
     { title: 'Thank you for playing', sub: 'Memories found and hours gathered are shown on the map.', hold: 4 },
   ],
 
