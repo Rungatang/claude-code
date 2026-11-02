@@ -544,6 +544,30 @@ MUSIC_THEMES.title = {
   const chordsA = '48+55+60+64/4 | 53+57+60+65/4 | 45+52+57+60/4 | 43+50+55+59/4 | 48+55+60+64/4 | 53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/4';
   const chordsB = '53+57+60+65/4 | 43+50+55+59/4 | 48+55+60+64/4 | 50+53+57+62/4 | 53+57+60+65/4 | 48+55+59+62/4 | 53+57+60+65/2 55+59+62+67/2 | 43+50+59+65/4';
   const boxA = MOTIF_MAJ + ' | 64/1 72/1.5 71/.5 69/1 | 67/1 69/1 65/2 | 64/1 65/1 67/1 69/1 | 72/4';
+  MUSIC_THEMES.glass = (function () {
+    // E minor turning to G major: a glass-harmonica line over a furnace drone, celesta answering, a slow
+    // anvil pulse. 4/4 at 84. Bright on top, something warm and tired underneath.
+    const lineA = '76/1 79/1.5 78/.5 76/1 | 74/1 76/1 71/2 | 72/1 76/1.5 74/.5 72/1 | 71/1 69/1 67/2';
+    const lineB = '79/1 83/1.5 81/.5 79/1 | 78/1 79/1 74/2 | 76/1 79/1.5 78/.5 76/1 | 74/1 72/1 71/2';
+    const answer = 'r/2 64/1 67/1 | r/2 62/1 64/1 | r/2 60/1 64/1 | r/1 59/1 55/2';
+    const chordsA = '52+55+59/4 | 50+55+59/4 | 48+52+55/4 | 47+50+55/4';
+    const chordsB = '55+59+62/4 | 54+57+62/4 | 52+55+59/4 | 50+54+57/4';
+    const droneA = '40/4 | 38/4 | 36/4 | 35/4';
+    const droneB = '43/4 | 42/4 | 40/4 | 38/4';
+    const pulse = 'a/1@.5 r/1 q/1@.4 r/1';
+    return {
+      bpm: 84, beats: 4, delayBeats: 1,
+      voices: { glass: { inst: 'glass', vol: 0.6, pan: -0.15 }, cel: { inst: 'celesta', vol: 0.45, pan: 0.25 }, pad: { inst: 'warmpad', vol: 0.4 }, drone: { inst: 'drone', vol: 0.5, pan: 0.05 }, perc: { inst: 'drums', vol: 0.5 } },
+      sections: {
+        intro: { bars: 4, drone: droneA, perc: mRep(pulse, 4), pad: chordsA },
+        A: { bars: 8, glass: lineA + ' | ' + lineA, cel: answer + ' | ' + answer, pad: chordsA + ' | ' + chordsA, drone: droneA + ' | ' + droneA, perc: mRep(pulse, 8) },
+        B: { bars: 8, glass: lineB + ' | ' + lineA, cel: answer + ' | ' + mTr(answer, 3), pad: chordsB + ' | ' + chordsA, drone: droneB + ' | ' + droneA, perc: mRep(pulse, 8) },
+        A2: { bars: 8, glass: lineA + ' | ' + mTr(lineA, 12), cel: mTr(answer, 12) + ' | ' + answer, pad: chordsA + ' | ' + chordsA, drone: droneA + ' | ' + droneA, perc: mRep(pulse, 8) },
+        rest: { bars: 4, drone: droneA, pad: chordsA, perc: mRep('r/4', 4) },
+      },
+      form: ['intro', 'A', 'B', 'A2', 'rest'],
+    };
+  })();
   MUSIC_THEMES.ending = {
     bpm: 66, beats: 4, delayBeats: 0.75,
     voices: { box: { inst: 'musicbox', vol: 0.8, pan: -0.1 }, strings: { inst: 'stringsPad', vol: 0.6 }, harp: { inst: 'harp', vol: 0.45, pan: 0.25 }, bass: { inst: 'subbass', vol: 0.45 }, bell: { inst: 'bell', vol: 0.4, pan: -0.3 }, flute: { inst: 'flute', vol: 0.5, pan: 0.15 } },

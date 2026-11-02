@@ -28,7 +28,7 @@ fs.mkdirSync(outDir, { recursive: true });
     const w = Math.round(z.W * 16 * scale), h = Math.round(z.H * 16 * scale);
     await page.setViewportSize({ width: w, height: h });
     await page.evaluate(({ id, w, h, scale }) => {
-      Game.manual = true; Game.draw = () => {};
+      Game.manual = true; Game.draw = () => {}; Game.resize = () => {};
       Game.save = Game.defaultSave(); Game.state = 'play';
       Game.loadZone(id, 'link');
       const c = document.getElementById('game'); c.width = w; c.height = h; c.style.width = w + 'px'; c.style.height = h + 'px';

@@ -55,7 +55,7 @@ fs.mkdirSync(outDir, { recursive: true });
     const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#1e1a24'; ctx.fillRect(0, 0, 1280, 480);
     ctx.save(); ctx.scale(2.2, 2.2);
-    const types = ['shallows', 'ferrous', 'escapement', 'regent', 'index', 'grinder', 'sef'];
+    const types = ['shallows', 'ferrous', 'annealer', 'escapement', 'regent', 'index', 'grinder', 'sef'];
     types.forEach((type, i) => { const d = BOSS_DEFS[type]; const b = { type, def: d, w: d.w, h: d.h, x: 10 + i * 82, y: 110 - d.h, dir: 1, flash: 0, state: 'idle', move: null, phase: 1, vx: 0, fightT: 1, withered: 0 }; Art.drawBoss(ctx, b, 1.3); const b2 = Object.assign({}, b, { y: 210 - d.h, state: 'act', move: { type: 'combo' }, phase: 2 }); Art.drawBoss(ctx, b2, 1.3); });
     ctx.restore();
     ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.fillText('shallows ferrous escapement regent index grinder sef   (row 1 idle, row 2 attacking / phase 2)', 12, 470);

@@ -376,6 +376,145 @@ HOLLOW_ENV.build.rust = function (L, p, R, rng, K) {
     w3(c, (c, rng, k) => { c.fillStyle = col; c.fillRect(0, 0, W, 6); for (let x = 20; x < W; x += 54) c.fillRect(x, 6, 3, 6); K.chain(c, 180, 4, 50, col, 4); K.chain(c, 700, 4, 34, col, 4); c.save(); c.translate(420, 0); c.rotate(0.45); c.fillRect(-10, -4, 140, 8); c.restore(); });
   }
 };
+// ---- THE GLASSWORKS: a dead glasshouse, the great furnace still lit ----------------
+// a glass vessel in silhouette standing on (x, y): kind 0 bottle, 1 jug, 2 goblet, 3 flask, 4 bowl
+HOLLOW_ENV.vessel = function (ctx, x, y, h, kind, col, rng) {
+  ctx.fillStyle = col; ctx.beginPath(); const w = h * (kind === 4 ? 0.9 : kind === 2 ? 0.45 : 0.42);
+  switch (kind % 5) {
+    case 0: ctx.moveTo(x - w / 2, y); ctx.lineTo(x - w / 2, y - h * 0.55); ctx.quadraticCurveTo(x - w / 2, y - h * 0.72, x - w * 0.16, y - h * 0.78); ctx.lineTo(x - w * 0.16, y - h); ctx.lineTo(x + w * 0.16, y - h); ctx.lineTo(x + w * 0.16, y - h * 0.78); ctx.quadraticCurveTo(x + w / 2, y - h * 0.72, x + w / 2, y - h * 0.55); ctx.lineTo(x + w / 2, y); break;
+    case 1: ctx.moveTo(x - w * 0.4, y); ctx.quadraticCurveTo(x - w * 0.75, y - h * 0.45, x - w * 0.3, y - h * 0.8); ctx.lineTo(x - w * 0.32, y - h); ctx.lineTo(x + w * 0.38, y - h); ctx.lineTo(x + w * 0.3, y - h * 0.8); ctx.quadraticCurveTo(x + w * 0.75, y - h * 0.45, x + w * 0.4, y); ctx.closePath(); ctx.fill(); ctx.lineWidth = Math.max(1, h * 0.07); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(x + w * 0.4, y - h * 0.85); ctx.quadraticCurveTo(x + w * 0.9, y - h * 0.7, x + w * 0.55, y - h * 0.4); ctx.stroke(); return;
+    case 2: ctx.moveTo(x - w * 0.5, y); ctx.lineTo(x + w * 0.5, y); ctx.lineTo(x + w * 0.1, y - h * 0.1); ctx.lineTo(x + w * 0.1, y - h * 0.45); ctx.quadraticCurveTo(x + w * 0.6, y - h * 0.5, x + w * 0.5, y - h); ctx.lineTo(x - w * 0.5, y - h); ctx.quadraticCurveTo(x - w * 0.6, y - h * 0.5, x - w * 0.1, y - h * 0.45); ctx.lineTo(x - w * 0.1, y - h * 0.1); break;
+    case 3: ctx.moveTo(x - w * 0.6, y); ctx.quadraticCurveTo(x - w * 0.7, y - h * 0.6, x - w * 0.14, y - h * 0.62); ctx.lineTo(x - w * 0.14, y - h); ctx.lineTo(x + w * 0.14, y - h); ctx.lineTo(x + w * 0.14, y - h * 0.62); ctx.quadraticCurveTo(x + w * 0.7, y - h * 0.6, x + w * 0.6, y); break;
+    case 4: ctx.moveTo(x - w * 0.5, y - h); ctx.quadraticCurveTo(x - w * 0.45, y + h * 0.1, x, y); ctx.quadraticCurveTo(x + w * 0.45, y + h * 0.1, x + w * 0.5, y - h); break;
+  }
+  ctx.closePath(); ctx.fill();
+  void rng;
+};
+// an iron rack of shelves between y0 and y1, vessels standing on each shelf (some gaps, some fallen)
+HOLLOW_ENV.rack = function (ctx, x, y0, y1, w, shelves, col, rng, vh) {
+  vh = vh || 18; ctx.fillStyle = col;
+  ctx.fillRect(x, y0, 4, y1 - y0); ctx.fillRect(x + w - 4, y0, 4, y1 - y0);
+  for (let i = 0; i <= shelves; i++) {
+    const y = y0 + (y1 - y0) * i / shelves; ctx.fillStyle = col; ctx.fillRect(x - 3, y - 2, w + 6, 4);
+    if (i === 0) continue;
+    for (let vx = x + 8; vx < x + w - 6;) { const h = vh * (0.6 + rng() * 0.7), k = Math.floor(rng() * 5); if (rng() > 0.22) HOLLOW_ENV.vessel(ctx, vx + h * 0.22, y - 2, h, k, col, rng); vx += h * 0.5 + 3 + rng() * 6; }
+  }
+  // a diagonal brace
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 2, y0 + 4); ctx.lineTo(x + w - 2, y1 - 4); ctx.stroke();
+};
+// an annealing oven: a brick box with an arched iron door, hinges, a slit of light at the sill
+HOLLOW_ENV.oven = function (ctx, x, y, w, h, col, acc, rng, lit) {
+  const K = HOLLOW_ENV; ctx.fillStyle = col; ctx.fillRect(x, y, w, h); ctx.fillRect(x - 6, y - 8, w + 12, 10);
+  // the door
+  const dw = w * 0.5, dh = h * 0.66, dx = x + (w - dw) / 2, dy = y + h - dh - 4;
+  ctx.fillStyle = K.mix(col, '#000', 0.35); ctx.beginPath(); ctx.moveTo(dx, y + h); ctx.lineTo(dx, dy + dw * 0.4); ctx.arc(dx + dw / 2, dy + dw * 0.4, dw / 2, Math.PI, 0); ctx.lineTo(dx + dw, y + h); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = K.mix(col, '#fff', 0.08); ctx.fillRect(dx + 3, dy + dw * 0.4, dw - 6, 3); ctx.fillRect(dx + 3, y + h - dh * 0.4, dw - 6, 3); // straps
+  ctx.fillRect(dx + dw - 7, dy + dw * 0.5, 4, 4); ctx.fillRect(dx + dw - 7, y + h - 14, 4, 4); // hinges
+  if (lit) { ctx.fillStyle = K.rgba(acc, 0.55 + rng() * 0.3); ctx.fillRect(dx + 2, y + h - 3, dw - 4, 2); ctx.fillStyle = K.rgba(acc, 0.7); ctx.fillRect(dx + dw / 2 - 2, dy + dw * 0.55, 4, 3); } // sill slit and peephole
+  // stack
+  ctx.fillStyle = col; ctx.fillRect(x + w * 0.7, y - 40 - rng() * 30, 12, 50 + 30);
+};
+// a heap of cullet (broken glass): a low jagged mound with a few bright facets
+HOLLOW_ENV.cullet = function (ctx, x, y, w, h, col, acc, rng) {
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x - w / 2, y + 3);
+  const n = 8 + Math.floor(w / 18); for (let i = 1; i < n; i++) { const u = i / n; ctx.lineTo(x - w / 2 + u * w + (rng() - 0.5) * 6, y - Math.sin(u * Math.PI) * h * (0.7 + rng() * 0.5)); }
+  ctx.lineTo(x + w / 2, y + 3); ctx.closePath(); ctx.fill();
+  for (let i = 0; i < w / 9; i++) { const u = rng(), px = x - w / 2 + u * w, py = y - Math.sin(u * Math.PI) * h * (0.2 + rng() * 0.6); ctx.fillStyle = HOLLOW_ENV.rgba(acc, 0.25 + rng() * 0.5); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 2 + rng() * 3, py - 1 - rng() * 3); ctx.lineTo(px + 1 + rng() * 2, py + 1); ctx.closePath(); ctx.fill(); }
+};
+HOLLOW_ENV.build.glass = function (L, p, R, rng, K) {
+  const [d, f, m, n] = L.layers, W = L.W, acc = p.accent, w3 = (c, fn) => K.wrap3(c, W, fn, (rng() * 1e9) | 0);
+  const hot = '#ffd08a';
+  d.fade = [d.T + 210, d.H, 0.5]; f.fade = [f.T + 160, f.H, 0.28];
+  // ---- deep: the great furnace, a brick dome with a mouth of fire, stacks into the dark ----
+  { const c = d.ctx, T = d.T, B = d.B + 0, H = d.H; const col = K.mix(R.deep, R.far, 0.95), col2 = K.mix(R.deep, R.hazeFar, 0.3);
+    const g = c.createLinearGradient(0, B - 200, 0, H); g.addColorStop(0, K.rgba(acc, 0)); g.addColorStop(1, K.rgba(acc, 0.22)); c.fillStyle = g; c.fillRect(0, B - 200, W, H - B + 200);
+    w3(c, (c, rng, k) => {
+      // further ovens and stacks, paler
+      c.fillStyle = col2; for (let x = -30; x < W;) { const w = 60 + rng() * 90, h = 60 + rng() * 90; c.fillRect(x, B - h, w, h + 60); c.beginPath(); c.ellipse(x + w / 2, B - h, w / 2, h * 0.35, 0, Math.PI, 0); c.fill(); if (rng() < 0.6) c.fillRect(x + w * 0.6, B - h - 40 - rng() * 70, 9, 80 + 60); x += w + 20 + rng() * 40; }
+      // the furnace: a beehive dome on a brick base, two great stacks
+      const fx = 480, fy = B - 56; c.fillStyle = col;
+      c.beginPath(); c.moveTo(fx - 200, fy + 60); c.lineTo(fx - 200, fy - 110); c.quadraticCurveTo(fx - 200, fy - 300, fx - 60, fy - 326); c.lineTo(fx + 60, fy - 326); c.quadraticCurveTo(fx + 200, fy - 300, fx + 200, fy - 110); c.lineTo(fx + 200, fy + 60); c.closePath(); c.fill();
+      c.fillRect(fx - 222, fy - 112, 444, 14); c.fillRect(fx - 90, fy - 400, 30, 100); c.fillRect(fx + 54, fy - 420, 30, 120); c.fillRect(fx - 96, fy - 404, 42, 8); c.fillRect(fx + 48, fy - 424, 42, 8);
+      // brick courses picked out faintly on the dome
+      c.strokeStyle = K.rgba(p.ink, 0.18); c.lineWidth = 1; for (let yy = fy - 300; yy < fy + 40; yy += 14) { c.beginPath(); c.moveTo(fx - 200, yy); c.lineTo(fx + 200, yy); c.stroke(); }
+      // the mouth: an arch of fire with iron bars, the glow pushed in later
+      const mw = 84, mh = 112, my = fy - 10; c.beginPath(); c.moveTo(fx - mw / 2, my); c.lineTo(fx - mw / 2, my - mh + mw / 2); c.arc(fx, my - mh + mw / 2, mw / 2, Math.PI, 0); c.lineTo(fx + mw / 2, my); c.closePath();
+      const mg = c.createLinearGradient(0, my - mh, 0, my); mg.addColorStop(0, K.rgba(acc, 0.45)); mg.addColorStop(0.5, '#ffb347'); mg.addColorStop(1, hot); c.fillStyle = mg; c.fill();
+      // the white heart of the fire, the sill, and the iron jambs either side of the mouth
+      const hg = c.createRadialGradient(fx, my - 24, 0, fx, my - 24, 40); hg.addColorStop(0, 'rgba(255,245,210,0.9)'); hg.addColorStop(1, 'rgba(255,245,210,0)'); c.fillStyle = hg; c.fillRect(fx - 40, my - 64, 80, 64);
+      // inside: the crucible pot sunk in the fire, its lip white-hot, and the brick teeth of the arch
+      c.fillStyle = K.mix(col, '#000', 0.4); c.beginPath(); c.moveTo(fx - 26, my - 4); c.lineTo(fx - 22, my - 46); c.lineTo(fx + 22, my - 46); c.lineTo(fx + 26, my - 4); c.closePath(); c.fill(); c.fillStyle = '#fff6d8'; c.fillRect(fx - 21, my - 48, 42, 3); c.fillStyle = K.rgba('#fff6d8', 0.5); c.fillRect(fx - 18, my - 45, 36, 4);
+      c.fillStyle = col; for (let i = 0; i < 7; i++) { const a = Math.PI + (i + 0.5) / 7 * Math.PI, rx = fx + Math.cos(a) * (mw / 2), ry = my - mh + mw / 2 + Math.sin(a) * (mw / 2); c.beginPath(); c.moveTo(rx - 5, ry - 3); c.lineTo(rx + 5, ry - 3); c.lineTo(rx + 1, ry + 8); c.closePath(); c.fill(); }
+      c.fillStyle = col; c.fillRect(fx - mw / 2 - 6, my - 6, mw + 12, 8); c.fillStyle = K.mix(col, '#000', 0.3); c.fillRect(fx - mw / 2 - 10, my - mh - 6, 10, mh + 8); c.fillRect(fx + mw / 2, my - mh - 6, 10, mh + 8);
+      // the crucible pots either side of the mouth glowing at the lip
+      for (const s of [-1, 1]) { c.fillStyle = col; c.beginPath(); c.moveTo(fx + s * 130 - 18, fy + 4); c.lineTo(fx + s * 130 - 14, fy - 34); c.lineTo(fx + s * 130 + 14, fy - 34); c.lineTo(fx + s * 130 + 18, fy + 4); c.closePath(); c.fill(); c.fillStyle = K.rgba(acc, 0.7); c.fillRect(fx + s * 130 - 13, fy - 35, 26, 2); }
+      c.fillStyle = col; c.fillRect(0, fy + 20, W, H - fy - 20);
+      if (k === 0) { L.glows.push({ layer: 0, x: fx, y: my - 44, r: 300, col: acc, a: 0.5, ph: 0.7, flicker: true }, { layer: 0, x: fx, y: my - 50, r: 110, col: hot, a: 0.35, ph: 1.7, flicker: true }, { layer: 0, x: fx - 130, y: fy - 34, r: 44, col: acc, a: 0.25, ph: 2.1, flicker: true }, { layer: 0, x: fx + 130, y: fy - 34, r: 44, col: acc, a: 0.25, ph: 3.4, flicker: true }); L.smoke.push({ layer: 0, x: fx - 75, y: fy - 400 }, { layer: 0, x: fx + 69, y: fy - 420 }); L.shimmer = { layer: 0, x: fx, y0: my - mh - 70, y1: my - 10, w: 170 }; }
+      // a far crane: the gantry beam, trolley and a long fall of chain
+      c.fillStyle = col; c.fillRect(40, T + 70, 300, 8); c.fillRect(50, T + 78, 6, B - T - 78); c.fillRect(330, T + 78, 6, B - T - 78); c.fillRect(150, T + 78, 24, 8);
+      c.fillRect(760, T + 110, 220, 7); c.fillRect(770, T + 117, 6, B - T - 117);
+    });
+  }
+  // ---- far: annealing ovens with iron doors, the gantry crane, tall racks ---------
+  { const c = f.ctx, T = f.T, B = f.B, H = f.H; const col = R.far;
+    w3(c, (c, rng, k) => {
+      const Bf = B - 36; c.fillStyle = col; c.fillRect(0, Bf - 6, W, H - Bf + 6);
+      K.oven(c, 20, Bf - 120, 120, 114, col, acc, rng, true); K.oven(c, 150, Bf - 100, 96, 94, col, acc, rng, false); K.oven(c, 600, Bf - 130, 140, 124, col, acc, rng, true); K.oven(c, 760, Bf - 104, 100, 98, col, acc, rng, true);
+      if (k === 0) L.glows.push({ layer: 1, x: 80, y: Bf - 8, r: 40, col: acc, a: 0.2, ph: 1.9, flicker: true }, { layer: 1, x: 670, y: Bf - 8, r: 44, col: acc, a: 0.22, ph: 0.3, flicker: true }, { layer: 1, x: 810, y: Bf - 8, r: 34, col: acc, a: 0.18, ph: 4.1, flicker: true });
+      K.rack(c, 300, T + 150, Bf - 6, 110, 4, col, rng, 20); K.rack(c, 880, T + 130, Bf - 6, 70, 5, col, rng, 16);
+      // the overhead crane: a riveted girder across the hall on brick piers, a trolley with its hook block
+      c.fillStyle = col; c.fillRect(0, T + 34, W, 14); for (let x = 0; x < W; x += 16) c.fillRect(x, T + 24, 3, 10); c.fillRect(0, T + 22, W, 3);
+      for (const px of [120, 540]) { c.fillRect(px - 12, -10, 24, T + 44); c.fillRect(px - 18, T + 40, 36, 8); }
+      c.fillRect(380, T + 48, 46, 16); c.fillRect(386, T + 64, 34, 6);
+      // pipes along the back wall, one burst
+      c.fillRect(0, T + 110, W, 6); for (let x = 20; x < W; x += 70) c.fillRect(x, T + 106, 6, 14); c.fillRect(250, T + 116, 6, 60); c.fillRect(230, T + 176, 46, 6);
+      // soot stains climbing the wall over every oven mouth
+      for (const sx of [80, 198, 670, 810]) { const sg = c.createLinearGradient(0, Bf - 240, 0, Bf - 110); sg.addColorStop(0, K.rgba(p.ink, 0)); sg.addColorStop(1, K.rgba(p.ink, 0.3)); c.fillStyle = sg; c.beginPath(); c.moveTo(sx - 30, Bf - 110); c.quadraticCurveTo(sx - 36 + rng() * 10, Bf - 180, sx - 8, Bf - 240); c.lineTo(sx + 10, Bf - 240); c.quadraticCurveTo(sx + 40 - rng() * 10, Bf - 180, sx + 34, Bf - 110); c.closePath(); c.fill(); }
+    });
+    L.sway.push({ layer: 1, kind: 'chain', x: 403, y: T + 70, len: 120, w: 3, col, end: 'hook', ph: 0.9, amp: 0.045, speed: 0.55, bob: 6 }, { layer: 1, kind: 'chain', x: 700, y: T + 48, len: 70, w: 3, col, end: 'cage', ph: 2.6, amp: 0.035, speed: 0.6 });
+  }
+  // ---- mid: racks close enough to count the vessels, sand pit, cullet heaps, a crucible ----
+  { const c = m.ctx, T = m.T, B = m.B - 30, H = m.H; const col = K.mix(R.mid, p.ink, 0.2);
+    w3(c, (c, rng, k) => {
+      c.fillStyle = col; c.fillRect(0, B - 2, W, H - B + 2);
+      K.rack(c, 60, T + 120, B - 2, 130, 4, col, rng, 26); K.rack(c, 620, T + 170, B - 2, 120, 3, col, rng, 28);
+      // the sand pit: a low wall and a mound of sand, a shovel left in it
+      c.fillStyle = col; c.fillRect(250, B - 30, 180, 30); c.fillRect(246, B - 34, 188, 6); c.beginPath(); c.moveTo(262, B - 30); c.quadraticCurveTo(340, B - 78, 420, B - 30); c.closePath(); c.fill();
+      c.save(); c.translate(372, B - 60); c.rotate(-0.5); c.fillRect(-1.5, -56, 3, 60); c.fillRect(-7, -62, 14, 8); c.restore();
+      // cullet heaps with facets catching the furnace light
+      K.cullet(c, 500, B - 2, 130, 36, col, acc, rng); K.cullet(c, 850, B - 2, 90, 26, col, acc, rng);
+      // a crucible pot on a stand, still hot, and a few blowpipes leaning on the wall
+      c.fillStyle = col; c.beginPath(); c.moveTo(560, B - 40); c.lineTo(566, B - 92); c.lineTo(602, B - 92); c.lineTo(608, B - 40); c.closePath(); c.fill(); c.fillRect(554, B - 42, 60, 6); c.fillRect(560, B - 36, 6, 36); c.fillRect(602, B - 36, 6, 36);
+      c.fillStyle = K.rgba(acc, 0.8); c.fillRect(568, B - 93, 32, 3); if (k === 0) L.glows.push({ layer: 2, x: 584, y: B - 94, r: 54, col: acc, a: 0.26, ph: 5.2, flicker: true });
+      c.fillStyle = col; for (let i = 0; i < 4; i++) { c.save(); c.translate(780 + i * 7, B); c.rotate(-0.22 + i * 0.03); c.fillRect(-1.5, -150 - i * 8, 3, 150 + i * 8); c.restore(); }
+      // a broken vessel the size of a man, lying on its side
+      c.save(); c.translate(200, B - 2); c.rotate(-1.35); K.vessel(c, 0, 0, 70, 1, col, rng); c.restore();
+      c.fillStyle = col; for (let i = 0; i < 7; i++) { const x = 150 + rng() * 120; c.beginPath(); c.moveTo(x, B); c.lineTo(x + 3 + rng() * 6, B - 4 - rng() * 8); c.lineTo(x + 8 + rng() * 6, B); c.fill(); }
+      // overhead: a beam with hooks and a ventilation hood over the furnace line
+      c.fillRect(0, T + 30, W, 10); for (let x = 40; x < W; x += 110) { c.fillRect(x, T + 40, 3, 14); c.beginPath(); c.arc(x + 4, T + 56, 4, Math.PI * 0.9, Math.PI * 2.1); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); }
+      c.beginPath(); c.moveTo(380, T - 10); c.lineTo(360, T + 60); c.lineTo(600, T + 60); c.lineTo(580, T - 10); c.closePath(); c.fill(); c.fillRect(370, T + 60, 220, 5);
+      // soot drifted into every corner
+      c.fillStyle = K.rgba(p.ink, 0.3); for (let i = 0; i < 10; i++) { c.beginPath(); c.ellipse(rng() * W, B - 4, 20 + rng() * 40, 4 + rng() * 4, 0, 0, Math.PI * 2); c.fill(); }
+    });
+    for (let i = 0; i < 50; i++) { c.fillStyle = K.rgba(acc, 0.3 + rng() * 0.5); c.fillRect(rng() * W, B - 20 - rng() * 140, 1, 1); } // glints in the glass
+    L.sway.push({ layer: 2, kind: 'chain', x: 470, y: T + 65, len: 80, w: 3, col, end: 'hook', ph: 1.7, amp: 0.05, speed: 0.65 }, { layer: 2, kind: 'chain', x: 150, y: T + 40, len: 60, w: 3, col, ph: 3.9, amp: 0.04, speed: 0.5 });
+  }
+  // ---- near: ink-dark iron, the crane chains, a hanging gather hook, a rack post ----
+  { const c = n.ctx, T = n.T, B = n.B, H = n.H; const col = R.near;
+    w3(c, (c, rng, k) => {
+      c.fillStyle = col; c.fillRect(0, T + 8, W, 16); for (let x = 0; x < W; x += 22) c.fillRect(x, T + 24, 4, 6);
+      c.fillRect(900, T - 20, 18, B - T + 40); c.fillRect(890, T + 60, 38, 8); c.fillRect(890, T + 160, 38, 8);
+      c.save(); c.translate(80, T + 20); c.rotate(0.35); c.fillRect(0, 0, 220, 12); c.restore();
+      // a big iron tong leaning in the corner and a rack end
+      c.fillRect(640, T + 200, 6, B - T - 200); c.fillRect(600, T + 230, 90, 6); c.fillRect(600, T + 300, 90, 6);
+      for (const [x, h] of [[612, 30], [634, 40], [660, 34]]) K.vessel(c, x, T + 300, h, (x / 7) | 0, col, rng);
+    });
+    L.sway.push({ layer: 3, kind: 'chain', x: 330, y: -4, len: T + 120, w: 4, col, end: 'hook', ph: 0.3, amp: 0.06, speed: 0.55, bob: 8 }, { layer: 3, kind: 'chain', x: 560, y: -4, len: T + 60, w: 4, col, ph: 2.2, amp: 0.045, speed: 0.7 }, { layer: 3, kind: 'chain', x: 760, y: -4, len: T + 200, w: 4, col, end: 'weight', ph: 4.4, amp: 0.03, speed: 0.5 });
+  }
+  { const c = L.fore.getContext('2d'), col = K.mix(R.near, p.ink, 0.5);
+    w3(c, (c, rng, k) => { c.fillStyle = col; c.fillRect(0, 0, W, 7); for (let x = 30; x < W; x += 60) c.fillRect(x, 7, 3, 5); K.chain(c, 240, 5, 44, col, 4); K.chain(c, 650, 5, 30, col, 4); c.save(); c.translate(500, 0); c.rotate(0.4); c.fillRect(-10, -4, 120, 8); c.restore(); });
+  }
+};
 // ---- CATHEDRAL OF HOURS: giant gears and soot-stained glass ---------------------
 HOLLOW_ENV.build.hours = function (L, p, R, rng, K) {
   const [d, f, m, n] = L.layers, W = L.W, acc = p.accent, w3 = (c, fn) => K.wrap3(c, W, fn, (rng() * 1e9) | 0), glass = ['#8a5a30', '#3a4f8a', '#8a7030', '#5a3a6a', '#2f5a5a'];
@@ -676,11 +815,12 @@ Object.assign(Art, {
     L.backdrop = K.canvas(VIEW_W, VIEW_H); const bc = L.backdrop.getContext('2d');
     K.vgrad(bc, 0, 0, VIEW_W, VIEW_H, L.bgStops);
     const brng = mulberry32(region.charCodeAt(1) * 977 + 3);
-    for (let i = 0; i < 9; i++) { const lighter = brng() < 0.5; K.mistFast(bc, brng() * VIEW_W, brng() * VIEW_H, 220 + brng() * 260, 70 + brng() * 90, lighter ? L.mistCol : p.bgTop, lighter ? 0.1 : 0.18); }
+    for (let i = 0; i < 9; i++) { const lighter = brng() < 0.5 || region === 'glass'; K.mistFast(bc, brng() * VIEW_W, brng() * VIEW_H, 220 + brng() * 260, 70 + brng() * 90, lighter ? L.mistCol : p.bgTop, lighter ? 0.1 : 0.18); }
     switch (region) {
       case 'shore': K.glow(bc, VIEW_W * 0.5, VIEW_H + 40, 280, p.accent, 0.12); break;
       case 'rust': { const g = bc.createLinearGradient(0, VIEW_H * 0.45, 0, VIEW_H); g.addColorStop(0, K.rgba(p.accent, 0)); g.addColorStop(1, K.rgba(p.accent, 0.16)); bc.fillStyle = g; bc.fillRect(0, VIEW_H * 0.45, VIEW_W, VIEW_H * 0.55); break; }
       case 'hours': K.glow(bc, VIEW_W * 0.5, 150, 240, p.accent, 0.08); break;
+      case 'glass': { const g = bc.createLinearGradient(0, VIEW_H * 0.35, 0, VIEW_H); g.addColorStop(0, K.rgba(p.accent, 0)); g.addColorStop(1, K.rgba(p.accent, 0.2)); bc.fillStyle = g; bc.fillRect(0, VIEW_H * 0.35, VIEW_W, VIEW_H * 0.65); K.glow(bc, VIEW_W * 0.5, VIEW_H * 0.78, 300, p.accent, 0.12); break; }
       case 'tower': K.glow(bc, VIEW_W * 0.5 + 80, 200, 300, p.accent, 0.07); break;
       case 'archive': K.glow(bc, VIEW_W * 0.5 + 80, 80, 220, '#bfe8dc', 0.07); break;
       case 'mills': { const g = bc.createLinearGradient(0, 0, 0, VIEW_H * 0.6); g.addColorStop(0, K.rgba(p.accent, 0.1)); g.addColorStop(1, K.rgba(p.accent, 0)); bc.fillStyle = g; bc.fillRect(0, 0, VIEW_W, VIEW_H * 0.6); break; }
@@ -723,6 +863,7 @@ Object.assign(Art, {
   envBackLight(ctx, region, t, cam) {
     const K = HOLLOW_ENV, p = PALETTES[region];
     if (region === 'rust') { ctx.globalAlpha = 0.04 + Math.sin(t * 2.1) * 0.03 + Ink.n(Ink.boil(t), 3) * 0.04; K.vgrad(ctx, 0, VIEW_H * 0.65, VIEW_W, VIEW_H * 0.35, [[0, K.rgba(p.accent, 0)], [1, K.rgba(p.accent, 1)]]); ctx.globalAlpha = 1; }
+    else if (region === 'glass') { const fl = Ink.n(Ink.boil(t * 1.4), 5); ctx.globalAlpha = 0.05 + Math.sin(t * 1.7) * 0.025 + fl * 0.05; K.vgrad(ctx, 0, VIEW_H * 0.5, VIEW_W, VIEW_H * 0.5, [[0, K.rgba(p.accent, 0)], [1, K.rgba(p.accent, 1)]]); ctx.globalAlpha = 1; K.glowFast(ctx, VIEW_W * 0.5 - cam.x * 0.08 % 40, VIEW_H * 0.74, 220, p.accent, 0.05 + fl * 0.05); }
     else if (region === 'tower') K.glowFast(ctx, VIEW_W * 0.5 + 80, 200, 200, p.accent, 0.025 + Math.sin(t * 0.7) * 0.02);
     else if (region === 'root') { const beat = Math.pow(Math.max(0, Math.sin(t * 1.4)), 6); if (beat > 0.02) K.glowFast(ctx, VIEW_W * 0.5, VIEW_H * 0.6, 240, p.accent, beat * 0.06); }
     else if (region === 'shore') { ctx.globalAlpha = 0.05 + Math.sin(t * 0.5) * 0.02; K.vgrad(ctx, 0, VIEW_H * 0.6, VIEW_W, VIEW_H * 0.4, [[0, K.rgba(p.accent, 0)], [1, K.rgba(p.accent, 1)]]); ctx.globalAlpha = 1; }
@@ -744,6 +885,7 @@ Object.assign(Art, {
   // live elements riding a cached layer: pulsing glows, turning gears, clock hands, pendulum, swaying chains and strands
   envLive(ctx, region, L, i, t, cam) {
     const K = HOLLOW_ENV, l = L.layers[i], p = PALETTES[region];
+    if (L.shimmer && L.shimmer.layer === i) { const sh = L.shimmer; this.envEach(L, l, sh.x, sh.y1, 120, (sx, sy) => { const top = sy - (sh.y1 - sh.y0); ctx.globalAlpha = 0.85; for (let yy = 0; yy < sh.y1 - sh.y0; yy += 3) { const u = yy / (sh.y1 - sh.y0); const off = Math.sin(t * 7 + yy * 0.21) * 1.6 * (0.4 + u * 0.6) + Math.sin(t * 3.3 - yy * 0.09) * 0.8; ctx.drawImage(l.c, sh.x - sh.w / 2, sh.y0 + yy, sh.w, 3, sx - sh.w / 2 + off, top + yy, sh.w, 3); } ctx.globalAlpha = 1; }); }
     for (const gl of L.glows) if (gl.layer === i) {
       const pulse = gl.flicker ? 0.75 + Ink.n(Ink.boil(t * 1.3), gl.ph * 10 | 0) * 0.35 + Math.sin(t * 3 + gl.ph) * 0.1 : gl.beat ? 0.55 + Math.pow(Math.max(0, Math.sin(t * 1.4 + gl.ph)), 4) * 0.7 : gl.slow ? 0.7 + Math.sin(t * 0.9 + gl.ph) * 0.3 : 0.8 + Math.sin(t * 1.7 + gl.ph) * 0.2;
       this.envEach(L, l, gl.x, gl.y, gl.r, (sx, sy) => K.glowFast(ctx, sx, sy, gl.r, gl.col, gl.a * pulse));
@@ -849,6 +991,14 @@ Object.assign(Art, {
           x = ((bx + Math.sin(t * 1.2 + i) * 8 - cam.x * depth) % VIEW_W + VIEW_W) % VIEW_W; y = VIEW_H - ((by + t * (16 + r3 * 30)) % VIEW_H);
           const fl = 0.5 + Math.sin(t * 7 + i * 3) * 0.5; ctx.globalAlpha = 0.3 + fl * 0.5; ctx.fillStyle = fl > 0.6 ? '#ffd080' : p.accent; size = i % 7 === 0 ? 2 : 1; ctx.fillRect(Math.floor(x), Math.floor(y), size, size); if (i % 9 === 0) K.glowFast(ctx, x, y, 4, p.accent, 0.5); continue;
         }
+        case 'glass': {
+          if (i % 3 === 0) { // ash drifting down, turning over slowly
+            x = ((bx + Math.sin(t * 0.4 + i) * 10 - cam.x * depth) % VIEW_W + VIEW_W) % VIEW_W; y = ((by + t * (5 + r3 * 7) - cam.y * depth) % VIEW_H + VIEW_H) % VIEW_H; ctx.globalAlpha = 0.22 + r3 * 0.15; ctx.fillStyle = '#7a7068'; ctx.fillRect(Math.floor(x), Math.floor(y), 1 + (i % 6 === 0 ? 1 : 0), 1); continue;
+          }
+          // sparks climbing out of the furnaces, brightest low and guttering as they rise
+          x = ((bx + Math.sin(t * 1.4 + i) * 7 + Math.sin(t * 0.5 + i * 2) * 4 - cam.x * depth) % VIEW_W + VIEW_W) % VIEW_W; const u = ((by + t * (14 + r3 * 26)) % VIEW_H) / VIEW_H; y = VIEW_H - u * VIEW_H;
+          const fl = 0.5 + Math.sin(t * 9 + i * 3) * 0.5; ctx.globalAlpha = (0.45 + fl * 0.55) * (1 - u * 0.7); ctx.fillStyle = fl > 0.55 ? '#ffe2a0' : p.accent; size = i % 2 === 0 ? 2 : 1; ctx.fillRect(Math.floor(x), Math.floor(y), size, size); if (i % 4 === 0) K.glowFast(ctx, x, y, 6, p.accent, 0.6 * (1 - u)); continue;
+        }
         case 'hours': {
           x = ((bx + Math.sin(t * 0.3 + i) * 14 - cam.x * depth) % VIEW_W + VIEW_W) % VIEW_W; y = ((by + Math.sin(t * 0.4 + i * 1.3) * 12 + t * (i % 3 ? 4 : 9) - cam.y * depth) % VIEW_H + VIEW_H) % VIEW_H;
           ctx.globalAlpha = 0.2 + Math.sin(t * 1.5 + i) * 0.15; ctx.fillStyle = i % 3 ? p.accent : '#3a3048'; ctx.fillRect(Math.floor(x), Math.floor(y), 1, i % 3 ? 1 : 2); continue;
@@ -877,6 +1027,7 @@ Object.assign(Art, {
     }
     ctx.globalAlpha = 1;
     // soft dust puffs in the mills, smoke in the rust district
+    if (region === 'glass') { for (let i = 0; i < 3; i++) { const x = ((i * 300 + t * 7 - cam.x * 0.6 + 9000) % (VIEW_W + 200)) - 100, y = VIEW_H * 0.14 + Math.sin(t * 0.2 + i) * 8; K.mistFast(ctx, x, y, 220, 70, [90, 70, 60], 0.09); } }
     if (region === 'mills' || region === 'rust') { const col = region === 'mills' ? [232, 216, 192] : [120, 90, 80]; for (let i = 0; i < 3; i++) { const x = ((i * 260 + t * 9 - cam.x * 0.6 + 9000) % (VIEW_W + 200)) - 100, y = region === 'mills' ? VIEW_H * 0.75 + Math.sin(t * 0.3 + i) * 14 : VIEW_H * 0.18 + Math.sin(t * 0.2 + i) * 10; K.mistFast(ctx, x, y, 180, 72, col, 0.07); } }
     // ground fog and vignette keep the eye in the middle of the frame (cached once per region)
     const key = 'o' + region; let ov = K.sprites[key];

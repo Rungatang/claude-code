@@ -862,6 +862,15 @@ const BOSS_DEFS = {
       { id: 'charge', type: 'dash', tele: 0.4, speed: 420, dur: 0.6, far: true, w: 1.5 },
       { id: 'summon', type: 'summon', tele: 0.5, what: 'husk', n: 2, phase: 2, w: 1 },
     ] },
+  annealer: { name: 'The Annealer', hp: 76, poise: 14, w: 44, h: 60, phase2: 0.5, ground: true,
+    moves: [
+      { id: 'swing', type: 'combo', hits: 2, tele: 0.42, step: 0.36, range: 72, dmg: 1, advance: 24, near: true, w: 2 },
+      { id: 'gather', type: 'volley', tele: 0.45, n: 3, speed: 240, spread: 0.3, kind: 'ember', arc: -240, far: true, w: 2 },
+      { id: 'lunge', type: 'dash', tele: 0.4, speed: 400, dur: 0.5, far: true, w: 1.5 },
+      { id: 'racks', type: 'rain', tele: 0.5, n: 5, kind: 'shard', w: 1.5 },
+      { id: 'pane', type: 'guard', dur: 1.1, w: 1 },
+      { id: 'cullet', type: 'summon', tele: 0.5, what: 'hourfly', n: 2, phase: 2, w: 1 },
+    ] },
   escapement: { name: 'The Escapement', hp: 60, poise: 10, w: 26, h: 48, phase2: 0.5, ground: true,
     moves: [
       { id: 'flurry', type: 'combo', hits: 4, tele: 0.22, step: 0.18, range: 48, dmg: 1, advance: 30, near: true, w: 2 },

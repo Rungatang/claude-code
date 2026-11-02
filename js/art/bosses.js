@@ -1,6 +1,6 @@
 'use strict';
 // ---------------------------------------------------------------------------
-// Bosses: shallows, ferrous, escapement, regent, index, grinder, sef.
+// Bosses: shallows, ferrous, annealer, escapement, regent, index, grinder, sef.
 // Every boss is drawn in local coordinates with the origin at the centre of
 // the feet, +x facing (the canvas is mirrored by b.dir) and y up negative.
 // Animation fields from entities.js (sqX/sqY, lean, hitKick, stateT, swing,
@@ -317,6 +317,123 @@ const BZ_DRAW = {
     // slam dust / impact sparks when the fists meet the floor
     if (slam && p.strike > 0.9) { ctx.fillStyle = hotter; for (let i = 0; i < 5; i++) { const n = Ink.n(Ink.boil(t) + i, 4); ctx.fillRect(fr[2] - 12 + n * 24, -2 - Ink.n(i, 5) * 8, 2, 2); } }
     if (charge) { ctx.fillStyle = hot; ctx.globalAlpha = 0.5; for (let i = 0; i < 4; i++) ctx.fillRect(-30 - i * 6, hipY - 20 + i * 5, 8 - i, 1.5); ctx.globalAlpha = 1; }
+    ctx.restore();
+  },
+
+  // ---- The Annealer: Master Brannoch, dead on his feet, still finishing the last vessel ----
+  annealer(ctx, b, p) {
+    const t = p.t, ink = BZ_INK, leather = '#3b2b22', leatherDk = '#251a14', skin = '#8e7f70', skinDk = '#5c4e44', iron = '#3a3337', ironLt = '#6a6068', hot = '#ffb347', hotter = '#ffe2a0', glass = '#bfe8ec', white = '#ffffff';
+    const swing = p.act && p.mv === 'combo', lunge = p.act && p.mv === 'dash', blow = p.act && p.mv === 'volley', rain = p.act && p.mv === 'rain', summon = p.act && p.mv === 'summon';
+    const crack = p.p2 ? `rgba(255,255,255,${0.55 + 0.45 * Math.sin(t * 6)})` : `rgba(191,232,236,${0.5 + 0.2 * Math.sin(t * 2)})`;
+    // the wheeze: every few seconds the chest heaves and a puff of soot leaves the mouth
+    const wph = (t % 3.7), wheeze = wph < 0.35 ? Math.sin(wph / 0.35 * Math.PI) : 0;
+    const crouch = (p.tele ? 4 * bzEase(p.k) : p.stagger ? 9 : lunge ? 3 : 0) + wheeze * 1.2;
+    const hipY = -26 + crouch;
+    // thin legs in heavy boots, the apron will fall over the thighs
+    const g = bzGait(p, 6, 7, 3);
+    const feet = p.stagger ? [[-9, 0], [11, 0]] : p.inAir ? [[-7, -3], [8, -1]] : g.f;
+    for (let i = 0; i < 2; i++) {
+      const f = feet[i], col = i ? leather : leatherDk, trouser = i ? '#5a4a40' : '#3e322c';
+      const j = bzLimb(ctx, i ? 3 : -3, hipY, f[0], f[1], 14, 14, -1, { w: 4.6, color: trouser, jit: 0.35, t, seed: 1 + i });
+      Ink.line(ctx, [[f[0] - 4, f[1]], [f[0] + 6, f[1]], [f[0] + 5, f[1] - 4], [f[0] - 3, f[1] - 5]], { fill: col, close: true, w: 1.2, color: ink, jit: 0.3, t, seed: 5 + i });
+      // cracked glass skin at the knee
+      Ink.line(ctx, [[j[0] - 2.5, j[1] - 2.5], [j[0] - 0.5, j[1] - 1], [j[0] - 1.5, j[1] + 0.5], [j[0] + 1, j[1] + 1.5], [j[0] + 0.5, j[1] + 3]], { w: 0.7, color: crack, jit: 0.15, t, seed: 8 + i });
+      if (p.p2) bzGlow(ctx, j[0], j[1], 5, white, 0.3);
+    }
+    // the upper body stoops from the hip; deeper when he winds up, lunges or is staggered
+    const stoop = 0.3 + (p.tele ? 0.12 * bzEase(p.k) : 0) + (lunge ? 0.3 : 0) + (p.stagger ? 0.45 : 0) + (blow ? -0.1 : 0) + p.lean * 0.5 + wheeze * 0.08;
+    ctx.save(); ctx.translate(0, hipY); ctx.rotate(stoop); ctx.translate(0, -hipY);
+    const breath = p.breath * 1.1;
+    const topY = hipY - 25 - breath;
+    // where the blowpipe is: butt (mouth end) position and angle; the gather is 58 px along it
+    const PL = 50;
+    let bx = -13, by = hipY - 11 + Math.sin(t * 1.1) * 0.6, ba = 0.42 + Math.sin(t * 1.1) * 0.05, roll = t * 1.6;
+    if (p.tele && (p.mv === 'combo' || p.mv === 'dash')) { const k = bzEase(p.k); bx = bzLerp(-13, 0, k); by = bzLerp(hipY - 11, topY, k); ba = bzLerp(0.42, -2.05, k); }
+    else if (p.tele && p.mv === 'rain') { const k = bzEase(p.k); bx = bzLerp(-13, -2, k); by = bzLerp(hipY - 11, hipY - 6, k); ba = bzLerp(0.42, -1.5, k); }
+    else if (p.tele) { const k = bzEase(p.k); bx = bzLerp(-13, 10, k); by = bzLerp(hipY - 11, topY - 9, k); ba = bzLerp(0.42, -0.2, k); }
+    else if (swing) { const k = p.strike; bx = bzLerp(0, 2, k); by = bzLerp(topY, topY + 8, k); ba = bzLerp(-2.05, 0.95, bzOut(k)); roll = t * 9; }
+    else if (lunge || p.inAir) { bx = -8; by = hipY - 14; ba = 0.05; }
+    else if (blow || summon) { bx = 10; by = topY - 9; ba = -0.18 + Math.sin(t * 2) * 0.03; }
+    else if (rain) { bx = 0; by = hipY - 6; ba = -1.5 + Math.sin(t * 20) * 0.04; roll = t * 12; }
+    else if (p.guard) { bx = -10; by = hipY + 2; ba = -1.62; }
+    else if (p.stagger) { bx = -10; by = hipY + 2; ba = 0.78; }
+    const pipeAt = (d) => [bx + Math.cos(ba) * d, by + Math.sin(ba) * d];
+    const gather = pipeAt(PL), hand1 = pipeAt(9), hand2 = pipeAt(25);
+    const gatherR = (blow ? 6.5 + Math.sin(t * 9) * 1.5 : 4.8 + Math.sin(t * 3) * 0.5) * (p.stagger ? 0.7 : 1) + (p.tele ? 1.5 * p.k : 0);
+    // back arm reaches for the near grip
+    const shB = [-3, topY + 4], shF = [4, topY + 3];
+    const gauntlet = (h) => { ctx.save(); ctx.translate(h[2], h[3]); ctx.rotate(Math.atan2(h[3] - h[1], h[2] - h[0])); Ink.line(ctx, [[-3, -3.5], [4, -3.5], [4.5, 3.5], [-3, 3.5]], { fill: iron, close: true, w: 1.1, color: ink, jit: 0.3, t, seed: 30 }); ctx.fillStyle = ironLt; ctx.fillRect(-2, -2.5, 1, 5); ctx.restore(); Ink.line(ctx, [[h[0] - 2, h[1] - 2], [h[0], h[1] - 0.5], [h[0] - 1, h[1] + 1], [h[0] + 1.5, h[1] + 2.5]], { w: 0.7, color: crack, jit: 0.15, t, seed: 31 }); if (p.p2) bzGlow(ctx, h[0], h[1], 4, white, 0.3); };
+    const hb = bzLimb(ctx, shB[0], shB[1], hand1[0], hand1[1], 12, 12, 1, { w: 3.5, color: skinDk, jit: 0.3, t, seed: 20 });
+    gauntlet(hb);
+    // the apron and the wasted body under it
+    // the hunched back and shoulders under a sooted shirt, then the apron over them
+    Ink.line(ctx, [[-4, topY - 2], [-9, topY + 6], [-11, topY + 16], [-9, hipY + 1], [8, hipY + 1], [9, topY + 6], [4, topY - 1]], { fill: skinDk, close: true, w: 1.5, color: ink, jit: 0.6, t, seed: 2 });
+    Ink.line(ctx, [[-3, topY + 3], [5, topY + 3], [7, topY + 10], [10, hipY + 1], [10, hipY + 9], [6, hipY + 12], [-6, hipY + 12], [-9, hipY + 9], [-9, hipY + 1], [-6, topY + 10]], { fill: leather, close: true, w: 1.6, color: ink, jit: 0.6, t, seed: 3 });
+    ctx.strokeStyle = leatherDk; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-3, topY + 3); ctx.lineTo(-7, topY - 1); ctx.moveTo(5, topY + 3); ctx.lineTo(3, topY - 1); ctx.stroke(); // the bib straps
+    ctx.strokeStyle = leatherDk; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-8, hipY + 1); ctx.lineTo(9, hipY + 1); ctx.moveTo(-4, topY + 14); ctx.lineTo(-3, hipY + 10); ctx.stroke(); // the waist tie and a seam
+    ctx.fillStyle = leatherDk; for (let i = 0; i < 5; i++) ctx.fillRect(-6 + (i * 29) % 13, topY + 12 + (i * 17) % 20, 2 + (i % 2), 1.5); // scorch marks
+    // the chest cavity: the apron bib is burnt through and the furnace glows in his ribs
+    const cav = [2, topY + 9], cavA = p.stagger ? 0.25 : (p.tele ? 0.6 + 0.4 * p.k : 0.5 + 0.1 * p.breath2) + (p.p2 ? 0.2 : 0);
+    bzGlow(ctx, cav[0], cav[1], 16 + (p.tele ? 8 * p.k : 0) + (p.p2 ? 4 : 0), hot, cavA * 0.9);
+    ctx.fillStyle = '#1a0c06'; ctx.beginPath(); ctx.ellipse(cav[0], cav[1], 4.5, 6.5, 0.1, 0, Math.PI * 2); ctx.fill();
+    const cg = ctx.createRadialGradient(cav[0], cav[1] + 2, 0, cav[0], cav[1] + 2, 6); cg.addColorStop(0, hotter); cg.addColorStop(0.5, hot); cg.addColorStop(1, 'rgba(255,100,40,0)'); ctx.save(); ctx.globalAlpha = p.stagger ? 0.5 : 0.85 + 0.15 * Math.sin(t * 7); ctx.fillStyle = cg; ctx.beginPath(); ctx.ellipse(cav[0], cav[1], 4.5, 6.5, 0.1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.fillStyle = ink; for (let i = 0; i < 3; i++) ctx.fillRect(cav[0] - 4.5, cav[1] - 4 + i * 3.5, 9, 1.1); // ribs
+    ctx.fillStyle = hotter; for (let i = 0; i < 3; i++) { const ph = (t * 0.7 + i * 0.33) % 1; ctx.globalAlpha = 1 - ph; ctx.fillRect(cav[0] - 2 + (i * 3) % 5 + Math.sin(ph * 8 + i) * 1.5, cav[1] - 6 - ph * 14, 1.2, 1.2); } ctx.globalAlpha = 1; // embers out of the ribs
+    // the neck cranes forward; cracks at the throat
+    Ink.line(ctx, [[3, topY + 3], [9, topY - 4]], { w: 3.5, color: skin, jit: 0.3, t, seed: 40 });
+    Ink.line(ctx, [[5, topY], [7, topY - 1], [6, topY - 3]], { w: 0.8, color: crack, jit: 0.2, t, seed: 41 });
+    // the head: a gaunt skull with the goggles pushed up, a hollow eye lit from inside
+    const hx = 11, hy = topY - 9 + (blow ? -1 : 0);
+    Ink.line(ctx, [[hx - 6, hy - 6], [hx + 3, hy - 8], [hx + 7, hy - 3], [hx + 6, hy + 3], [hx + 2, hy + 6.5], [hx - 3, hy + 5], [hx - 6, hy]], { fill: skin, close: true, w: 1.4, color: ink, jit: 0.5, t, seed: 4 });
+    ctx.fillStyle = skinDk; ctx.beginPath(); ctx.ellipse(hx + 2, hy + 1.5, 2.6, 1.6, 0.3, 0, Math.PI * 2); ctx.fill(); // the sunken cheek
+    if (blow) { ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(hx + 5, hy + 3, 3.4, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke(); } // cheeks puffed on the pipe
+    const ec = bzEyeColor(p, hotter);
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.ellipse(hx + 3, hy - 2.5, 2.4, 1.9, 0.2, 0, Math.PI * 2); ctx.fill();
+    bzGlow(ctx, hx + 3.5, hy - 2.5, 5, ec, p.tele ? 0.7 : p.stagger ? 0.15 : 0.4); ctx.fillStyle = ec; ctx.fillRect(hx + 2.6, hy - 3.2, 1.8, 1.4);
+    // goggles on the brow, a wisp of beard, the mouth
+    ctx.strokeStyle = iron; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(hx - 1, hy - 7.5, 2.2, 0, Math.PI * 2); ctx.arc(hx + 4, hy - 8.3, 2.2, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = glass; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(hx - 1, hy - 7.5, 1.4, 0, Math.PI * 2); ctx.arc(hx + 4, hy - 8.3, 1.4, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = leatherDk; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx - 3, hy - 7); ctx.quadraticCurveTo(hx - 7, hy - 6, hx - 6, hy - 2); ctx.stroke();
+    ctx.strokeStyle = skinDk; ctx.lineWidth = 0.9; ctx.beginPath(); for (let i = 0; i < 3; i++) { ctx.moveTo(hx - 1 + i * 1.6, hy + 5.5); ctx.lineTo(hx - 2 + i * 1.8 + Math.sin(t * 2 + i) * 0.5, hy + 9 + i); } ctx.stroke();
+    ctx.fillStyle = ink; ctx.fillRect(hx + 4, hy + 2.5, 3, 1);
+    if (wph < 1.1 && !blow) { ctx.fillStyle = 'rgba(110,100,95,0.5)'; for (let i = 0; i < 3; i++) { const u = bz01((wph - i * 0.12) / 0.9); if (u <= 0) continue; ctx.globalAlpha = (1 - u) * 0.5; ctx.beginPath(); ctx.arc(hx + 8 + u * 12 + i * 2, hy + 2 - u * 9 - i, 1.2 + u * 3.5, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; } // the soot puff
+    // phase 2: the gather has split into a crown of burning shards that circle his head
+    if (p.p2) {
+      for (let i = 0; i < 5; i++) { const a = t * 1.3 + i / 5 * Math.PI * 2, r = 11 + Math.sin(t * 2.6 + i) * 1.2, sx = hx + Math.cos(a) * r, sy = hy - 6 + Math.sin(a) * r * 0.45 - 4; const behind = Math.sin(a) < 0; ctx.globalAlpha = behind ? 0.55 : 1;
+        bzGlow(ctx, sx, sy, 8, hot, 0.5); ctx.save(); ctx.translate(sx, sy); ctx.rotate(a + Math.PI / 2); ctx.fillStyle = hot; ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(2, 0); ctx.lineTo(0, 3); ctx.lineTo(-2, 0); ctx.closePath(); ctx.fill(); ctx.fillStyle = white; ctx.fillRect(-0.6, -3, 1.2, 4); ctx.restore(); }
+      ctx.globalAlpha = 1;
+    }
+    // the blowpipe and the gather of molten glass on its end
+    if (swing && p.strike > 0.1 && p.strike < 0.98) bzArc(ctx, bx, by, PL - 12, PL + 4, -2.05, ba, hot, 0.45);
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(ba);
+    Ink.line(ctx, [[-2, 0], [PL - 3, 0]], { w: 2.6, color: iron, jit: 0.25, t, seed: 50 }); ctx.fillStyle = ironLt; ctx.fillRect(2, -1.2, PL - 8, 0.8); ctx.fillStyle = ink; ctx.fillRect(-3, -1.8, 3, 3.6); ctx.fillRect(PL - 6, -1.6, 3, 3.2);
+    // heat creeping up the iron from the gather
+    const hg = ctx.createLinearGradient(PL - 22, 0, PL - 2, 0); hg.addColorStop(0, 'rgba(255,120,50,0)'); hg.addColorStop(1, 'rgba(255,140,60,0.8)'); ctx.fillStyle = hg; ctx.fillRect(PL - 22, -1.3, 20, 2.6);
+    ctx.restore();
+    const gl = p.stagger ? 0.3 : p.tele ? 0.6 + 0.4 * p.k : 0.55 + 0.1 * Math.sin(t * 5);
+    bzGlow(ctx, gather[0], gather[1], gatherR * 3.6 + (swing ? 6 : 0), hot, gl);
+    ctx.save(); ctx.translate(gather[0], gather[1]); ctx.rotate(roll);
+    const gpts = []; for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, r = gatherR * (0.88 + Ink.n(i, 3) * 0.24); gpts.push([Math.cos(a) * r, Math.sin(a) * r * 0.92]); }
+    Ink.line(ctx, gpts, { fill: p.stagger ? '#b85a2a' : hot, close: true, w: 1, color: '#8a3a10', jit: 0.3, t, seed: 52 });
+    ctx.fillStyle = p.p2 ? white : hotter; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.ellipse(-gatherR * 0.2, -gatherR * 0.2, gatherR * 0.5, gatherR * 0.36, 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.restore();
+    // molten drips let go of the gather, and sparks when it swings
+    if (!p.inAir) { ctx.fillStyle = hot; for (let i = 0; i < 2; i++) { const ph = (t * 0.6 + i * 0.5) % 1; ctx.globalAlpha = 1 - ph * 0.7; ctx.fillRect(gather[0] - 1 + i * 2 + Math.sin(i) * gatherR * 0.5, gather[1] + gatherR * 0.6 + ph * 14, 1.3, 2 + (1 - ph) * 2); } ctx.globalAlpha = 1; }
+    if (swing || rain) { ctx.fillStyle = hotter; for (let i = 0; i < 6; i++) { const nn = Ink.n(Ink.boil(t) + i, 7), n2 = Ink.n(Ink.boil(t) + i, 8); ctx.fillRect(gather[0] - 10 + nn * 20, gather[1] - 8 + n2 * 16, 1.5, 1.5); } }
+    if (blow) { ctx.fillStyle = hotter; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 14); ctx.beginPath(); ctx.ellipse(gather[0] + 8, gather[1], 4 + Math.sin(t * 9) * 2, 2.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    // front arm: on the far grip, or holding up the pane of glass to guard
+    if (p.guard) {
+      const hf = bzLimb(ctx, shF[0], shF[1], 15, hipY - 12, 12, 12, -1, { w: 3.5, color: skin, jit: 0.3, t, seed: 21 });
+      gauntlet(hf);
+      ctx.save(); ctx.translate(19, hipY - 8); ctx.rotate(-0.08 + Math.sin(t * 1.5) * 0.02);
+      ctx.fillStyle = `rgba(191,232,236,${0.3 + 0.08 * Math.sin(t * 3)})`; ctx.fillRect(-4, -20, 10, 38); ctx.strokeStyle = ink; ctx.lineWidth = 1.3; ctx.strokeRect(-4, -20, 10, 38);
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.3 * Math.sin(t * 2.2)})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-2, -16); ctx.lineTo(4, 2); ctx.moveTo(-1, 8); ctx.lineTo(3, 15); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(1, -20); ctx.lineTo(-1, -9); ctx.lineTo(2, -5); ctx.stroke(); // a crack in the pane
+      ctx.restore();
+    } else {
+      const hf = bzLimb(ctx, shF[0], shF[1], hand2[0], hand2[1], 12, 12, -1, { w: 3.5, color: skin, jit: 0.3, t, seed: 21 });
+      gauntlet(hf);
+    }
+    if (lunge) { ctx.fillStyle = hot; ctx.globalAlpha = 0.45; for (let i = 0; i < 4; i++) ctx.fillRect(-26 - i * 6, hipY - 16 + i * 4, 9 - i, 1.5); ctx.globalAlpha = 1; }
+    if (summon) { ctx.strokeStyle = `rgba(255,179,71,${0.4 + 0.3 * Math.sin(t * 9)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(gather[0], gather[1], 10 + (t * 20) % 14, 0, Math.PI * 2); ctx.stroke(); }
     ctx.restore();
   },
 

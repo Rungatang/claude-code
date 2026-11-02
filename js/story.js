@@ -117,6 +117,11 @@ const Story = {
       intro: [{ title: 'THE FERROUS MOTHER', sub: 'She rusts, and she makes more of herself from the rust.', hold: 2.4 }],
       defeat: [{ who: 'you', name: 'Tam', text: 'Decay. In the hand.' }],
     },
+    annealer: {
+      intro: [{ title: 'THE ANNEALER', sub: 'He never left the bench. He is still finishing it.', hold: 2.6 }, { who: 'annealer', name: 'Brannoch', text: 'Hold still. It is nearly cooled. Hold still, boy, you will crack it.', mood: 'calm' }],
+      phase2: [{ who: 'annealer', name: 'Brannoch', text: 'Two bulbs. No neck. Hold more than it should. I taught you that.', mood: 'stern' }],
+      defeat: [{ who: 'annealer', name: 'Brannoch', text: '...There. Cooled. You always made them hold more than they should.', mood: 'sad' }, { who: 'you', name: 'Tam', text: 'I know this bench.', mood: 'sad' }],
+    },
     escapement: {
       intro: [{ title: 'THE ESCAPEMENT', sub: 'The Regent\'s duelist. It does not miss a beat.', hold: 2.4 }],
       defeat: [{ who: 'escapement', name: 'The Escapement', text: 'Her.' }, { who: 'you', name: 'Tam', text: '...Who.', mood: 'sad' }],
@@ -196,6 +201,9 @@ const Story = {
     A1: [{ title: 'ON THE TIDELINE', text: 'Whoever reads this woke on the shore, as we all did. The sea brings only two things to this city: the drowned, and those the Hourwright is finished with. Learn which you are. Walk right. Strike with X; the first blow makes room for a second and a third.' }],
     A2: [{ title: 'THE FIRST LESSON', text: 'A door that closes behind you is not a wall. Fix a point in time where you stand (F) and the stair will remember you there. Press what must be pressed, then return. The city teaches this to every child. Few remember being taught.' }],
     A3: [{ title: 'ON THE DROWNED', text: 'The husks were people who paid everything and kept walking. They pull back before they lunge: the whole body coils and the eyes go green. That pause is a courtesy. Use it. Step back or strike first; do not stand and wait.' }],
+    G2: [{ title: 'ON THE FIRST VESSEL', text: 'Three hundred and twenty years ago a glassblower of this works drew an hour out of a dying man by the hand, to keep for his widow, and found that glass would hold it. He meant it kindly. The guild that grew from it did not. Beneath, newer: THE FIRST ONE WAS GIVEN. REMEMBER THAT WHEN YOU COUNT.' }],
+    G4: [{ title: 'THE BED-LEDGER', text: 'Apprentices, by cot. Page four: T., thirteen, indentured by his sister. Vessels hold more than they should. Retain. Someone has underlined RETAIN twice, years apart, in two different inks.' }],
+    G6: [{ title: 'THE FURNACE RULE', text: 'Never leave a vessel in the oven past its hour. It will anneal to the shape of what is in it and not what you made. Below, scratched with a nail: he has been in there a year. He will not come out. He says it is not finished.' }],
     A5: [{ title: 'ON THE JETTY', text: 'Here the Hourwrights kept their boats. They did not sail them. They stood at the end of the planks and gave the sea the ones who could not pay. Someone has scratched beneath this, in a newer hand: SHE STILL COMES HERE. And below that, older: THE GUARDIANS KEEP SEALS. A SEAL OPENS FOR THE CITY\'S REMEMBERED THINGS: MEMORIES, UNSPENT HOURS, WOUND THREAD. LOOK IN THE CORNERS.' }],
     R1: [{ title: 'ON THE DISTRICT', text: 'Iron rusts because time is poured into it faster than it can bear. Everything in this district was aged by hand. The knights do not know they are a hundred years dead. Their shields face forward: go over, go behind, or wait for the hammer to fall and the arms to tire.' }],
     R4: [{ title: 'ON WITHERING', text: 'To wither is to give a thing its own future all at once. A lock becomes the dust it was always going to be. A living thing slows, and breaks sooner. The Mother in the foundry learned this and it ate her from the inside. Point it upward (Up and V) at what hangs above you.' }],

@@ -45,7 +45,7 @@ const { chromium } = require('playwright');
     setup('H4', 22, 38); { Game.player.hp = 5; let hurt = false; for (let i = 0; i < 400; i++) { run(1, []); if (Game.player.hp < 5) { hurt = true; break; } } out.crusherHurts = hurt; }
     // 13. bosses: fight each with a simple bot (dash, combo, pogo); report kill time or hp left
     out.bosses = {};
-    for (const [zone, boss, tx] of [['A4', 'shallows', 5], ['R3', 'ferrous', 5], ['H1', 'escapement', 45], ['D3', 'index', 5], ['M3', 'grinder', 5], ['T1', 'regent', 45], ['T1', 'sef', 5]]) {
+    for (const [zone, boss, tx] of [['A4', 'shallows', 5], ['R3', 'ferrous', 5], ['G4', 'annealer', 84], ['H1', 'escapement', 45], ['D3', 'index', 5], ['M3', 'grinder', 5], ['T1', 'regent', 45], ['T1', 'sef', 5]]) {
       const flags = {}; if (boss === 'regent') { flags.regent1 = true; flags.sever = true; } if (boss === 'sef') { flags.regent1 = true; flags['boss:regent'] = true; flags.sefConfront = true; }
       setup(zone, tx, boss === 'ferrous' ? 44 : 21, ['dash', 'wither', 'stall', 'mend', 'echo', 'sever'], flags);
       Game.player.maxHp = Game.player.hp = 500;

@@ -21,7 +21,7 @@ const TILE_RGBA = (h, a) => { const c = TILE_HEX(h); return `rgba(${c[0]},${c[1]
 const TILE_STYLES = {
   shore:   { strata: 'wavy',   grass: 'kelp',  hang: 'kelp',  stal: 0.30, detail: 'barnacle', plat: 'plank', erode: [3.0, 6.0], crust: 'wet' },
   rust:    { strata: 'plate',  grass: 'wire',  hang: 'chain', stal: 0.00, detail: 'pipe',     plat: 'iron',  erode: [0.3, 0.6], crust: 'rust' },
-  glass:   { strata: 'plate',  grass: 'none',  hang: 'chain', stal: 0.00, detail: 'pipe',     plat: 'iron',  erode: [0.3, 0.6], crust: 'ash' },
+  glass:   { strata: 'brick',  grass: 'cullet', hang: 'chain', stal: 0.00, detail: 'furnace', plat: 'rack',  erode: [0.3, 0.7], crust: 'soot' },
   hours:   { strata: 'ashlar', grass: 'dust',  hang: 'chain', stal: 0.05, detail: 'gear',     plat: 'ledge', erode: [0.3, 0.8], crust: 'dust' },
   tower:   { strata: 'ashlar', grass: 'none',  hang: 'chain', stal: 0.05, detail: 'gear',     plat: 'rail',  erode: [0.3, 0.8], crust: 'ash' },
   archive: { strata: 'wavy',   grass: 'weed',  hang: 'drip',  stal: 0.22, detail: 'shelf',    plat: 'shelf', erode: [2.4, 5.0], crust: 'slime' },
@@ -130,6 +130,34 @@ Object.assign(Art, {
         if (n(s, 2) < 0.2) { ctx.fillStyle = acc(0.12); ctx.fillRect(X + 2 + n(s, 3) * 20, Y + 2, 6 + n(s, 4) * 8, S - 4); } // a rust bloom
         if (n(s, 5) < 0.08) { ctx.strokeStyle = ink(0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + 6, Y + S - 2); ctx.lineTo(X + 10 + n(s, 6) * 8, Y + 8 + n(s, 7) * 10); ctx.lineTo(X + 18 + n(s, 8) * 8, Y + 4); ctx.stroke(); } // a buckled seam
       }
+    } else if (st.strata === 'brick') {
+      // firebrick courses (two per tile, offset), warm where the heat has baked them, sooted black near the faces; every fourth row an iron plate band with rivets
+      const brick = TILE_MIX(p.rock, p.accent, 0.18), brickDk = TILE_MIX(p.rock, p.rockDark, 0.5), mortar = ink(0.6);
+      for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
+        if (!solid(x, y)) continue;
+        const X = x * T, Y = y * T, s = x * 131 + y * 17, d = depth[y][x];
+        if (y % 4 === 3 && d >= 1) { // iron band
+          ctx.fillStyle = TILE_MIX(p.rock, p.ink, 0.35); ctx.fillRect(X, Y, T, T); ctx.fillStyle = rim(0.22); ctx.fillRect(X, Y + 1, T, 1); ctx.fillStyle = ink(0.8); ctx.fillRect(X, Y + T - 1, T, 1); ctx.fillRect(X, Y, T, 1);
+          ctx.fillStyle = ink(0.9); ctx.fillRect(X + 3, Y + 6, 3, 3); ctx.fillRect(X + 11, Y + 6, 3, 3); ctx.fillStyle = rim(0.6); ctx.fillRect(X + 3, Y + 6, 1, 1); ctx.fillRect(X + 11, Y + 6, 1, 1);
+          if (n(s, 2) < 0.3) { ctx.fillStyle = acc(0.14); ctx.fillRect(X + 4 + n(s, 3) * 8, Y + 9, 2, 6); }
+          continue;
+        }
+        for (let c = 0; c < 2; c++) {
+          const cy = Y + c * 8, off = ((y * 2 + c) % 2) * 8;
+          for (let bx = -8 + off; bx < T; bx += 16) {
+            const bs = s + c * 7 + bx, baked = n(bs, 1), x0 = Math.max(X, X + bx), x1 = Math.min(X + T, X + bx + 16);
+            if (x1 <= x0) continue;
+            ctx.fillStyle = baked < 0.3 ? TILE_MIX(p.rock, p.accent, 0.3 + baked * 0.3, 0.9) : baked < 0.55 ? brick : baked < 0.85 ? brickDk : TILE_MIX(p.rock, p.ink, 0.45);
+            ctx.fillRect(x0, cy + 1, x1 - x0, 6);
+            ctx.fillStyle = rim(0.09); ctx.fillRect(x0, cy + 1, x1 - x0, 1);
+            if (bx >= 0 && bx < T) { ctx.fillStyle = mortar; ctx.fillRect(X + bx, cy, 1, 8); }
+            if (n(bs, 4) < 0.1) { ctx.fillStyle = ink(0.4); ctx.fillRect(x0 + 2 + n(bs, 5) * 8, cy + 2 + n(bs, 6) * 3, 1, 2 + n(bs, 7) * 3); } // a cracked brick
+          }
+          ctx.fillStyle = mortar; ctx.fillRect(X, cy, T, 1); ctx.fillRect(X, cy + 7, T, 1);
+        }
+        if (d === 0 && n(s, 8) < 0.5) { ctx.fillStyle = ink(0.2 + n(s, 9) * 0.25); ctx.fillRect(X, Y, T, T); } // soot on the exposed faces
+        if (d >= 2 && n(s, 10) < 0.06) { ctx.fillStyle = acc(0.5); ctx.fillRect(X + 2 + n(s, 11) * 10, Y + 2 + n(s, 12) * 10, 1, 1); } // a bead of glass fused into the mortar
+      }
     }
     ctx.restore();
 
@@ -180,6 +208,18 @@ Object.assign(Art, {
           if (d >= 1 && n(s, 20) < 0.028) { const py = Y + 4 + n(s, 21) * 6, len = (2 + Math.floor(n(s, 22) * 2)) * T; ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X, py, len, 6); ctx.fillStyle = rim(0.5); ctx.fillRect(X, py + 1, len, 1); ctx.fillStyle = ink(0.35); ctx.fillRect(X, py + 4, len, 1); ctx.fillStyle = ink(0.7); ctx.fillRect(X, py + 5, len, 1); for (let bx = X + 5; bx < X + len; bx += 18) { ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.45); ctx.fillRect(bx, py - 1, 3, 8); ctx.fillStyle = ink(0.6); ctx.fillRect(bx + 2, py - 1, 1, 8); } ctx.fillStyle = acc(0.3); ctx.fillRect(X + 6 + n(s, 23) * (len - 12), py + 6, 2, 4 + n(s, 24) * 4); }
           if (d >= 1 && n(s, 25) < 0.02) { // a dead gauge, needle stuck
             const cx = X + 8, cy = Y + 8; ctx.fillStyle = ink(0.8); ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = rim(0.6); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = TILE_MIX(p.rim, p.accent, 0.3, 0.6); ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = acc(0.9); ctx.lineWidth = 0.8; const a = 2.2 + n(s, 26) * 2.5; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * 2.8, cy + Math.sin(a) * 2.8); ctx.stroke(); ctx.fillStyle = ink(0.9); ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
+          }
+          break;
+        case 'furnace':
+          if (d >= 1 && n(s, 20) < 0.035) { // an iron oven door with hinges, a glowing peephole and a slit of fire at the sill
+            const dx = X + 2, dy = Y + 1, dw = 12, dh = 14; ctx.fillStyle = TILE_MIX(p.rock, p.ink, 0.55); ctx.beginPath(); ctx.moveTo(dx, dy + dh); ctx.lineTo(dx, dy + 5); ctx.arc(dx + dw / 2, dy + 5, dw / 2, Math.PI, 0); ctx.lineTo(dx + dw, dy + dh); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = ink(0.9); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = rim(0.35); ctx.fillRect(dx + 2, dy + 6, dw - 4, 1); ctx.fillRect(dx + 2, dy + 10, dw - 4, 1); ctx.fillStyle = rim(0.7); ctx.fillRect(dx + dw - 3, dy + 7, 2, 2); ctx.fillRect(dx + dw - 3, dy + 11, 2, 2);
+            const lit = n(s, 21) < 0.7; if (lit) { ctx.fillStyle = acc(0.8); ctx.fillRect(dx + dw / 2 - 1.5, dy + 4, 3, 2); ctx.fillStyle = acc(0.55); ctx.fillRect(dx + 1, dy + dh - 1, dw - 2, 1); const g = ctx.createRadialGradient(dx + dw / 2, dy + 8, 0, dx + dw / 2, dy + 8, 11); g.addColorStop(0, acc(0.3)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(dx - 6, dy - 4, dw + 12, dh + 8); }
+          } else if (d >= 1 && n(s, 25) < 0.03) { // a pipe stub with a valve wheel
+            ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X, Y + 6, T, 5); ctx.fillStyle = rim(0.5); ctx.fillRect(X, Y + 7, T, 1); ctx.fillStyle = ink(0.7); ctx.fillRect(X, Y + 10, T, 1);
+            ctx.strokeStyle = rim(0.7); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(X + 8, Y + 8.5, 4, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(X + 4, Y + 8.5); ctx.lineTo(X + 12, Y + 8.5); ctx.moveTo(X + 8, Y + 4.5); ctx.lineTo(X + 8, Y + 12.5); ctx.stroke();
+          } else if (d >= 1 && n(s, 27) < 0.04) { // a run of glass fused down the brick where a pot once cracked
+            ctx.fillStyle = acc(0.22); ctx.beginPath(); ctx.moveTo(X + 5 + n(s, 28) * 5, Y); ctx.quadraticCurveTo(X + 3 + n(s, 29) * 8, Y + 8, X + 6 + n(s, 30) * 5, Y + T); ctx.lineTo(X + 10 + n(s, 30) * 5, Y + T); ctx.quadraticCurveTo(X + 11, Y + 6, X + 9 + n(s, 28) * 5, Y); ctx.closePath(); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.fillRect(X + 7 + n(s, 29) * 4, Y + 3 + n(s, 31) * 9, 1, 2);
           }
           break;
         case 'gear':
@@ -236,7 +276,7 @@ Object.assign(Art, {
 
     // ---- 4. exposed faces, inside the silhouette: a crust band on the tops (deep enough to survive the erosion), dark bands on undersides and right faces, a light on left faces
     const eT0 = st.erode[0], eS0 = st.erode[1];
-    const crustCol = { wet: TILE_MIX(p.rim, p.moss, 0.5, 0.5), moss: moss(0.7), slime: moss(0.55), dust: TILE_MIX(p.rock, p.rim, 0.55, 0.5), ash: rim(0.26), rust: TILE_MIX(p.rock, p.accent, 0.4, 0.45) }[st.crust] || rim(0.3);
+    const crustCol = { wet: TILE_MIX(p.rim, p.moss, 0.5, 0.5), moss: moss(0.7), slime: moss(0.55), dust: TILE_MIX(p.rock, p.rim, 0.55, 0.5), ash: rim(0.26), rust: TILE_MIX(p.rock, p.accent, 0.4, 0.45), soot: TILE_MIX(p.rock, p.ink, 0.55, 0.7) }[st.crust] || rim(0.3);
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       if (!solid(x, y)) continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17;
@@ -410,9 +450,9 @@ Object.assign(Art, {
   },
 
   // ---- private terrain helpers -------------------------------------------------
-  _tileGrass(ctx, X, Y, s, n, st, p, rockLt, sw, bend) {
+  _tileGrass(ctx, X, Y, s, n, st, p, rockLt, sw, bend, t) {
     // one tile's worth of grass; sw = ambient sway at the tips (px), bend = rustle away from a walker (px)
-    const rim = (a) => TILE_RGBA(p.rim, a), acc = (a) => TILE_RGBA(p.accent, a);
+    const rim = (a) => TILE_RGBA(p.rim, a), acc = (a) => TILE_RGBA(p.accent, a), ink = (a) => TILE_RGBA(p.ink, a);
     sw = sw || 0; bend = bend || 0;
     ctx.lineWidth = 1; ctx.lineCap = 'round';
     const blade = (gx, hh, lean, curl, col, w) => {
@@ -440,6 +480,14 @@ Object.assign(Art, {
       case 'dust': case 'none':
         if (n(s, 60) < 0.35) { ctx.fillStyle = rim(0.5); ctx.fillRect(X + 2 + n(s, 61) * 11, Y - 1, 1, 1); ctx.fillRect(X + 3 + n(s, 62) * 10, Y - 1, 2, 1); }
         break;
+      case 'cullet': { // broken glass on the sills, every piece a facet; one or two catch the furnace light and glint
+        t = t || 0; const glass = TILE_MIX(p.rim, '#ffffff', 0.3, 0.45), edge = TILE_RGBA('#ffffff', 0.28);
+        for (let i = 0; i < 4; i++) { if (n(s, 60 + i) < 0.45) continue; const gx = X + 2 + i * 4 + n(s, 70 + i) * 3, hh = 0.6 + n(s, 80 + i) * 1.0, ww = 3 + n(s, 90 + i) * 3, lean = (n(s, 95 + i) - 0.5) * 4;
+          ctx.fillStyle = i % 2 ? glass : TILE_MIX(p.accent, p.rim, 0.5, 0.4); ctx.beginPath(); ctx.moveTo(gx, Y + 0.5); ctx.lineTo(gx + lean + ww * 0.4, Y - hh); ctx.lineTo(gx + ww, Y + 0.5); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = edge; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(gx, Y + 0.5); ctx.lineTo(gx + lean + ww * 0.4, Y - hh); ctx.stroke();
+          const gl = Math.sin(t * 1.3 + n(s, 100 + i) * 6.283 + i); if (gl > 0.86) { const a = (gl - 0.86) / 0.14; ctx.fillStyle = TILE_RGBA('#ffffff', 0.9 * a); ctx.fillRect(gx + lean + ww * 0.4 - 0.5, Y - hh - 0.5, 1.2, 1.2); ctx.fillStyle = TILE_RGBA(p.accent, 0.35 * a); ctx.fillRect(gx + lean + ww * 0.4 - 2.5, Y - hh, 5, 1); ctx.fillRect(gx + lean + ww * 0.4, Y - hh - 2.5, 1, 5); } }
+        if (n(s, 61) < 0.2) { ctx.fillStyle = ink(0.5); ctx.fillRect(X + 2 + n(s, 62) * 10, Y - 1, 3, 1); } // a smear of soot
+        break; }
       case 'wire': // curls of broken wire and rust flakes
         if (n(s, 60) < 0.14) { ctx.strokeStyle = acc(0.55); ctx.beginPath(); ctx.arc(X + 4 + n(s, 61) * 8 + bend * 0.2, Y - 2, 2, Math.PI * 0.2, Math.PI * 1.6); ctx.stroke(); }
         if (n(s, 62) < 0.3) { ctx.fillStyle = acc(0.4); ctx.fillRect(X + 2 + n(s, 63) * 11, Y - 1, 2, 1); }
@@ -548,6 +596,24 @@ Object.assign(Art, {
         if (n(s, 5) < 0.5) { ctx.fillStyle = acc(0.2); ctx.fillRect(X + 10 + n(s, 6) * (L - 20), Y + 1, 5 + n(s, 7) * 6, 5); } // a rust bloom
         if (n(s, 8) < 0.5) { const cx = X + 6 + n(s, 9) * (L - 12); ctx.strokeStyle = rim(0.55); ctx.lineWidth = 1; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(cx, Y + 9 + k * 3, 1.1, 1.7, 0, 0, Math.PI * 2); ctx.stroke(); } } // a short chain hanging off it
         top(Y + 0.5, 1.5); top(Y + 7, 1.2); ends(7);
+        break; }
+      case 'rack': { // a cooling rack: an angle-iron shelf on a pair of straps, hooks under it with the odd vessel still hanging, cullet glinting along the lip
+        shadow(6);
+        const iron = TILE_MIX(p.rock, p.ink, 0.3), ironLt = TILE_MIX(p.rock, p.rim, 0.25);
+        ctx.fillStyle = iron; ctx.fillRect(X, Y + 1, L, 5); ctx.fillStyle = ironLt; ctx.fillRect(X, Y + 1, L, 1); ctx.fillStyle = rim(0.6); ctx.fillRect(X, Y + 1, L, 0.6); ctx.fillStyle = ink(0.5); ctx.fillRect(X, Y + 5, L, 1);
+        ctx.fillStyle = ink(0.35); ctx.fillRect(X + 2, Y + 3, L - 4, 1.5); // the angle's inner shadow
+        for (let rx = X + 5; rx < X + L - 3; rx += 10) { ctx.fillStyle = ink(0.9); ctx.fillRect(rx, Y + 2.5, 2, 2); ctx.fillStyle = rim(0.6); ctx.fillRect(rx, Y + 2.5, 0.8, 0.8); }
+        // straps that held it to the wall, bent down at the ends
+        ctx.fillStyle = iron; for (const ex of [X + 1, X + L - 5]) { ctx.fillRect(ex, Y + 6, 4, 7); ctx.fillStyle = rim(0.3); ctx.fillRect(ex, Y + 6, 1, 7); ctx.fillStyle = iron; }
+        // hooks and hanging vessels (drawn in ink so they stay silhouettes under the player)
+        const hooks = Math.max(1, Math.floor(L / 24));
+        for (let k = 0; k < hooks; k++) { const hx = X + 12 + k * ((L - 24) / Math.max(1, hooks - 1) || 0) + (n(s, 200 + k) - 0.5) * 6; if (hx > X + L - 6) continue;
+          ctx.strokeStyle = ink(0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, Y + 6); ctx.lineTo(hx, Y + 9); ctx.arc(hx + 1.5, Y + 9.5, 1.6, Math.PI, Math.PI * 2.1, true); ctx.stroke();
+          if (n(s, 210 + k) < 0.55) { const vh = 7 + n(s, 220 + k) * 6, vw = vh * 0.5, vy = Y + 10; ctx.fillStyle = ink(0.92); ctx.beginPath(); ctx.moveTo(hx - 1, vy); ctx.lineTo(hx + 1, vy); ctx.lineTo(hx + 1, vy + vh * 0.3); ctx.quadraticCurveTo(hx + vw, vy + vh * 0.4, hx + vw * 0.7, vy + vh); ctx.lineTo(hx - vw * 0.7, vy + vh); ctx.quadraticCurveTo(hx - vw, vy + vh * 0.4, hx - 1, vy + vh * 0.3); ctx.closePath(); ctx.fill(); ctx.fillStyle = rim(0.35); ctx.fillRect(hx - vw * 0.4, vy + vh * 0.55, 1, vh * 0.3); } }
+        // glass dust and a chip or two on the lip
+        for (let gx = X + 6; gx < X + L - 4; gx += 9) if (n(s, gx) < 0.3) { ctx.fillStyle = TILE_MIX(p.rim, '#ffffff', 0.4, 0.7); ctx.fillRect(gx, Y + 0.2, 2, 1); }
+        if (n(s, 5) < 0.4) { ctx.fillStyle = ink(0.35); ctx.fillRect(X + 8 + n(s, 6) * (L - 16), Y + 1, 6 + n(s, 7) * 8, 4); } // soot
+        top(Y + 0.5, 1.4); top(Y + 6, 1.1); ends(6);
         break; }
       case 'ledge': { // a carved stone ledge with a moulding, dentils and corbels
         shadow(8);
@@ -798,7 +864,7 @@ Object.assign(Art, {
         it.v = (it.v + (target - it.b) * K * dt) * ex; it.b += it.v * dt;
         if (Math.abs(it.b) < 0.02 && Math.abs(it.v) < 0.05 && !target) { it.b = 0; it.v = 0; }
         const sw = Math.sin(t * 1.5 + it.X * 0.3) * (st.grass === 'kelp' ? 1.6 : 1.0) + Math.sin(t * 2.3 + it.X * 0.11) * 0.4;
-        this._tileGrass(ctx, it.X, it.Y, it.s, n, st, p, rockLt, sw, it.b);
+        this._tileGrass(ctx, it.X, it.Y, it.s, n, st, p, rockLt, sw, it.b, t);
       } else if (it.k === 'h') {
         this._tileHang(ctx, it.X, it.Y, it.s, n, st, p, rockDk, t, 1);
       } else {
@@ -857,7 +923,7 @@ Object.assign(Art, {
       if (ty !== y && ty >= y0) continue;
       let nT = 1; while (ty + nT < ZH && decor[ty + nT][x] === '|') nT++;
       const X = x * T, TY = ty * T, h = nT * T;
-      if (region === 'rust') {
+      if (region === 'rust' || region === 'glass') {
         // a riveted iron stanchion
         ctx.fillStyle = p.mid; ctx.fillRect(X + 4, TY, 8, h); ctx.fillStyle = TILE_RGBA(p.rim, 0.25); ctx.fillRect(X + 4, TY, 1, h); ctx.fillStyle = TILE_RGBA(p.ink, 0.45); ctx.fillRect(X + 10, TY, 2, h);
         ctx.fillStyle = TILE_RGBA(p.ink, 0.6); for (let yy = TY + 4; yy < TY + h - 2; yy += 10) ctx.fillRect(X + 7, yy, 2, 2);

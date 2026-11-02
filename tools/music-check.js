@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const seconds = parseFloat(process.argv[2]) || 24;
 const only = process.argv[3] ? process.argv[3].split(',') : null;
-const THEMES = ['title', 'shore', 'rust', 'hours', 'tower', 'archive', 'mills', 'root', 'boss', 'boss_regent', 'boss_sef', 'ending'];
+const THEMES = ['title', 'shore', 'rust', 'glass', 'hours', 'tower', 'archive', 'mills', 'root', 'boss', 'boss_regent', 'boss_sef', 'ending'];
 const BUSY = { shore: 1, rust: 1, hours: 0, tower: 1, mills: 1, boss: 1, boss_regent: 1, boss_sef: 1, ending: 1, title: 0, archive: 0, root: 0 };
 
 (async () => {

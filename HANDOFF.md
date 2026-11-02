@@ -27,7 +27,7 @@ drops him into the underground; the long climb out ends with the twist. Full scr
 **Layout of the code.**
 - `js/util.js` constants, input bindings, `ZOOM = 2` (the camera shows a 320x184 window of a
   640x368 canvas so characters read large), helpers.
-- `js/rooms.js` legend; `js/rooms/<region>.js` screens (40x23 tile strings) and zone lists;
+- `js/rooms.js` legend; `js/rooms/<region>.js` screens (regions in load order: shore, rust, glass, hours, tower, archive, mills, root) (40x23 tile strings) and zone lists;
   `js/zones.js` stitches screens into scrolling zones. Legend: `#` rock, `=` one-way, `^` spikes,
   `C` cracked (dash), `L` lock (wither), `R` rubble (mend), `X` crusher (stall), `p/d/e` plate,
   timed door, weight gate, `G/D` gates, `P/Q/S/N/A/B/M/H/T` start, arrival, lantern, npc, altar,

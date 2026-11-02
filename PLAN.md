@@ -322,6 +322,13 @@ search, in the bible's childhood-to-making order along the route; 14 fragmentary
 ledger pages, scratchings) are placed where there were none; relic seals raised to 8/14/20/27. Still to
 do: the new regions and their NPCs, memory doors, the endings.
 
+Status, new regions (2026-11-02): THE GLASSWORKS is in (six screens below the Rust Altar, region
+'glass': the Stack, Furnace Hall, Sand Pits, Apprentices' Stair, Annealing Ovens, the Great Furnace),
+with its own palette, backdrop, tiles and theme, the Annealer boss (Master Brannoch), a lantern, a heart,
+a spool behind a cracked wall, three tablets, and a plate door that latches a shortcut to the Jetty. The
+solver reaches all of it. Next regions: the Grainmarket hub (needs the shop, step 3), the Orphan Ward,
+the Debtors' Court, the Garden.
+
 ## Step 6: carry-over items from earlier
 
 - The tower arenas scored 5 out of 10 in review and were left as the original boxes: redo them.
