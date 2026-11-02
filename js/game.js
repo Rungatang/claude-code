@@ -520,6 +520,7 @@ const Game = {
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     Art.drawAtmosphere(ctx, World.room.region, t, cam);
+    Paint.vignette(ctx, VIEW_W, VIEW_H, 0.42); Paint.grain(ctx, VIEW_W, VIEW_H, 0.06, t);
     if (this.timeScale < 1 || this.stopFx > 0) Art.drawTimeFx(ctx, t, this.timeScale, this.stopFx > 0);
     if (this.restGlow > 0) { const a = Math.min(0.35, this.restGlow * 0.4); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.2, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.9); g.addColorStop(0, `rgba(255,214,140,${a * 0.5})`); g.addColorStop(1, 'rgba(255,190,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.hurtFlash > 0) { const a = Math.min(0.5, this.hurtFlash); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85); g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, `rgba(200,10,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
