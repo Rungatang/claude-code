@@ -164,14 +164,30 @@ const Story = {
   ],
 
   shards: [
-    { title: 'A kitchen', text: 'A kitchen with a low ceiling. A woman at the table, younger, laughing, counting coins into stacks. She calls you by a name that is not Tam, a child\'s name, and tells you to stop stealing the sugar.' },
-    { title: 'The stair', text: 'A narrow stair, your sister\'s hand on your collar, hauling you up past a door with a bell over it. "Do not look at them." Below, a line of people with their hats off. You look.' },
-    { title: 'Sand', text: 'A beach, the two of you small, her filling a bottle with sand. "If you keep it, you keep the day." You believe her. You still do.' },
-    { title: 'Fever', text: 'You in a bed, grey light. Her sitting with your hand in both of hers, promising to fix it. In the morning you are well and she is a little older.' },
-    { title: 'The Well', text: 'A stone well in a courtyard, dry. People in a line. Your sister sits on the rim with a ledger on her knee and takes each of them by the hand, and when she lets go they walk away a little slower than they came.' },
-    { title: 'The dog', text: 'A yellow dog at the Mills, you scratching its ears, the Miller laughing, your sister watching the dog and doing arithmetic.' },
-    { title: 'The chair', text: 'Straps. A chair bolted to the floor beside the Well. She is apologising while she does it, and she means it, which is worse. "I need something that can pass his wards. I need it to be empty. I am so sorry it has to be you."' },
-    { title: 'The shore', text: 'Being carried. Salt. Her voice, close to your ear, rehearsing: "The Regent did this to you. The Regent took your name. Say it back to me." You cannot say anything. She lays you down and walks away without looking back.' },
+    { title: 'The stair', text: 'A narrow stair, your sister\'s hand on your collar, hauling you up past a door with a bell over it. "Do not look at them." Below, a line of people with their hats off. You look.' }, // A2
+    { title: 'A kitchen', text: 'A kitchen with a low ceiling. A woman at the table, younger, laughing, counting coins into stacks. She calls you by a name that is not Tam, a child\'s name, and tells you to stop stealing the sugar.' }, // A3
+    { title: 'Sugar', text: 'A paper twist of sugar. You did not steal it. She bought it with something that was not money, and the grocer\'s hands shook for a week afterward.' }, // A5
+    { title: 'Sand', text: 'A beach, the two of you small, her filling a bottle with sand. "If you keep it, you keep the day." You believe her. You still do.' }, // A6
+    { title: 'Fever', text: 'You in a bed, grey light. Her sitting with your hand in both of hers, promising to fix it. In the morning you are well and she is a little older.' }, // R1
+    { title: 'Glass', text: 'The Glassworks door. You are thirteen. She is at the gate. "Make me something that does not run out."' }, // R2
+    { title: 'The Well', text: 'A stone well in a courtyard, dry. People in a line. Your sister sits on the rim with a ledger on her knee and takes each of them by the hand, and when she lets go they walk away a little slower than they came.' }, // R4
+    { title: 'The vessel', text: 'Your bench. A glass with two bulbs and no neck, your best work. You hand it to her. She weighs it in her palm and says "It will do for one."' }, // R5
+    { title: 'Given', text: 'You on the rim, not her. The ledger reads "T., one hour, given." You wanted to know what it felt like. It felt like nothing, and that was the worst of it.' }, // R6
+    { title: 'The dog', text: 'A yellow dog at the Mills, you scratching its ears, the Miller laughing, your sister watching the dog and doing arithmetic.' }, // H3
+    { title: 'An argument', text: '"They owe," she says. "Everyone owes someone." You say that no one owes her their years. She says you have always been soft, and that softness is a thing she can fix, if you keep pushing.' }, // H4
+    { title: 'The ring', text: 'Forty years in one breath. A wedding at the Wheelhouse. A woman who asks you for nothing, which is how you know what she is. You give her one anyway.' }, // H6
+    { title: 'Smoke', text: 'Paper burning in a brazier. Columns of names curling black. Your hands, shaking, feeding them in. Footsteps on the stair behind you and her voice, very gentle: "Oh, Tam."' }, // H7
+    { title: 'The last vessel', text: 'The furnace. You, old, making one more glass, two bulbs, large enough for a chest. You know what it is for. You make it well anyway.' }, // T2
+    { title: 'The chair', text: 'Straps. A chair bolted to the floor beside the Well. She is apologising while she does it, and she means it, which is worse. "I need something that can pass his wards. I need it to be empty. I am so sorry it has to be you."' }, // D1
+    { title: 'An eleventh birthday', text: 'A cake with one candle. You are the girl. Your mother says the Lady needs an hour and good children count. You count.' }, // D5
+    { title: 'Smoke, from the stair', text: 'The brazier, seen from above. A man feeding pages into the fire, weeping. You are the one on the stair. You are not gentle; you are terrified; your voice comes out gentle anyway.' }, // D2
+    { title: 'A fisherman\'s winter', text: 'Ice in the nets. A last season you were saving. A kind woman on the quay asks for one hour to settle what you owe the boat, and you think, it is only one.' }, // D4
+    { title: 'Pouring', text: 'The hours going in. You feel every one. A fisherman\'s last winter. A girl\'s eleventh birthday. An old man\'s afternoon nap that he was saving for after the war. Four hundred lives, not one of them yours, poured into the space where you used to be.' }, // M1
+    { title: 'The shore', text: 'Being carried. Salt. Her voice, close to your ear, rehearsing: "The Regent did this to you. The Regent took your name. Say it back to me." You cannot say anything. She lays you down and walks away without looking back.' }, // M2
+    { title: 'The thread', text: 'You understand the bar you have been spending. Every recall, every withering, every stopped second: a stranger\'s hour, burned. You have been paying her debts with their lives since the moment you woke. You stop walking for a while.' }, // M5
+    { title: 'The count', text: 'Her at the Well at night, alone, the great vessel in her lap. She opens her own wrist and pours in one more. "So there is something in there that was given." She never tells anyone.' }, // U2
+    { title: 'The first morning', text: 'Waking on the shore. A woman\'s footprints leaving. You follow them up into the rust and forget why halfway. Hands under your arms, carrying you back down. Salt. Her voice, rehearsing.' }, // U5
+    { title: 'The charter', text: 'A table, four Hourwrights, a young clockmaster signing. You are across from him with your hat in your hands and a debt you cannot pay. He does not look up.' }, // U7
   ],
 
   // Inscribed tablets found in the world (tile 'i'). Keyed by screen id, in reading order within the
@@ -194,6 +210,20 @@ const Story = {
     U1: [{ title: 'ON THE ROOT', text: 'This is where the hours go when they are spent. Down. Into the roots. The city drinks them back up and calls it a season. Climb. It is a long way and nothing here wants you to leave.' }],
     U4: [{ title: 'ON SEVERING', text: 'To cut the thread is to stop every clock but your own. It costs five hours and it is never your own five. There is a reason the Hourwright gives this one last, and gives it gladly. Think about who it is you are spending.' }],
     U6: [{ title: 'A NEWER HAND', text: 'If you are reading this you climbed out, which means she wanted you to. Whoever she is to you now: a friend, a sister, a voice on the shore. Ask her who poured you. Ask her what the ledger at her waist is for.' }],
+    A6: [{ title: 'A CHILD\'S SCRATCHING', text: 'Scratched low on the cistern wall, at a child\'s height: TAM + S. Below it, in the same hand but older: she said if you keep it you keep the day. Then nothing. The rest is under the waterline.' }],
+    R2: [{ title: 'A GUILD RULE, HALF LEGIBLE', text: '...the Hourwright shall take only what is OWED, and only by the HAND, and never from a child under... The next line has been chiselled out. Someone went to real trouble to remove one word.' }],
+    R5: [{ title: 'A LEDGER PAGE, NAILED UP', text: 'Column fourteen. Forty names. Each one: given, given, given. The last three: taken. Someone has written beside them in pencil: he would not have wanted this.' }],
+    R6: [{ title: 'THE CRANE\'S PLATE', text: 'CRANE DECK. CAPACITY: FOUR HUNDRED HOURS. Scratched under the plate: it never lifted anything. She just liked the number.' }],
+    H5: [{ title: 'THE REGENT\'S NOTICE', text: 'BY ORDER OF THE CLOCKMASTER: the Clock is sealed. No hour shall be wound into it or out of it until the one who asks is... The notice is torn here. Below, newer, smaller: he means her. everybody knows he means her.' }],
+    H7: [{ title: 'THE BELL-RINGER\'S COUNT', text: 'Rang it for the drowned, rang it for the given, stopped ringing it when I could not keep count. If you are up here you came the hard way. There is nothing up here but the count. 400 is wrong. It is 401.' }],
+    T2: [{ title: 'UNDER THE THRONE', text: 'Carved where only a man on his knees would see it: I kept it shut for a hundred years. I kept it shut from HER. If you are reading this she is already behind you.' }],
+    D2: [{ title: 'A FILING INSTRUCTION', text: 'Debtors to the east shelves. Donors to the west. Sort by hour, not by name; the names change, the hours do not. Archivist\'s note beneath: there is no west shelf. There never was.' }],
+    D5: [{ title: 'THE DROWNED LINE', text: 'Waterline, marked in paint, dated. Each year a little higher. The last mark: the year the Well went dry. The water had to go somewhere.' }],
+    M2: [{ title: 'THE MILLER\'S TALLY', text: 'Flour: none. Bone: by the cartload. She said it was only what was left when the hours were out. She said it the way you say a kettle has boiled.' }],
+    M5: [{ title: 'A STONE WITH NO NAME', text: 'A GOOD DOG. IT ASKED FOR NOTHING. Someone has added, in chalk: that is how you could tell she had got to it.' }],
+    U2: [{ title: 'ROOT-TALK', text: 'Carved into the root itself, which should not be possible: the roots drink what the city spends. you are standing in the city\'s receipts.' }],
+    U3: [{ title: 'A WARNING, MOST OF IT', text: 'The weights fall for a reason. Count four between. If the count is wrong it is because someone upstairs has been... The rest is crushed flat under a weight.' }],
+    U7: [{ title: 'THE VEIN', text: 'Written in a hand that shakes: there is one hour in him that was given freely. I know, because I gave it. If he ever reads this, it was never arithmetic. Not that one. S.' }],
   },
 
   abilities: {

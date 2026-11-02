@@ -317,7 +317,10 @@ tablets and title cards carry them); Sef gives only a name at the Jetty and answ
 up"; the Miller no longer tells the brother story on first meeting; the Escapement says "Her." itself;
 the Index's defeat shows the ledger as a card rather than Tam reading it aloud; the eight placed shards
 are now the bible's childhood-to-making sequence (kitchen, stair, sand, fever, Well, dog, chair, shore).
-Still to do: the sixteen further shards, the new regions and their NPCs, memory doors, the endings.
+Second pass (2026-11-02): all 24 shards are placed, 16 of them in hidden nooks found by a reachability
+search, in the bible's childhood-to-making order along the route; 14 fragmentary tablets (torn notices,
+ledger pages, scratchings) are placed where there were none; relic seals raised to 8/14/20/27. Still to
+do: the new regions and their NPCs, memory doors, the endings.
 
 ## Step 6: carry-over items from earlier
 
