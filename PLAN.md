@@ -311,6 +311,14 @@ them, and real content filling the space.
   region in an isolated worktree, validator plus solver plus whole-zone renders, critic review),
   with the new size rule and the content lint in the brief.
 
+Status of step 5, first pass (2026-11-02): the existing script now follows the bible's rewrite plan.
+Tam's 47 lines are down to 26, all short reactions; the region and screen monologues are gone (the
+tablets and title cards carry them); Sef gives only a name at the Jetty and answers "Whose." with "Go
+up"; the Miller no longer tells the brother story on first meeting; the Escapement says "Her." itself;
+the Index's defeat shows the ledger as a card rather than Tam reading it aloud; the eight placed shards
+are now the bible's childhood-to-making sequence (kitchen, stair, sand, fever, Well, dog, chair, shore).
+Still to do: the sixteen further shards, the new regions and their NPCs, memory doors, the endings.
+
 ## Step 6: carry-over items from earlier
 
 - The tower arenas scored 5 out of 10 in review and were left as the original boxes: redo them.
