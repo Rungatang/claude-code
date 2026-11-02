@@ -21,6 +21,7 @@ const TILE_RGBA = (h, a) => { const c = TILE_HEX(h); return `rgba(${c[0]},${c[1]
 const TILE_STYLES = {
   shore:   { strata: 'wavy',   grass: 'kelp',  hang: 'kelp',  stal: 0.30, detail: 'barnacle', plat: 'plank', erode: [3.0, 6.0], crust: 'wet' },
   rust:    { strata: 'plate',  grass: 'wire',  hang: 'chain', stal: 0.00, detail: 'pipe',     plat: 'iron',  erode: [0.3, 0.6], crust: 'rust' },
+  glass:   { strata: 'plate',  grass: 'none',  hang: 'chain', stal: 0.00, detail: 'pipe',     plat: 'iron',  erode: [0.3, 0.6], crust: 'ash' },
   hours:   { strata: 'ashlar', grass: 'dust',  hang: 'chain', stal: 0.05, detail: 'gear',     plat: 'ledge', erode: [0.3, 0.8], crust: 'dust' },
   tower:   { strata: 'ashlar', grass: 'none',  hang: 'chain', stal: 0.05, detail: 'gear',     plat: 'rail',  erode: [0.3, 0.8], crust: 'ash' },
   archive: { strata: 'wavy',   grass: 'weed',  hang: 'drip',  stal: 0.22, detail: 'shelf',    plat: 'shelf', erode: [2.4, 5.0], crust: 'slime' },
