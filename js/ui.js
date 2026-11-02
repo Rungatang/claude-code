@@ -62,6 +62,12 @@ const UI = {
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9, y); ctx.lineTo(x + 4.5, y + 8.5); ctx.lineTo(x + 9, y + 17); ctx.lineTo(x, y + 17); ctx.lineTo(x + 4.5, y + 8.5); ctx.closePath(); ctx.fill();
       if (on) { ctx.fillStyle = '#fff6d0'; ctx.fillRect(x + 1.5, y + 1.5, 2, 3); }
     }
+    // safe ground: a small lantern beside the hours while the player stands in a lantern's radius
+    const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
+    if ((Game.lanterns || []).some((s) => Math.abs(pcx - (s.x + s.w / 2)) < 160 && Math.abs(pcy - (s.y + s.h / 2)) < 96)) {
+      const lx = 14 + pl.maxHp * 14 + 6, ly = 12; ctx.fillStyle = this.INK; ctx.fillRect(lx - 1, ly - 1, 9, 19); ctx.fillStyle = '#5a5040'; ctx.fillRect(lx, ly + 12, 7, 5); ctx.fillRect(lx + 2, ly, 3, 2);
+      ctx.fillStyle = `rgba(255,210,122,${0.7 + Math.sin(t * 5) * 0.25})`; ctx.fillRect(lx + 1, ly + 3, 5, 8); ctx.fillStyle = '#fff6d0'; ctx.fillRect(lx + 2.5, ly + 5, 2, 3);
+    }
     // thread: a spool of nine segments
     const tx0 = 14, ty0 = 36;
     for (let i = 0; i < pl.maxThread; i++) {

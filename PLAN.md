@@ -106,6 +106,12 @@ Rule: a door that has been opened stays open. Nothing that the player unlocks ma
 Done when the return check passes for every room at every stage of the solver, and no door in the
 game can close behind the player after it has been passed.
 
+Status of step 0 (2026-11-02): the solver's "blocked after leaving" check passes (every zone reachable
+from the start with every power); the Gallery is climbable from the Nave and barred until the player
+reaches the Surface; the Vein's corridor entrance in Daylight was one tile tall and is now passable;
+eight enemies were moved out of lantern radii. The per-position return check still runs but is
+advisory (prints, does not fail) until its model is finished.
+
 ## Step 1: lanterns, saves and enemy persistence (1 to 2 days)
 
 Goal: Hollow Knight benches. Resting heals, saves, respawns the enemies, and is always safe.
@@ -127,6 +133,11 @@ Goal: Hollow Knight benches. Resting heals, saves, respawns the enemies, and is 
 Files: `js/entities.js`, `js/game.js`, `js/world.js`, `tools/validate.js`, `tools/solve.js`.
 Done when: killing then leaving and returning keeps enemies dead, resting brings them back, and the
 lint fails if an enemy sits inside a lantern's radius.
+
+Status of step 1 (2026-11-02): done. Kills persist until a rest or death; resting heals, refills thread,
+saves and respawns the zone (bosses stay dead) with a short rest pose and a warm glow; no enemy spawns
+within 12 columns / 6 rows of a lantern (validator error) and patrols turn back at the runtime radius;
+the HUD shows a small lantern beside the hours while on safe ground; tools/tests/lantern.js covers it.
 
 ## Step 2: redesign the time powers around traversal (3 to 5 days)
 

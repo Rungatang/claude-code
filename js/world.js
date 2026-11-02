@@ -59,12 +59,12 @@ const World = {
           case 'R': if (flags['mend:' + def.id + ':' + x + ':' + y]) ch = '#'; break;
           case 'p': ents.push({ cls: 'plate', x: gx, y: gy, screen: def.id }); ch = '.'; break;
           case 'X': if (this.tiles[gy][gx - 1] !== 'X') { let w = 1; while (this.tiles[gy][gx + w] === 'X') w++; ents.push({ cls: 'crusher', x: gx, y: gy, w }); } ch = '.'; break;
-          case 'a': ents.push({ cls: 'enemy', type: 'husk', x: gx, y: gy }); ch = '.'; break;
-          case 'w': ents.push({ cls: 'enemy', type: 'hourfly', x: gx, y: gy }); ch = '.'; break;
-          case 't': ents.push({ cls: 'enemy', type: 'archer', x: gx, y: gy }); ch = '.'; break;
-          case 'k': ents.push({ cls: 'enemy', type: 'knight', x: gx, y: gy }); ch = '.'; break;
-          case 'r': ents.push({ cls: 'enemy', type: 'wraith', x: gx, y: gy }); ch = '.'; break;
-          case 'h': ents.push({ cls: 'enemy', type: 'hound', x: gx, y: gy }); ch = '.'; break;
+          case 'a': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'husk', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'w': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'hourfly', x: gx, y: gy, key }); ch = '.'; break; }
+          case 't': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'archer', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'k': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'knight', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'r': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'wraith', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'h': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'hound', x: gx, y: gy, key }); ch = '.'; break; }
         }
         this.tiles[gy][gx] = ch;
       }

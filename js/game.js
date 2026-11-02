@@ -12,6 +12,7 @@ const Game = {
   player: null, save: null,
   cam: { x: 0, y: 0 },
   hitStop: 0, flashWhite: 0, hurtFlash: 0, floaters: [],
+  killed: new Set(), restGlow: 0, lanterns: [],
   timeScale: 1, stallT: 0, severT: 0, stopFx: 0,
   transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
   deathT: 0, overlay: null, debug: false, manual: false,
@@ -63,6 +64,7 @@ const Game = {
 
   // ---- flow ---------------------------------------------------------------
   newGame() {
+    this.killed.clear();
     this.save = this.defaultSave();
     this.player = new Player();
     this.playCutscene(Story.prologue, () => {
@@ -75,6 +77,7 @@ const Game = {
     AudioSys.playTheme('shore');
   },
   continueGame() {
+    this.killed.clear();
     const s = this.readSave();
     if (!s) { this.newGame(); return; }
     this.save = s;
@@ -94,7 +97,7 @@ const Game = {
     const f = this.save.flags;
     for (const s of specs) {
       switch (s.cls) {
-        case 'enemy': this.entities.push(new Enemy(s.type, s.x, s.y)); break;
+        case 'enemy': { const e = new Enemy(s.type, s.x, s.y); e.key = s.key; this.entities.push(e); break; }
         case 'pickup': this.entities.push(new Pickup(s)); break;
         case 'save': this.entities.push(new SavePoint(s)); break;
         case 'plate': this.entities.push(new Plate(s)); break;
@@ -114,6 +117,7 @@ const Game = {
         }
       }
     }
+    this.lanterns = this.entities.filter((e) => e instanceof SavePoint);
     if (entry === 'start') { const p = World.startPosition(); pl.placeFeet(p.tx, p.bottom); }
     else if (entry === 'save') { pl.x = this.save.x; pl.y = this.save.y; }
     else if (entry === 'arrival') { const p = World.arrival; pl.placeFeet(p.tx, p.bottom); }
@@ -148,6 +152,8 @@ const Game = {
   onScreenEnter() {
     const f = this.save.flags, id = this.curScreen;
     if (Story.screenEnter[id] && !f['scene:' + id]) { f['scene:' + id] = true; this.pendingDialogue = Story.screenEnter[id]; }
+    // reaching the Surface from below unbars the Gallery door, so the underground stays open both ways from then on
+    if (id === 'U6' && !f.surfaced) { f.surfaced = true; this.writeSave(); }
   },
   playCutscene(steps, onDone, overlay, skippable) {
     if (this.state !== 'cutscene') this.prevState = this.state === 'title' ? 'play' : this.state;
@@ -170,13 +176,21 @@ const Game = {
   sever(d) { this.severT = d; this.timeScale = 0; AudioSys.sfx('bossdie'); this.flashWhite = 0.15; World.shake = 0.2; },
 
   // ---- events -------------------------------------------------------------
+  // Resting at a lantern: heal, refill thread, save, and bring the zone's slain enemies back (bosses stay dead).
   saveAtLantern() {
     const pl = this.player;
-    pl.hp = pl.maxHp;
-    this.save.zone = World.zoneId; this.save.x = pl.x; this.save.y = pl.y; this.save.maxHp = pl.maxHp;
+    const healed = pl.maxHp - pl.hp, wound = pl.maxThread - pl.thread, back = this.killed.size;
+    pl.hp = pl.maxHp; pl.thread = pl.maxThread; pl.vx = 0; pl.healT = 0;
+    this.save.zone = World.zoneId; this.save.x = pl.x; this.save.y = pl.y; this.save.maxHp = pl.maxHp; this.save.maxThread = pl.maxThread;
     this.writeSave();
+    this.killed.clear();
+    // respawn: rebuild the zone's entities in place; the player keeps position, anchor and history are reset like any zone load
+    const keep = { x: pl.x, y: pl.y, facing: pl.facing };
+    this.loadZone(World.zoneId, 'save'); Object.assign(this.player, keep);
+    this.player.restT = 1.2; this.player.anim = 'rest'; this.restGlow = 1.2;
     AudioSys.sfx('save');
-    UI.showToast('The lantern keeps your hour. Progress saved.');
+    const parts = []; if (healed > 0) parts.push(healed + (healed === 1 ? ' hour' : ' hours') + ' restored'); if (wound > 0) parts.push('thread rewound'); if (back > 0) parts.push('the dead have risen again'); parts.push('progress kept');
+    UI.showToast('You rest. ' + parts.join(', ') + '.');
     this.burst(pl.x + pl.w / 2, pl.y + pl.h / 2, '#ffd27a', 16, 80);
   },
   onPickup(p) {
@@ -268,6 +282,7 @@ const Game = {
     this.save.zone = s.zone; this.save.x = s.x; this.save.y = s.y;
     this.player = new Player();
     this.player.maxHp = this.save.maxHp; this.player.hp = this.save.maxHp; this.player.maxThread = this.save.maxThread || 9;
+    this.killed.clear();
     this.loadZone(this.save.zone, 'save');
     this.state = 'play';
   },
@@ -334,6 +349,7 @@ const Game = {
     for (const f of this.floaters) { f.t += dt; f.y += f.vy * dt; f.vy *= 0.94; }
     this.floaters = this.floaters.filter((f) => f.t < f.life);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
+    if (this.restGlow > 0) this.restGlow -= dt;
   },
   // A rising number (damage dealt or taken, hours restored).
   floaty(x, y, text, color) { if (this.floaters.length < 40) this.floaters.push({ x: x + (Math.random() - 0.5) * 6, y, vy: -46, t: 0, life: 0.8, text, color, kind: 'text' }); },
@@ -505,6 +521,7 @@ const Game = {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     Art.drawAtmosphere(ctx, World.room.region, t, cam);
     if (this.timeScale < 1 || this.stopFx > 0) Art.drawTimeFx(ctx, t, this.timeScale, this.stopFx > 0);
+    if (this.restGlow > 0) { const a = Math.min(0.35, this.restGlow * 0.4); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.2, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.9); g.addColorStop(0, `rgba(255,214,140,${a * 0.5})`); g.addColorStop(1, 'rgba(255,190,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.hurtFlash > 0) { const a = Math.min(0.5, this.hurtFlash); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85); g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, `rgba(200,10,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.flashWhite > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 4})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     UI.drawHud(ctx, t);

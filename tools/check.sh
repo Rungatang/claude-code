@@ -15,6 +15,7 @@ if [ "$1" != "quick" ]; then
   expect solver "SOLVER OK" node tools/solve.js
   expect mechanics "errors: none" node tools/tests/mech.js
   expect story-flow "errors: none" node tools/tests/flow2.js
+  expect lanterns "lantern: OK" node tools/tests/lantern.js
   expect renders "errors: none" node tools/render.js all renders/tests
   expect room-sheets "errors: none" node tools/rooms-sheet.js renders/tests/rooms
   [ -f tools/music-check.js ] && expect music "music OK" node tools/music-check.js

@@ -89,7 +89,7 @@ class Player {
     this.castT = 0; this.castDur = 0; this.castPower = null; this.castFired = false; this.cds = {};
     this.anchor = null;
     this.invuln = 0; this.hurtT = 0; this.frozen = 0;
-    this.dropT = 0; this.spikeGrace = 0; this.boostT = 0;
+    this.dropT = 0; this.spikeGrace = 0; this.boostT = 0; this.restT = 0;
     // animation contract (read by js/art/player.js)
     this.anim = 'idle'; this.runPhase = 0; this.idleT = 0; this.turnT = 99; this.landImpact = 0;
     Feel.initAnim(this);
@@ -108,6 +108,7 @@ class Player {
     this.attackStarted = false;
     if (this.frozen > 0) { this.animTick(dt, 0); this.record(); return; }
     const wasGround = this.onGround, prevFacing = this.facing;
+    if (this.restT > 0) { this.restT -= dt; this.anim = 'rest'; this.vx = 0; this.record(); World.moveBody(this, dt, {}); return; }
     const controllable = this.hurtT <= 0;
     let move = 0;
     if (controllable) move = (Input.held('right') ? 1 : 0) - (Input.held('left') ? 1 : 0);
@@ -561,6 +562,7 @@ class Enemy {
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#9a9aa8', 14, 120);
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#15101a', 10, 60);
       Game.player.gainThread(1);
+      if (this.key) Game.killed.add(this.key);
     }
     return 'hit';
   }
@@ -578,6 +580,18 @@ class Enemy {
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
     const stunned = this.stun > 0, spd = this.withered > 0 ? 0.6 : 1;
+    // Lanterns are safe ground: inside a lantern's radius an enemy never telegraphs, and walkers turn
+    // back while flyers drift off. (The layout lint keeps spawns out of the radius; this keeps patrols out.)
+    this.nearLantern = null;
+    for (const s of Game.lanterns || []) { const lx = s.x + s.w / 2, ly = s.y + s.h / 2; if (Math.abs(cx - lx) < 160 && Math.abs(cy - ly) < 96) { this.nearLantern = { x: lx, y: ly }; break; } }
+    if (this.nearLantern) {
+      const away = sign(cx - this.nearLantern.x) || 1;
+      this.tele = 0; this.cool = Math.max(this.cool, 0.6);
+      if (this.state === 'lunge' || this.state === 'charge' || this.state === 'dive') { this.state = 'idle'; this.vx *= 0.3; }
+      if (this.type === 'husk' || this.type === 'knight' || this.type === 'hound') { if (this.dir !== away && this.turnT <= 0) { this.turnT = 0.2; this.turned = false; } }
+      else if (this.type === 'hourfly') { this.homeX = this.nearLantern.x + away * 220; this.homeY = Math.min(this.homeY, cy); }
+      else if (this.type === 'wraith') { this.fadeT = 0; this.vx = away * 30; this.x += away * 20 * dt; }
+    }
     const dx = pcx - cx, dy = pcy - cy, d = Math.hypot(dx, dy);
     switch (this.type) {
       case 'husk': {
