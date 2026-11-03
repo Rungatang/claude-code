@@ -123,7 +123,7 @@ const Cutscene = {
       ctx.font = 'bold 32px Georgia, serif';
       ctx.fillText(s.title, VIEW_W / 2, VIEW_H / 2 - 4);
       ctx.fillStyle = '#b8202c'; ctx.fillRect(VIEW_W / 2 - 70 * a, VIEW_H / 2 + 6, 140 * a, 1.5);
-      if (s.sub) { ctx.fillStyle = '#c8b890'; ctx.font = 'italic 14px Georgia, serif'; ctx.fillText(s.sub, VIEW_W / 2, VIEW_H / 2 + 28); }
+      if (s.sub) { ctx.fillStyle = '#c8b890'; ctx.font = 'italic 14px Georgia, serif'; wrapText(ctx, s.sub, 520).forEach((l, i) => ctx.fillText(l, VIEW_W / 2, VIEW_H / 2 + 28 + i * 18)); }
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
       return;
