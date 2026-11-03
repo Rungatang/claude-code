@@ -42,14 +42,19 @@ Object.assign(Art, {
     const W = world.W, H = world.H, T = TILE, ZW = world.zone.W, ZH = world.zone.H, tiles = world.tiles, decor = world.decor || [];
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d');
+    // Outside the zone counts as rock for the depth field (so border rock has no false 'exposed' face),
+    // but as AIR for the contour loops: every island, including the border frame, must close into a
+    // loop or the evenodd fill inverts in a fully enclosed room.
     const at = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? '#' : tiles[y][x];
     const solidCh = (ch) => ch === '#' || ch === 'C' || ch === 'L';
     const solid = (x, y) => solidCh(at(x, y));
+    const solidIn = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? false : solidCh(tiles[y][x]);
     const zs = world.zoneId.length * 97 + world.zoneId.charCodeAt(0) * 13 + world.zoneId.charCodeAt(world.zoneId.length - 1);
     const rng = mulberry32(zs);
     const n = (i, k) => Ink.n(i + zs, k);
-    const ink = (a) => TILE_RGBA(p.ink, a), rim = (a) => TILE_RGBA(p.rim, a), acc = (a) => TILE_RGBA(p.accent, a), dk = (a) => TILE_RGBA(p.rockDark, a), moss = (a) => TILE_RGBA(p.moss, a);
-    const rockFill = TILE_MIX(p.rock, '#000000', 0.25); // the mass sits a step darker than the palette mid tones so it separates from the parallax
+    const ink2C = p.ink2 || p.ink, lightC = p.light || p.rim;
+    const ink = (a) => TILE_RGBA(p.ink, a), ink2 = (a) => TILE_RGBA(ink2C, a), rim = (a) => TILE_RGBA(p.rim, a), lt = (a) => TILE_RGBA(lightC, a), acc = (a) => TILE_RGBA(p.accent, a), dk = (a) => TILE_RGBA(p.rockDark, a), moss = (a) => TILE_RGBA(p.moss, a);
+    const rockFill = TILE_MIX(p.rock, '#000000', 0.12); // the mass sits a step darker than the palette mid tones so it separates from the parallax
     const rockLt = TILE_MIX(p.rock, p.rim, 0.3), rockDk = TILE_MIX(p.rock, p.rockDark, 0.65);
     const organic = st.strata === 'wavy';
 
@@ -63,331 +68,290 @@ Object.assign(Art, {
       if (y > 0 && depth[y - 1][x] > d) { depth[y - 1][x] = d; q.push(x, y - 1); }
       if (y < ZH - 1 && depth[y + 1][x] > d) { depth[y + 1][x] = d; q.push(x, y + 1); }
     }
-    const dep = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? 9 : depth[y][x];
-    const mask = new Path2D();
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) if (solid(x, y)) mask.rect(x * T, y * T, T, T);
 
-    // ---- 1. rock mass (everything here is clipped to the solid silhouette)
-    ctx.save(); ctx.clip(mask);
+    // ---- 1. the contour of every rock island, traced as closed loops (solid kept on the right hand), then eroded
+    // inward along slow profiles and rounded at convex corners. The loops become ONE path: the painted mass is
+    // clipped to it, the ink is stroked along it. Erosion only ever removes rock, so the grid stays the collision.
+    const eT0 = Math.max(1.2, st.erode[0]), eS0 = Math.max(1.2, st.erode[1]);
+    const ef = (x, y) => at(x, y) === '#' ? 1 : 0.25; // cracked and locked blocks keep flat, built faces
+    const wob = (u, a) => 0.3 + 0.7 * (0.5 + 0.3 * Math.sin(u * 0.19 + a) + 0.2 * Math.sin(u * 0.051 + a * 1.7));
+    const topE = (px, tx, ty) => Math.max(1.0, eT0 * ef(tx, ty) * wob(px, n(ty * 13, 1) * 6.283));
+    const botE = (px, tx, ty) => { const per = 30 + n(ty * 7, 2) * 26, sag = 0.5 + 0.5 * Math.cos(px * 6.283 / per + n(ty * 7, 3) * 6.283); return Math.max(1.0, eS0 * ef(tx, ty) * (0.35 + 0.65 * sag) * (0.55 + 0.45 * wob(px, n(ty * 13, 3) * 6.283))); };
+    const sideE = (py, tx, ty, k) => Math.max(1.0, eS0 * 0.8 * ef(tx, ty) * wob(py, n(tx * 11, k) * 6.283));
+    const topY = (px, tx, ty) => ty * T + topE(px, tx, ty), botY = (px, tx, ty) => (ty + 1) * T - botE(px, tx, ty);
+    const edges = new Map();
+    const addE = (vx, vy, dx, dy, tx, ty) => { const k = vx + ',' + vy; let a = edges.get(k); if (!a) { a = []; edges.set(k, a); } a.push({ vx, vy, dx, dy, tx, ty, used: false }); };
+    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
+      if (!solidIn(x, y)) continue;
+      if (!solidIn(x, y - 1)) addE(x, y, 1, 0, x, y);
+      if (!solidIn(x, y + 1)) addE(x + 1, y + 1, -1, 0, x, y);
+      if (!solidIn(x - 1, y)) addE(x, y + 1, 0, -1, x, y);
+      if (!solidIn(x + 1, y)) addE(x + 1, y, 0, 1, x, y);
+    }
+    const loops = [];
+    for (const arr of edges.values()) for (const e0 of arr) {
+      if (e0.used) continue;
+      const loop = []; let cur = e0;
+      while (cur && !cur.used) {
+        cur.used = true; loop.push(cur);
+        const cands = (edges.get((cur.vx + cur.dx) + ',' + (cur.vy + cur.dy)) || []).filter((e) => !e.used);
+        if (!cands.length) break;
+        const rx = -cur.dy, ry = cur.dx; // a right turn hugs the island we are on
+        cur = cands.find((e) => e.dx === rx && e.dy === ry) || cands.find((e) => e.dx === cur.dx && e.dy === cur.dy) || cands[0];
+      }
+      loops.push(loop);
+    }
+    // merge collinear unit edges into segments, then sample each segment with its erosion offset
+    const R = organic ? 5.5 : 3.2;
+    const shape = new Path2D();
+    const runs = { t: [], b: [], l: [], r: [] }; // contour sample runs per facing, for rim light and shadow bands
+    for (const loop of loops) {
+      const segs = [];
+      for (const e of loop) { const last = segs[segs.length - 1]; if (last && last.dx === e.dx && last.dy === e.dy) { last.len++; last.tiles.push([e.tx, e.ty]); } else segs.push({ x0: e.vx, y0: e.vy, dx: e.dx, dy: e.dy, len: 1, tiles: [[e.tx, e.ty]] }); }
+      if (segs.length > 1 && segs[0].dx === segs[segs.length - 1].dx && segs[0].dy === segs[segs.length - 1].dy) { const a = segs.pop(); segs[0].x0 = a.x0; segs[0].y0 = a.y0; segs[0].len += a.len; segs[0].tiles = a.tiles.concat(segs[0].tiles); }
+      const pts = []; const tags = [];
+      const N = segs.length;
+      for (let i = 0; i < N; i++) {
+        const s = segs[i], pr = segs[(i - 1 + N) % N], nx = segs[(i + 1) % N];
+        const L = s.len * T, nxX = -s.dy, nxY = s.dx; // inward normal
+        const cvS = (pr.dx * s.dy - pr.dy * s.dx) > 0, cvE = (s.dx * nx.dy - s.dy * nx.dx) > 0;
+        const face = s.dx === 1 ? 't' : s.dx === -1 ? 'b' : s.dy === -1 ? 'l' : 'r';
+        const ero = (px, py, tx, ty) => face === 't' ? topE(px, tx, ty) : face === 'b' ? botE(px, tx, ty) : sideE(py, tx, ty, face === 'l' ? 4 : 5);
+        const rS = cvS ? Math.min(R, L * 0.42) : 0, rE = cvE ? Math.min(R, L * 0.42) : 0;
+        const X0 = s.x0 * T, Y0 = s.y0 * T;
+        if (!cvS) { // concave corner: keep it sharp, pushed diagonally into the rock by both erosions
+          const tile = s.tiles[0], pe = (pr.dx === 1 ? topE : pr.dx === -1 ? botE : (a, b, c2) => sideE(a, b, c2, pr.dy === -1 ? 4 : 5));
+          const e1 = ero(X0, Y0, tile[0], tile[1]), e2 = pe(pr.dx ? X0 : Y0, pr.tiles[pr.tiles.length - 1][0], pr.tiles[pr.tiles.length - 1][1]);
+          pts.push([X0 + nxX * e1 + (-pr.dy) * e2, Y0 + nxY * e1 + pr.dx * e2]); tags.push('c');
+        }
+        const span = L - rS - rE, steps = Math.max(1, Math.round(span / 4));
+        for (let k = 0; k <= steps; k++) {
+          const u = rS + span * k / steps, px = X0 + s.dx * u, py = Y0 + s.dy * u;
+          const ti = Math.min(s.tiles.length - 1, Math.floor(u / T)), tile = s.tiles[ti];
+          const e = ero(px, py, tile[0], tile[1]);
+          pts.push([px + nxX * e, py + nxY * e]); tags.push(face);
+        }
+      }
+      Ink.smoothPath(shape, pts, true);
+      // runs of consecutive samples per facing (with one point of overlap into the neighbours so bands wrap the corners)
+      let i0 = 0;
+      while (i0 < pts.length) {
+        const f = tags[i0]; let i1 = i0; while (i1 + 1 < pts.length && tags[i1 + 1] === f) i1++;
+        if (runs[f] && i1 > i0) { const run = pts.slice(Math.max(0, i0 - 1), Math.min(pts.length, i1 + 2)); if (i0 === 0) run.unshift(pts[pts.length - 1]); runs[f].push(run); }
+        i0 = i1 + 1;
+      }
+    }
+    const strokeRun = (run, w, col, dx, dy, blur) => { ctx.save(); if (blur) ctx.filter = 'blur(' + blur + 'px)'; ctx.beginPath(); Ink.smoothPath(ctx, run.map(([x, y]) => [x + dx, y + dy]), false); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); ctx.restore(); };
+
+    // ---- 2. the painted mass, clipped to the contour
+    ctx.save(); ctx.clip(shape, 'evenodd');
     ctx.fillStyle = rockFill; ctx.fillRect(0, 0, W, H);
     // broad tonal drift so a big mass never reads as one flat slab
-    const nb = Math.ceil(ZW * ZH / 130);
+    const nb = Math.ceil(ZW * ZH / 110);
     for (let i = 0; i < nb; i++) {
-      const cx = rng() * W, cy = rng() * H, r = 22 + rng() * 70, lt = rng() < 0.45;
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, lt ? rim(0.14) : 'rgba(0,0,0,0.22)'); g.addColorStop(1, lt ? rim(0) : 'rgba(0,0,0,0)');
+      const cx = rng() * W, cy = rng() * H, r = 26 + rng() * 80, isLt = rng() < 0.45;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, isLt ? lt(0.1) : ink2(0.26)); g.addColorStop(1, isLt ? lt(0) : ink2(0));
       ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
-    // speckle: scattered anywhere in the mass (not one per tile, so no lattice shows), only in the lit outer shell
-    for (let i = 0, tries = ZW * ZH * 0.9; i < tries; i++) {
-      const cx = rng() * W, cy = rng() * H, tx = Math.floor(cx / T), ty = Math.floor(cy / T);
-      if (!solid(tx, ty) || depth[ty][tx] > 3) continue;
-      const s = Math.floor(cx * 3 + cy * 7);
-      Ink.blob(ctx, cx, cy, 8 + rng() * 22, 3 + rng() * 6, { fill: rng() < 0.45 ? rim(0.06) : dk(0.3), n: 9, jit: 0, t: 0, rot: (n(s, 13) - 0.5) * 0.9 });
-    }
     if (st.strata === 'wavy') {
-      // broken strata: wandering seams with a faint lit lip above each, hairline cracks dropping off them, grit along them
-      for (let by = 4 + rng() * 12; by < H; by += 13 + rng() * 20) {
-        const pts = [], lip = [], ph = rng() * 9, amp = 2 + rng() * 3, w = 1 + rng() * 1.8;
-        for (let x = -4; x <= W + 4; x += 10) { const yy = by + Math.sin(x * 0.045 + ph) * amp + Math.sin(x * 0.011 + ph * 2) * 5; pts.push([x, yy]); lip.push([x, yy - 1.5]); }
-        Ink.line(ctx, lip, { w: 1, color: rim(0.14), jit: 0.3, seed: Math.floor(by) + 7, t: 0 });
-        Ink.line(ctx, pts, { w, color: dk(0.55 + rng() * 0.35), jit: 0.5, seed: Math.floor(by), t: 0 });
-        for (let k = 0; k < W / 70; k++) {
+      // a few broken strata: wandering seams far apart, a faint lit lip above each, the odd hairline dropping off them
+      for (let by = 10 + rng() * 30; by < H; by += 34 + rng() * 44) {
+        const pts = [], lip = [], ph = rng() * 9, amp = 2 + rng() * 3, w = 1.2 + rng() * 1.4;
+        for (let x = -4; x <= W + 4; x += 10) { const yy = by + Math.sin(x * 0.045 + ph) * amp + Math.sin(x * 0.011 + ph * 2) * 6; pts.push([x, yy]); lip.push([x, yy - 1.5]); }
+        Ink.line(ctx, lip, { w: 1, color: lt(0.1), jit: 0, seed: Math.floor(by) + 7, t: 0 });
+        Ink.line(ctx, pts, { w, color: ink2(0.5 + rng() * 0.3), jit: 0, seed: Math.floor(by), t: 0 });
+        for (let k = 0; k < W / 160; k++) {
           const i = Math.floor(rng() * (pts.length - 1)), [cx, cy] = pts[i];
-          if (rng() < 0.6) Ink.line(ctx, [[cx, cy], [cx + (rng() - 0.5) * 3, cy + 3 + rng() * 5], [cx + (rng() - 0.5) * 5, cy + 6 + rng() * 7]], { w: 0.8, color: ink(0.45), jit: 0.2, seed: i, t: 0 });
-          else for (let g2 = 0; g2 < 3; g2++) { ctx.fillStyle = g2 ? dk(0.6) : rim(0.3); ctx.fillRect(cx + g2 * 3 + rng() * 2, cy - 2 + rng() * 2, 1.5, 1); }
+          Ink.line(ctx, [[cx, cy], [cx + (rng() - 0.5) * 4, cy + 4 + rng() * 6], [cx + (rng() - 0.5) * 6, cy + 9 + rng() * 9]], { w: 0.9, color: ink2(0.5), jit: 0, seed: i, t: 0 });
         }
       }
       if (region === 'root') {
         // thick roots threading through the rock itself
-        for (let i = 0; i < 16; i++) { const x = rng() * W; const pts = [[x, -10]]; let px = x, py = -10; while (py < H) { px += (rng() - 0.5) * 50; py += 30 + rng() * 40; pts.push([px, py]); } Ink.line(ctx, pts, { w: 2 + rng() * 5, color: TILE_MIX(p.rock, p.moss, 0.45, 0.6), jit: 0.6, seed: i, t: 0 }); }
+        for (let i = 0; i < 10; i++) { const x = rng() * W; const pts = [[x, -10]]; let px = x, py = -10; while (py < H) { px += (rng() - 0.5) * 50; py += 30 + rng() * 40; pts.push([px, py]); } Ink.line(ctx, pts, { w: 3 + rng() * 5, color: TILE_MIX(p.rock, p.moss, 0.45, 0.5), jit: 0, seed: i, t: 0 }); }
       }
     } else if (st.strata === 'ashlar') {
-      // dressed cathedral masonry: mortar joints offset every other course, a few odd blocks
+      // dressed masonry in large blocks: a course line every tile, joints every two tiles, both faint and worn through in places
+      ctx.lineCap = 'butt';
       for (let y = 0; y < ZH; y++) {
-        const Y = y * T, off = (y % 2) * 8;
-        ctx.fillStyle = ink(0.55); ctx.fillRect(0, Y, W, 1);
+        const Y = y * T, off = (y % 2) * T;
         for (let x = 0; x < ZW; x++) {
-          if (!solid(x, y)) continue; const X = x * T + off, s = x * 131 + y * 17;
-          ctx.fillStyle = ink(0.55); ctx.fillRect(X, Y, 1, T);
-          ctx.fillStyle = rim(0.1); ctx.fillRect(X + 1, Y + 1, T - 1, 1); ctx.fillRect(X + 1, Y + 1, 1, T - 1);
-          if (n(s, 14) < 0.22) { ctx.fillStyle = n(s, 15) < 0.5 ? rim(0.06) : ink(0.16); ctx.fillRect(X + 1, Y + 1, T - 1, T - 1); }
-          if (n(s, 16) < 0.08) { ctx.fillStyle = ink(0.35); ctx.fillRect(X + 3 + n(s, 17) * 6, Y + 4 + n(s, 18) * 6, 1, 3 + n(s, 19) * 5); } // chipped block
-          if (n(s, 80) < 0.05) { ctx.fillStyle = ink(0.4); ctx.beginPath(); ctx.moveTo(X + 1, Y + 1); ctx.lineTo(X + 5, Y + 1); ctx.lineTo(X + 1, Y + 5); ctx.fill(); } // a broken corner
+          if (!solid(x, y) || depth[y][x] > 2) continue;
+          const X = x * T, s = x * 131 + y * 17;
+          ctx.fillStyle = ink2(0.2); ctx.fillRect(X, Y, T, 1);
+          if ((x * T + off) % (2 * T) === 0) { ctx.fillStyle = ink2(0.2); ctx.fillRect(X, Y + 1, 1, T - 1); }
+          if (n(s, 18) < 0.025) { ctx.fillStyle = n(s, 19) < 0.5 ? lt(0.04) : ink2(0.1); ctx.fillRect(X + 1, Y + 1, 2 * T - 1, T - 1); } // one odd block, lighter or darker
+          if (n(s, 80) < 0.03) { ctx.fillStyle = ink2(0.4); ctx.beginPath(); ctx.moveTo(X + 1, Y + 1); ctx.lineTo(X + 6, Y + 1); ctx.lineTo(X + 1, Y + 6); ctx.fill(); } // a broken corner
         }
       }
     } else if (st.strata === 'plate') {
-      // riveted plating, 2x2 tiles per plate, rust bleeding from the rivets
-      for (let y = 0; y < ZH; y += 2) for (let x = 0; x < ZW; x += 2) {
-        if (!(solid(x, y) || solid(x + 1, y) || solid(x, y + 1) || solid(x + 1, y + 1))) continue;
-        const X = x * T, Y = y * T, s = x * 131 + y * 17, S = 2 * T;
-        ctx.fillStyle = n(s, 1) < 0.5 ? rim(0.06) : ink(0.14); ctx.fillRect(X + 1, Y + 1, S - 2, S - 2);
-        ctx.fillStyle = rim(0.3); ctx.fillRect(X + 1, Y + 1, S - 2, 1); ctx.fillRect(X + 1, Y + 1, 1, S - 2);
-        ctx.fillStyle = ink(0.75); ctx.fillRect(X, Y + S - 1, S, 1); ctx.fillRect(X + S - 1, Y, 1, S);
-        for (const [rx, ry] of [[4, 4], [S - 7, 4], [4, S - 7], [S - 7, S - 7]]) {
-          ctx.fillStyle = ink(0.85); ctx.fillRect(X + rx, Y + ry, 3, 3); ctx.fillStyle = rim(0.7); ctx.fillRect(X + rx, Y + ry, 1, 1);
-          if (n(s, rx + ry * 3) < 0.45) { ctx.fillStyle = acc(0.2); ctx.fillRect(X + rx + 1, Y + ry + 3, 2, 4 + n(s, rx * 3 + ry) * 10); }
+      // large iron plates, three tiles square, seams faint, rivets only at the plate corners; rust bleeding from a few
+      const PS = 3;
+      for (let y = 0; y < ZH; y += PS) for (let x = -(Math.floor(y / PS) % 2); x < ZW; x += PS) {
+        const X = x * T, Y = y * T, s = x * 131 + y * 17, S = PS * T;
+        let any = false; for (let yy = 0; yy < PS && !any; yy++) for (let xx = 0; xx < PS; xx++) if (solid(x + xx, y + yy) && depth[Math.min(ZH - 1, y + yy)][clamp(x + xx, 0, ZW - 1)] <= 3) { any = true; break; }
+        if (!any) continue;
+        ctx.fillStyle = n(s, 1) < 0.5 ? lt(0.04) : ink2(0.1); ctx.fillRect(X + 1, Y + 1, S - 2, S - 2);
+        ctx.fillStyle = lt(0.12); ctx.fillRect(X + 1, Y + 1, S - 2, 1);
+        ctx.fillStyle = ink2(0.55); ctx.fillRect(X, Y + S - 1, S, 1); ctx.fillRect(X + S - 1, Y, 1, S);
+        for (const [rx, ry] of [[5, 5], [S - 8, 5], [5, S - 8], [S - 8, S - 8]]) {
+          const tx = Math.floor((X + rx) / T), ty = Math.floor((Y + ry) / T); if (!solid(tx, ty) || depth[ty] === undefined || depth[ty][tx] < 1) continue;
+          ctx.fillStyle = ink2(0.9); ctx.beginPath(); ctx.arc(X + rx + 1.5, Y + ry + 1.5, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = lt(0.5); ctx.fillRect(X + rx + 0.5, Y + ry + 0.5, 1.2, 1.2);
+          if (n(s, rx + ry * 3) < 0.3) { ctx.fillStyle = acc(0.16); ctx.fillRect(X + rx + 0.5, Y + ry + 3, 2, 5 + n(s, rx * 3 + ry) * 12); }
         }
-        if (n(s, 2) < 0.2) { ctx.fillStyle = acc(0.12); ctx.fillRect(X + 2 + n(s, 3) * 20, Y + 2, 6 + n(s, 4) * 8, S - 4); } // a rust bloom
-        if (n(s, 5) < 0.08) { ctx.strokeStyle = ink(0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + 6, Y + S - 2); ctx.lineTo(X + 10 + n(s, 6) * 8, Y + 8 + n(s, 7) * 10); ctx.lineTo(X + 18 + n(s, 8) * 8, Y + 4); ctx.stroke(); } // a buckled seam
+        if (n(s, 2) < 0.2) { ctx.fillStyle = acc(0.1); ctx.fillRect(X + 4 + n(s, 3) * 24, Y + 3, 8 + n(s, 4) * 14, S - 8); } // a rust bloom
+        if (n(s, 5) < 0.12) { ctx.strokeStyle = ink2(0.45); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + 8, Y + S - 4); ctx.lineTo(X + 14 + n(s, 6) * 12, Y + 12 + n(s, 7) * 16); ctx.lineTo(X + 28 + n(s, 8) * 12, Y + 6); ctx.stroke(); } // a buckled seam
       }
     } else if (st.strata === 'brick') {
-      // firebrick courses (two per tile, offset), warm where the heat has baked them, sooted black near the faces; every fourth row an iron plate band with rivets
-      const brick = TILE_MIX(p.rock, p.accent, 0.18), brickDk = TILE_MIX(p.rock, p.rockDark, 0.5), mortar = ink(0.6);
+      // firebrick in long courses (one per half tile), faint mortar, a warm baked patch here and there, soot near the faces
       for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
-        if (!solid(x, y)) continue;
+        if (!solid(x, y) || depth[y][x] > 3) continue;
         const X = x * T, Y = y * T, s = x * 131 + y * 17, d = depth[y][x];
-        if (y % 4 === 3 && d >= 1) { // iron band
-          ctx.fillStyle = TILE_MIX(p.rock, p.ink, 0.35); ctx.fillRect(X, Y, T, T); ctx.fillStyle = rim(0.22); ctx.fillRect(X, Y + 1, T, 1); ctx.fillStyle = ink(0.8); ctx.fillRect(X, Y + T - 1, T, 1); ctx.fillRect(X, Y, T, 1);
-          ctx.fillStyle = ink(0.9); ctx.fillRect(X + 3, Y + 6, 3, 3); ctx.fillRect(X + 11, Y + 6, 3, 3); ctx.fillStyle = rim(0.6); ctx.fillRect(X + 3, Y + 6, 1, 1); ctx.fillRect(X + 11, Y + 6, 1, 1);
-          if (n(s, 2) < 0.3) { ctx.fillStyle = acc(0.14); ctx.fillRect(X + 4 + n(s, 3) * 8, Y + 9, 2, 6); }
-          continue;
+        for (let cc = 0; cc < 2; cc++) {
+          const cy = Y + cc * 8, off = ((y * 2 + cc) % 2) * 12;
+          ctx.fillStyle = ink2(0.32); ctx.fillRect(X, cy, T, 1);
+          for (let bx = -24 + off; bx < T; bx += 24) if (bx >= 0 && bx < T && n(s + bx + cc, 4) < 0.85) { ctx.fillStyle = ink2(0.3); ctx.fillRect(X + bx, cy + 1, 1, 7); }
+          if (n(s + cc, 1) < 0.12) { ctx.fillStyle = TILE_MIX(p.rock, p.accent, 0.3, 0.35); ctx.fillRect(X, cy + 1, T, 7); } // a baked brick
         }
-        for (let c = 0; c < 2; c++) {
-          const cy = Y + c * 8, off = ((y * 2 + c) % 2) * 8;
-          for (let bx = -8 + off; bx < T; bx += 16) {
-            const bs = s + c * 7 + bx, baked = n(bs, 1), x0 = Math.max(X, X + bx), x1 = Math.min(X + T, X + bx + 16);
-            if (x1 <= x0) continue;
-            ctx.fillStyle = baked < 0.3 ? TILE_MIX(p.rock, p.accent, 0.3 + baked * 0.3, 0.9) : baked < 0.55 ? brick : baked < 0.85 ? brickDk : TILE_MIX(p.rock, p.ink, 0.45);
-            ctx.fillRect(x0, cy + 1, x1 - x0, 6);
-            ctx.fillStyle = rim(0.09); ctx.fillRect(x0, cy + 1, x1 - x0, 1);
-            if (bx >= 0 && bx < T) { ctx.fillStyle = mortar; ctx.fillRect(X + bx, cy, 1, 8); }
-            if (n(bs, 4) < 0.1) { ctx.fillStyle = ink(0.4); ctx.fillRect(x0 + 2 + n(bs, 5) * 8, cy + 2 + n(bs, 6) * 3, 1, 2 + n(bs, 7) * 3); } // a cracked brick
-          }
-          ctx.fillStyle = mortar; ctx.fillRect(X, cy, T, 1); ctx.fillRect(X, cy + 7, T, 1);
-        }
-        if (d === 0 && n(s, 8) < 0.5) { ctx.fillStyle = ink(0.2 + n(s, 9) * 0.25); ctx.fillRect(X, Y, T, T); } // soot on the exposed faces
-        if (d >= 2 && n(s, 10) < 0.06) { ctx.fillStyle = acc(0.5); ctx.fillRect(X + 2 + n(s, 11) * 10, Y + 2 + n(s, 12) * 10, 1, 1); } // a bead of glass fused into the mortar
+        if (d === 0 && n(s, 8) < 0.45) { ctx.fillStyle = ink2(0.2 + n(s, 9) * 0.25); ctx.fillRect(X - 2, Y - 2, T + 4, T + 4); } // soot on the exposed faces
+        if (d >= 2 && n(s, 10) < 0.04) { ctx.fillStyle = acc(0.5); ctx.fillRect(X + 2 + n(s, 11) * 10, Y + 2 + n(s, 12) * 10, 1.5, 1.5); } // a bead of glass fused into the mortar
       }
     }
-    ctx.restore();
 
-    // ---- 2. depth shadow and rim light, blurred so the mass reads as one form; deep rock falls into void
+    // ---- 3. depth shadow (ambient occlusion: the mass darkens toward its own inside and into every inner corner)
     const dark = document.createElement('canvas'); dark.width = W; dark.height = H; const dc = dark.getContext('2d');
-    const light = document.createElement('canvas'); light.width = W; light.height = H; const lc = light.getContext('2d');
-    const DEPTH_A = [0, 0.2, 0.44, 0.66, 0.84, 0.93, 0.96, 0.97];
+    const DEPTH_A = [0, 0.14, 0.36, 0.58, 0.74, 0.84, 0.9, 0.92];
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       const X = x * T, Y = y * T;
       if (solid(x, y)) {
         const d = Math.min(depth[y][x], 7);
-        if (d >= 1) { dc.fillStyle = `rgba(0,0,0,${DEPTH_A[d]})`; dc.fillRect(X, Y, T, T); }
-        if (!solid(x, y - 1)) { lc.fillStyle = rim(0.6); lc.fillRect(X, Y, T, 5); }
-        if (!solid(x - 1, y)) { lc.fillStyle = rim(0.22); lc.fillRect(X, Y, 3, T); }
-        if (!solid(x, y + 1)) { dc.fillStyle = 'rgba(0,0,0,0.55)'; dc.fillRect(X, Y + T - 6, T, 6); }
-        if (!solid(x + 1, y)) { dc.fillStyle = 'rgba(0,0,0,0.4)'; dc.fillRect(X + T - 4, Y, 4, T); }
+        if (d >= 1) { dc.fillStyle = TILE_RGBA(ink2C, DEPTH_A[d]); dc.fillRect(X, Y, T, T); }
+        if (!solid(x, y + 1)) { dc.fillStyle = ink2(0.5); dc.fillRect(X, Y + T - 6, T, 6); }
+        if (!solid(x + 1, y)) { dc.fillStyle = ink2(0.35); dc.fillRect(X + T - 4, Y, 4, T); }
       } else {
-        // ambient occlusion where a floor meets a wall (painted on the air side, the blur carries it into the rock)
-        dc.fillStyle = 'rgba(0,0,0,0.65)';
+        dc.fillStyle = ink2(0.7);
         if (solid(x, y + 1) && solid(x - 1, y)) dc.fillRect(X, Y + T - 8, 8, 8);
         if (solid(x, y + 1) && solid(x + 1, y)) dc.fillRect(X + T - 8, Y + T - 8, 8, 8);
         if (solid(x, y - 1) && solid(x - 1, y)) dc.fillRect(X, Y, 8, 8);
         if (solid(x, y - 1) && solid(x + 1, y)) dc.fillRect(X + T - 8, Y, 8, 8);
       }
     }
-    ctx.save(); ctx.clip(mask);
-    ctx.filter = 'blur(3px)'; ctx.drawImage(light, 0, 0);
-    ctx.filter = 'blur(6px)'; ctx.drawImage(dark, 0, 0);
-    ctx.filter = 'none';
-    // the void itself: a second, unblurred floor of black for anything four tiles deep, so detail never shows there
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) if (solid(x, y) && depth[y][x] >= 4) { ctx.fillStyle = `rgba(0,0,0,${depth[y][x] >= 5 ? 0.55 : 0.3})`; ctx.fillRect(x * T, y * T, T, T); }
+    ctx.filter = 'blur(6px)'; ctx.drawImage(dark, 0, 0); ctx.filter = 'none';
+    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) if (solid(x, y) && depth[y][x] >= 4) { ctx.fillStyle = TILE_RGBA(ink2C, depth[y][x] >= 5 ? 0.5 : 0.28); ctx.fillRect(x * T, y * T, T, T); }
 
-    // ---- 3. region detail embedded in the rock (still clipped; only in the outer shell, d <= 3)
+    // ---- 4. sparse large details embedded in the rock (one every few tiles, never a repeating texture)
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       if (!solid(x, y)) continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17, d = depth[y][x];
       if (d > 3) continue;
       switch (st.detail) {
         case 'barnacle':
-          if (d === 0 && n(s, 20) < 0.3) { const cx = X + 3 + n(s, 21) * 10, cy = Y + 3 + n(s, 22) * 10; for (let k = 0; k < 4; k++) { const rx = cx + (n(s, 23 + k) - 0.5) * 8, ry = cy + (n(s, 27 + k) - 0.5) * 8, r = 1.2 + n(s, 31 + k) * 1.3; ctx.fillStyle = rim(0.55); ctx.beginPath(); ctx.arc(rx, ry, r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = ink(0.8); ctx.beginPath(); ctx.arc(rx, ry, r * 0.4, 0, Math.PI * 2); ctx.fill(); } }
-          if (d >= 1 && n(s, 35) < 0.12) Ink.line(ctx, [[X, Y + n(s, 36) * T], [X + 8, Y + n(s, 37) * T], [X + T, Y + n(s, 38) * T]], { w: 1, color: acc(0.14), jit: 0.5, seed: s, t: 0 });
-          if (d <= 1 && n(s, 39) < 0.035) { // a small fossil shell pressed into the stone
-            const cx = X + 4 + n(s, 40) * 8, cy = Y + 4 + n(s, 41) * 8; ctx.strokeStyle = rim(0.7); ctx.lineWidth = 0.8; ctx.beginPath(); for (let a = 0; a < Math.PI * 3.6; a += 0.35) { const r = 0.4 + a * 0.27; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8); } ctx.stroke();
-            ctx.strokeStyle = ink(0.6); ctx.lineWidth = 0.7; ctx.beginPath(); for (let a = 0.35; a < Math.PI * 3.6; a += 0.35) { const r = 0.6 + a * 0.27; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8 + 0.6); } ctx.stroke();
+          if (d === 0 && n(s, 20) < 0.07) { const cx = X + 3 + n(s, 21) * 10, cy = Y + 3 + n(s, 22) * 10; for (let k = 0; k < 5; k++) { const rx = cx + (n(s, 23 + k) - 0.5) * 10, ry = cy + (n(s, 27 + k) - 0.5) * 10, r = 1.4 + n(s, 31 + k) * 1.4; ctx.fillStyle = lt(0.4); ctx.beginPath(); ctx.arc(rx, ry, r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = ink2(0.85); ctx.beginPath(); ctx.arc(rx, ry, r * 0.4, 0, Math.PI * 2); ctx.fill(); } }
+          if (d >= 1 && n(s, 35) < 0.03) Ink.line(ctx, [[X - 6, Y + n(s, 36) * T], [X + 10, Y + n(s, 37) * T], [X + T + 8, Y + n(s, 38) * T]], { w: 1.6, color: acc(0.16), jit: 0, seed: s, t: 0 }); // a pale vein
+          if (d <= 1 && n(s, 39) < 0.012) { // a fossil shell pressed into the stone
+            const cx = X + 6 + n(s, 40) * 6, cy = Y + 6 + n(s, 41) * 6; ctx.strokeStyle = lt(0.55); ctx.lineWidth = 1; ctx.beginPath(); for (let a = 0; a < Math.PI * 3.8; a += 0.3) { const r = 0.5 + a * 0.4; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8); } ctx.stroke();
+            ctx.strokeStyle = ink2(0.7); ctx.lineWidth = 0.9; ctx.beginPath(); for (let a = 0.3; a < Math.PI * 3.8; a += 0.3) { const r = 0.7 + a * 0.4; ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.8 + 0.8); } ctx.stroke();
           }
           break;
         case 'pipe':
-          if (d >= 1 && n(s, 20) < 0.028) { const py = Y + 4 + n(s, 21) * 6, len = (2 + Math.floor(n(s, 22) * 2)) * T; ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X, py, len, 6); ctx.fillStyle = rim(0.5); ctx.fillRect(X, py + 1, len, 1); ctx.fillStyle = ink(0.35); ctx.fillRect(X, py + 4, len, 1); ctx.fillStyle = ink(0.7); ctx.fillRect(X, py + 5, len, 1); for (let bx = X + 5; bx < X + len; bx += 18) { ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.45); ctx.fillRect(bx, py - 1, 3, 8); ctx.fillStyle = ink(0.6); ctx.fillRect(bx + 2, py - 1, 1, 8); } ctx.fillStyle = acc(0.3); ctx.fillRect(X + 6 + n(s, 23) * (len - 12), py + 6, 2, 4 + n(s, 24) * 4); }
-          if (d >= 1 && n(s, 25) < 0.02) { // a dead gauge, needle stuck
-            const cx = X + 8, cy = Y + 8; ctx.fillStyle = ink(0.8); ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = rim(0.6); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = TILE_MIX(p.rim, p.accent, 0.3, 0.6); ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = acc(0.9); ctx.lineWidth = 0.8; const a = 2.2 + n(s, 26) * 2.5; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * 2.8, cy + Math.sin(a) * 2.8); ctx.stroke(); ctx.fillStyle = ink(0.9); ctx.fillRect(cx - 0.5, cy - 0.5, 1, 1);
+          if (d >= 1 && n(s, 20) < 0.012) { const py = Y + 4 + n(s, 21) * 6, len = (2 + Math.floor(n(s, 22) * 2)) * T; ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X, py, len, 6); ctx.fillStyle = lt(0.4); ctx.fillRect(X, py + 1, len, 1); ctx.fillStyle = ink2(0.35); ctx.fillRect(X, py + 4, len, 1); ctx.fillStyle = ink2(0.9); ctx.fillRect(X, py + 5.5, len, 1.5); ctx.fillRect(X, py - 1, len, 1.5); for (let bx = X + 5; bx < X + len; bx += 18) { ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.45); ctx.fillRect(bx, py - 1, 3, 8); ctx.fillStyle = ink2(0.7); ctx.fillRect(bx + 2, py - 1, 1, 8); } ctx.fillStyle = acc(0.3); ctx.fillRect(X + 6 + n(s, 23) * (len - 12), py + 6, 2, 4 + n(s, 24) * 4); }
+          if (d >= 1 && n(s, 25) < 0.008) { // a dead gauge, needle stuck
+            const cx = X + 8, cy = Y + 8; ctx.fillStyle = ink2(0.9); ctx.beginPath(); ctx.arc(cx, cy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = lt(0.5); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = TILE_MIX(p.rim, p.accent, 0.3, 0.6); ctx.beginPath(); ctx.arc(cx, cy, 3.4, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = acc(0.9); ctx.lineWidth = 0.9; const a = 2.2 + n(s, 26) * 2.5; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * 3, cy + Math.sin(a) * 3); ctx.stroke(); ctx.fillStyle = ink2(0.9); ctx.fillRect(cx - 0.6, cy - 0.6, 1.2, 1.2);
           }
           break;
         case 'furnace':
-          if (d >= 1 && n(s, 20) < 0.035) { // an iron oven door with hinges, a glowing peephole and a slit of fire at the sill
+          if (d >= 1 && n(s, 20) < 0.014) { // an iron oven door with hinges, a glowing peephole and a slit of fire at the sill
             const dx = X + 2, dy = Y + 1, dw = 12, dh = 14; ctx.fillStyle = TILE_MIX(p.rock, p.ink, 0.55); ctx.beginPath(); ctx.moveTo(dx, dy + dh); ctx.lineTo(dx, dy + 5); ctx.arc(dx + dw / 2, dy + 5, dw / 2, Math.PI, 0); ctx.lineTo(dx + dw, dy + dh); ctx.closePath(); ctx.fill();
-            ctx.strokeStyle = ink(0.9); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = rim(0.35); ctx.fillRect(dx + 2, dy + 6, dw - 4, 1); ctx.fillRect(dx + 2, dy + 10, dw - 4, 1); ctx.fillStyle = rim(0.7); ctx.fillRect(dx + dw - 3, dy + 7, 2, 2); ctx.fillRect(dx + dw - 3, dy + 11, 2, 2);
-            const lit = n(s, 21) < 0.7; if (lit) { ctx.fillStyle = acc(0.8); ctx.fillRect(dx + dw / 2 - 1.5, dy + 4, 3, 2); ctx.fillStyle = acc(0.55); ctx.fillRect(dx + 1, dy + dh - 1, dw - 2, 1); const g = ctx.createRadialGradient(dx + dw / 2, dy + 8, 0, dx + dw / 2, dy + 8, 11); g.addColorStop(0, acc(0.3)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(dx - 6, dy - 4, dw + 12, dh + 8); }
-          } else if (d >= 1 && n(s, 25) < 0.03) { // a pipe stub with a valve wheel
-            ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X, Y + 6, T, 5); ctx.fillStyle = rim(0.5); ctx.fillRect(X, Y + 7, T, 1); ctx.fillStyle = ink(0.7); ctx.fillRect(X, Y + 10, T, 1);
-            ctx.strokeStyle = rim(0.7); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(X + 8, Y + 8.5, 4, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(X + 4, Y + 8.5); ctx.lineTo(X + 12, Y + 8.5); ctx.moveTo(X + 8, Y + 4.5); ctx.lineTo(X + 8, Y + 12.5); ctx.stroke();
-          } else if (d >= 1 && n(s, 27) < 0.04) { // a run of glass fused down the brick where a pot once cracked
-            ctx.fillStyle = acc(0.22); ctx.beginPath(); ctx.moveTo(X + 5 + n(s, 28) * 5, Y); ctx.quadraticCurveTo(X + 3 + n(s, 29) * 8, Y + 8, X + 6 + n(s, 30) * 5, Y + T); ctx.lineTo(X + 10 + n(s, 30) * 5, Y + T); ctx.quadraticCurveTo(X + 11, Y + 6, X + 9 + n(s, 28) * 5, Y); ctx.closePath(); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.fillRect(X + 7 + n(s, 29) * 4, Y + 3 + n(s, 31) * 9, 1, 2);
+            ctx.strokeStyle = ink2C; ctx.lineWidth = 1.8; ctx.stroke(); ctx.fillStyle = lt(0.3); ctx.fillRect(dx + 2, dy + 6, dw - 4, 1); ctx.fillRect(dx + 2, dy + 10, dw - 4, 1); ctx.fillStyle = lt(0.6); ctx.fillRect(dx + dw - 3, dy + 7, 2, 2); ctx.fillRect(dx + dw - 3, dy + 11, 2, 2);
+            const lit = n(s, 21) < 0.7; if (lit) { ctx.fillStyle = acc(0.8); ctx.fillRect(dx + dw / 2 - 1.5, dy + 4, 3, 2); ctx.fillStyle = acc(0.55); ctx.fillRect(dx + 1, dy + dh - 1, dw - 2, 1); const g = ctx.createRadialGradient(dx + dw / 2, dy + 8, 0, dx + dw / 2, dy + 8, 14); g.addColorStop(0, acc(0.3)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(dx - 8, dy - 6, dw + 16, dh + 12); }
+          } else if (d >= 1 && n(s, 25) < 0.01) { // a pipe stub with a valve wheel
+            ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.3); ctx.fillRect(X - 4, Y + 6, T + 8, 5); ctx.fillStyle = lt(0.4); ctx.fillRect(X - 4, Y + 7, T + 8, 1); ctx.fillStyle = ink2(0.8); ctx.fillRect(X - 4, Y + 10.5, T + 8, 1.5); ctx.fillRect(X - 4, Y + 5, T + 8, 1.2);
+            ctx.strokeStyle = lt(0.6); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(X + 8, Y + 8.5, 4.5, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(X + 3.5, Y + 8.5); ctx.lineTo(X + 12.5, Y + 8.5); ctx.moveTo(X + 8, Y + 4); ctx.lineTo(X + 8, Y + 13); ctx.stroke();
+          } else if (d >= 1 && n(s, 27) < 0.014) { // a run of glass fused down the brick where a pot once cracked
+            ctx.fillStyle = acc(0.22); ctx.beginPath(); ctx.moveTo(X + 5 + n(s, 28) * 5, Y - 4); ctx.quadraticCurveTo(X + 3 + n(s, 29) * 8, Y + 8, X + 6 + n(s, 30) * 5, Y + T + 6); ctx.lineTo(X + 10 + n(s, 30) * 5, Y + T + 6); ctx.quadraticCurveTo(X + 11, Y + 6, X + 9 + n(s, 28) * 5, Y - 4); ctx.closePath(); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.fillRect(X + 7 + n(s, 29) * 4, Y + 3 + n(s, 31) * 9, 1.2, 2.5);
           }
           break;
         case 'gear':
-          if (d >= 1 && n(s, 20) < 0.09) {
-            const r = 4 + n(s, 21) * 5, cx = X + 8 + (n(s, 22) - 0.5) * 8, cy = Y + 8 + (n(s, 23) - 0.5) * 8;
+          if (d >= 1 && n(s, 20) < 0.025) { // one half-buried cog
+            const r = 6 + n(s, 21) * 6, cx = X + 8 + (n(s, 22) - 0.5) * 8, cy = Y + 8 + (n(s, 23) - 0.5) * 8;
             ctx.save(); ctx.translate(cx, cy); ctx.rotate(n(s, 24) * 6);
-            ctx.strokeStyle = rim(0.32); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
-            ctx.fillStyle = rim(0.32); const teeth = 7 + Math.floor(n(s, 25) * 5); for (let k = 0; k < teeth; k++) { ctx.save(); ctx.rotate(k / teeth * Math.PI * 2); ctx.fillRect(r - 0.5, -1.2, 3, 2.4); ctx.restore(); }
-            ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            ctx.strokeStyle = ink2(0.6); ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = lt(0.22); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, r - 1.6, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = ink2(0.6); const teeth = 8 + Math.floor(n(s, 25) * 5); for (let k = 0; k < teeth; k++) { ctx.save(); ctx.rotate(k / teeth * Math.PI * 2); ctx.fillRect(r - 0.5, -1.4, 3.2, 2.8); ctx.restore(); }
+            ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill(); ctx.restore();
           }
-          if (d >= 1 && n(s, 27) < 0.07) { // a line of carved script, worn
-            const ry = Y + 4 + n(s, 28) * 8; for (let k = 0; k < 6; k++) { if (n(s, 60 + k) < 0.2) continue; ctx.fillStyle = ink(0.45); ctx.fillRect(X + 2 + k * 2.2, ry, 1.2, 1 + n(s, 70 + k) * 2.5); if (n(s, 90 + k) < 0.3) ctx.fillRect(X + 2 + k * 2.2, ry + 3, 1.2, 1); }
+          if (d >= 1 && n(s, 27) < 0.025) { // a line of carved script, worn
+            const ry = Y + 4 + n(s, 28) * 8; for (let k = 0; k < 7; k++) { if (n(s, 60 + k) < 0.2) continue; ctx.fillStyle = ink2(0.5); ctx.fillRect(X + 1 + k * 2.2, ry, 1.3, 1.5 + n(s, 70 + k) * 2.5); if (n(s, 90 + k) < 0.3) ctx.fillRect(X + 1 + k * 2.2, ry + 3.5, 1.3, 1.2); }
           }
-          if (region === 'tower' && d >= 1 && n(s, 26) < 0.05) { ctx.fillStyle = acc(0.28); ctx.fillRect(X + 7, Y + 2, 1, 12); ctx.fillStyle = acc(0.08); ctx.fillRect(X + 5, Y + 1, 5, 14); }
+          if (region === 'tower' && d >= 1 && n(s, 26) < 0.02) { ctx.fillStyle = acc(0.28); ctx.fillRect(X + 7, Y - 2, 1.2, 20); ctx.fillStyle = acc(0.08); ctx.fillRect(X + 4, Y - 3, 7, 22); }
           break;
         case 'shelf':
-          if (d >= 1 && n(s, 20) < 0.34) { // an alcove of drowned books let into the stone
-            ctx.fillStyle = ink(0.64); ctx.fillRect(X + 2, Y + 2, 12, 12);
-            ctx.fillStyle = ink(0.5); ctx.fillRect(X + 1, Y + 1, 13, 1); ctx.fillRect(X + 1, Y + 1, 1, 13); ctx.fillStyle = rim(0.12); ctx.fillRect(X + 2, Y + 14, 12, 1);
+          if (d >= 1 && n(s, 20) < 0.045) { // an alcove of drowned books let into the stone
+            ctx.fillStyle = ink2(0.75); ctx.fillRect(X + 1, Y + 1, 14, 13);
+            ctx.fillStyle = ink2(0.9); ctx.fillRect(X, Y, 15, 1.5); ctx.fillRect(X, Y, 1.5, 15); ctx.fillStyle = lt(0.1); ctx.fillRect(X + 2, Y + 14, 12, 1);
             let bx = X + 3; let k = 0;
-            while (bx < X + 13) { const bw = 2 + Math.floor(n(s, 40 + k) * 2), bh = 6 + n(s, 50 + k) * 5; if (n(s, 70 + k) < 0.85) { ctx.fillStyle = [acc(0.34), rim(0.4), moss(0.5), TILE_MIX(p.accent, p.rockDark, 0.5, 0.5)][Math.floor(n(s, 60 + k) * 4)]; ctx.fillRect(bx, Y + 14 - bh, Math.min(bw, X + 13 - bx), bh); ctx.fillStyle = ink(0.45); ctx.fillRect(bx + bw - 1, Y + 14 - bh, 1, bh); } bx += bw + 1; k++; }
-            if (n(s, 44) < 0.4) { ctx.save(); ctx.translate(X + 11, Y + 14); ctx.rotate(-0.5); ctx.fillStyle = acc(0.35); ctx.fillRect(-1, -8, 2.2, 8); ctx.restore(); } // one slumped against the end
-            ctx.fillStyle = rim(0.3); ctx.fillRect(X + 2, Y + 13, 12, 1);
-          } else if (d >= 1 && n(s, 20) < 0.5) { ctx.fillStyle = ink(0.22); ctx.fillRect(X + 3 + n(s, 21) * 8, Y, 3, T); } // water stain
+            while (bx < X + 13) { const bw = 2 + Math.floor(n(s, 40 + k) * 2), bh = 6 + n(s, 50 + k) * 5; if (n(s, 70 + k) < 0.85) { ctx.fillStyle = [acc(0.3), lt(0.35), moss(0.5), TILE_MIX(p.accent, p.rockDark, 0.5, 0.5)][Math.floor(n(s, 60 + k) * 4)]; ctx.fillRect(bx, Y + 14 - bh, Math.min(bw, X + 13 - bx), bh); ctx.fillStyle = ink2(0.5); ctx.fillRect(bx + bw - 1, Y + 14 - bh, 1, bh); } bx += bw + 1; k++; }
+            ctx.fillStyle = lt(0.25); ctx.fillRect(X + 2, Y + 13, 12, 1);
+          } else if (d >= 1 && n(s, 20) < 0.09) { ctx.fillStyle = ink2(0.2); ctx.fillRect(X + 3 + n(s, 21) * 8, Y - 6, 3 + n(s, 22) * 3, T + 12); } // a water stain
           break;
         case 'bone':
-          if (d >= 1 && n(s, 20) < 0.09) {
+          if (d >= 1 && n(s, 20) < 0.03) {
             const bone = TILE_MIX(p.accent, p.rock, 0.48), cx = X + 8, cy = Y + 8;
             ctx.save(); ctx.translate(cx, cy); ctx.rotate(n(s, 21) * Math.PI); ctx.globalAlpha = 0.85;
-            if (n(s, 22) < 0.18) { ctx.fillStyle = bone; ctx.beginPath(); ctx.arc(0, -1, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(-2.5, 1, 5, 3); ctx.fillStyle = ink(0.9); ctx.fillRect(-3, -2, 2, 2); ctx.fillRect(1, -2, 2, 2); ctx.fillRect(-1, 2, 1, 2); ctx.fillRect(0.5, 2, 1, 2); }
-            else { ctx.fillStyle = bone; ctx.fillRect(-7, -1.5, 14, 3); for (const ex of [-7, 7]) { ctx.beginPath(); ctx.arc(ex, -1.5, 2, 0, Math.PI * 2); ctx.arc(ex, 1.5, 2, 0, Math.PI * 2); ctx.fill(); } ctx.strokeStyle = ink(0.6); ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-7, 1.5); ctx.lineTo(7, 1.5); ctx.stroke(); ctx.fillStyle = ink(0.5); ctx.fillRect(-2 + n(s, 23) * 4, -1, 1, 2); }
+            if (n(s, 22) < 0.25) { ctx.fillStyle = bone; ctx.beginPath(); ctx.arc(0, -1, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(-3, 1.5, 6, 3.5); ctx.strokeStyle = ink2C; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(0, -1, 5, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = ink2(0.95); ctx.fillRect(-3.5, -2.5, 2.4, 2.4); ctx.fillRect(1.1, -2.5, 2.4, 2.4); ctx.fillRect(-1.2, 2.2, 1, 2.4); ctx.fillRect(0.4, 2.2, 1, 2.4); }
+            else { ctx.fillStyle = bone; ctx.fillRect(-9, -1.8, 18, 3.6); for (const ex of [-9, 9]) { ctx.beginPath(); ctx.arc(ex, -1.8, 2.4, 0, Math.PI * 2); ctx.arc(ex, 1.8, 2.4, 0, Math.PI * 2); ctx.fill(); } ctx.strokeStyle = ink2C; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(-9, 2); ctx.lineTo(9, 2); ctx.stroke(); ctx.fillStyle = ink2(0.5); ctx.fillRect(-2 + n(s, 23) * 4, -1, 1, 2); }
             ctx.globalAlpha = 1; ctx.restore();
-          } else if (d >= 1 && n(s, 24) < 0.035) { // a row of teeth still in the jaw
-            const bone = TILE_MIX(p.accent, p.rock, 0.4), jx = X + 3 + n(s, 25) * 6, jy = Y + 5 + n(s, 26) * 6; ctx.fillStyle = TILE_MIX(p.accent, p.rockDark, 0.55); ctx.fillRect(jx, jy, 8, 2); ctx.fillStyle = bone; for (let k = 0; k < 4; k++) ctx.fillRect(jx + k * 2, jy + 2, 1.4, 2 + n(s, 30 + k) * 1.5);
+          } else if (d >= 1 && n(s, 24) < 0.012) { // a row of teeth still in the jaw
+            const bone = TILE_MIX(p.accent, p.rock, 0.4), jx = X + 3 + n(s, 25) * 6, jy = Y + 5 + n(s, 26) * 6; ctx.fillStyle = TILE_MIX(p.accent, p.rockDark, 0.55); ctx.fillRect(jx, jy, 9, 2.5); ctx.fillStyle = bone; for (let k = 0; k < 4; k++) ctx.fillRect(jx + k * 2.2, jy + 2.5, 1.6, 2.5 + n(s, 30 + k) * 1.5);
           }
           break;
         case 'fibre':
-          if (n(s, 20) < 0.3) { // a fibre wandering through two tiles of rock, two harmonics so no two look alike
-            const y0 = Y + n(s, 21) * T, amp = 1.2 + n(s, 22) * 3, ph = n(s, 23) * 6, ph2 = n(s, 30) * 6, f1 = 0.35 + n(s, 31) * 0.5, f2 = 1.1 + n(s, 32) * 1.2, slope = (n(s, 24) - 0.5) * 18, span = 20 + n(s, 33) * 16;
+          if (n(s, 20) < 0.07) { // a fibre wandering through the rock, two harmonics so no two look alike
+            const y0 = Y + n(s, 21) * T, amp = 1.5 + n(s, 22) * 3, ph = n(s, 23) * 6, ph2 = n(s, 30) * 6, f1 = 0.35 + n(s, 31) * 0.5, f2 = 1.1 + n(s, 32) * 1.2, slope = (n(s, 24) - 0.5) * 18, span = 26 + n(s, 33) * 20;
             const pts = []; for (let k = 0; k <= 10; k++) pts.push([X - 4 + k * span / 10, y0 + slope * k / 10 + Math.sin(k * f1 + ph) * amp + Math.sin(k * f2 + ph2) * amp * 0.45]);
-            Ink.line(ctx, pts, { w: 0.7 + n(s, 25) * 1.3, color: n(s, 26) < 0.5 ? acc(0.2) : moss(0.6), jit: 0.3, seed: s, t: 0 });
+            Ink.line(ctx, pts, { w: 1.2 + n(s, 25) * 1.4, color: n(s, 26) < 0.5 ? acc(0.2) : moss(0.6), jit: 0, seed: s, t: 0 });
           }
-          if (n(s, 27) < 0.12) { const gx = X + 3 + n(s, 28) * 10, gy = Y + 3 + n(s, 29) * 10; ctx.fillStyle = acc(0.12); ctx.beginPath(); ctx.arc(gx, gy, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.beginPath(); ctx.arc(gx, gy, 1.4, 0, Math.PI * 2); ctx.fill(); }
-          if (d >= 1 && n(s, 34) < 0.012) { // something in the rock, asleep: a closed eye the size of a hand
-            const cx = X + 8, cy = Y + 8; const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, 9); g.addColorStop(0, acc(0.12)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(cx - 9, cy - 9, 18, 18);
-            ctx.fillStyle = TILE_MIX(p.rock, p.accent, 0.22); ctx.beginPath(); ctx.ellipse(cx, cy, 5.5, 2.6, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = p.ink; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(cx - 5.5, cy - 0.3); ctx.quadraticCurveTo(cx, cy + 2.4, cx + 5.5, cy - 0.3); ctx.stroke();
-            ctx.lineWidth = 0.7; ctx.beginPath(); for (const lx of [-3.2, -1, 1.4, 3.6]) { ctx.moveTo(cx + lx, cy + 1.6); ctx.lineTo(cx + lx * 1.15, cy + 3.6); } ctx.stroke();
-            ctx.strokeStyle = acc(0.35); ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(cx - 5, cy - 1.6); ctx.quadraticCurveTo(cx, cy - 3.4, cx + 5, cy - 1.6); ctx.stroke();
+          if (n(s, 27) < 0.025) { const gx = X + 3 + n(s, 28) * 10, gy = Y + 3 + n(s, 29) * 10; ctx.fillStyle = acc(0.12); ctx.beginPath(); ctx.arc(gx, gy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.beginPath(); ctx.arc(gx, gy, 1.6, 0, Math.PI * 2); ctx.fill(); }
+          if (d >= 1 && n(s, 34) < 0.008) { // something in the rock, asleep: a closed eye the size of a hand
+            const cx = X + 8, cy = Y + 8; const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, 11); g.addColorStop(0, acc(0.12)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(cx - 11, cy - 11, 22, 22);
+            ctx.fillStyle = TILE_MIX(p.rock, p.accent, 0.22); ctx.beginPath(); ctx.ellipse(cx, cy, 6.5, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = ink2C; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(cx - 6.5, cy - 0.3); ctx.quadraticCurveTo(cx, cy + 2.8, cx + 6.5, cy - 0.3); ctx.stroke();
+            ctx.lineWidth = 0.8; ctx.beginPath(); for (const lx of [-3.8, -1.2, 1.6, 4.2]) { ctx.moveTo(cx + lx, cy + 1.8); ctx.lineTo(cx + lx * 1.15, cy + 4); } ctx.stroke();
+            ctx.strokeStyle = acc(0.35); ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(cx - 6, cy - 1.8); ctx.quadraticCurveTo(cx, cy - 4, cx + 6, cy - 1.8); ctx.stroke();
           }
           break;
       }
     }
 
-    // ---- 4. exposed faces, inside the silhouette: a crust band on the tops (deep enough to survive the erosion), dark bands on undersides and right faces, a light on left faces
-    const eT0 = st.erode[0], eS0 = st.erode[1];
-    const crustCol = { wet: TILE_MIX(p.rim, p.moss, 0.5, 0.5), moss: moss(0.7), slime: moss(0.55), dust: TILE_MIX(p.rock, p.rim, 0.55, 0.5), ash: rim(0.26), rust: TILE_MIX(p.rock, p.accent, 0.4, 0.45), soot: TILE_MIX(p.rock, p.ink, 0.55, 0.7) }[st.crust] || rim(0.3);
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
-      if (!solid(x, y)) continue;
-      const X = x * T, Y = y * T, s = x * 131 + y * 17;
-      const up = !solid(x, y - 1), dn = !solid(x, y + 1), lf = !solid(x - 1, y), rt = !solid(x + 1, y);
-      if (up) {
-        const cd = eT0 + 3.2;
-        const cb = (px) => organic ? Y + cd + Math.sin(px * 0.43 + zs) * 1.1 + Math.sin(px * 0.11) * 1.3 : Y + 3.5;
-        ctx.fillStyle = crustCol; ctx.beginPath(); ctx.moveTo(X, Y);
-        for (let px = X; px <= X + T; px += 2) ctx.lineTo(px, cb(px));
-        ctx.lineTo(X + T, Y); ctx.closePath(); ctx.fill();
-        ctx.strokeStyle = ink(organic ? 0.42 : 0.3); ctx.lineWidth = 1; ctx.beginPath(); for (let px = X; px <= X + T; px += 2) ctx.lineTo(px, cb(px) + 0.5); ctx.stroke(); // the cap's own contour
-        const sg = ctx.createLinearGradient(0, Y + cd, 0, Y + cd + 7); sg.addColorStop(0, ink(0.22)); sg.addColorStop(1, ink(0)); ctx.fillStyle = sg; ctx.fillRect(X, Y + cd, T, 7); // the face falls into shadow under the cap
-        if (st.crust === 'wet') { ctx.fillStyle = rim(0.55); for (let i = 0; i < 2; i++) if (n(s, 72 + i) < 0.5) ctx.fillRect(X + 2 + n(s, 74 + i) * 11, Y + eT0 + n(s, 76 + i) * 2, 2, 1); }
-        if (st.crust === 'moss' || st.crust === 'slime') { ctx.fillStyle = acc(st.crust === 'moss' ? 0.4 : 0.3); for (let i = 0; i < 2; i++) if (n(s, 72 + i) < 0.35) ctx.fillRect(X + 2 + n(s, 74 + i) * 11, Y + eT0 + n(s, 76 + i) * 2, 1, 1); }
-        ctx.fillStyle = rockFill; for (let i = 0; i < 3; i++) if (n(s, 50 + i) < 0.3) ctx.fillRect(X + 2 + i * 5 + n(s, 55 + i) * 3, Y + eT0 + 0.5, 2, 1.5); // the crust is worn through here and there
-      }
-      if (dn) { const g = ctx.createLinearGradient(0, Y + T - 6 - eS0, 0, Y + T); g.addColorStop(0, ink(0)); g.addColorStop(1, ink(0.6)); ctx.fillStyle = g; ctx.fillRect(X, Y + T - 6 - eS0, T, 6 + eS0); }
-      if (lf) { ctx.fillStyle = rim(0.3); ctx.fillRect(X + 1 + eS0 * 0.5, Y, 1, T); }
-      if (rt) { const g = ctx.createLinearGradient(X + T - 5 - eS0, 0, X + T, 0); g.addColorStop(0, ink(0)); g.addColorStop(1, ink(0.5)); ctx.fillStyle = g; ctx.fillRect(X + T - 5 - eS0, Y, 5 + eS0, T); }
+    // ---- 5. the painted edge bands, following the eroded contour: a crust and a lighter rim along the tops, a soft
+    // dark fall-off under the undersides and right faces, a faint light on the left faces
+    const crustCol = { wet: TILE_MIX(p.rim, p.moss, 0.5, 0.45), moss: moss(0.6), slime: moss(0.5), dust: TILE_MIX(p.rock, p.rim, 0.55, 0.45), ash: rim(0.2), rust: TILE_MIX(p.rock, p.accent, 0.4, 0.4), soot: TILE_MIX(p.rock, p.ink, 0.55, 0.6) }[st.crust] || rim(0.3);
+    for (const run of runs.b) { strokeRun(run, 9, ink2(0.6), 0, -3.5, 3); }
+    for (const run of runs.r) { strokeRun(run, 7, ink2(0.45), -2.5, 0, 3); }
+    for (const run of runs.l) { strokeRun(run, 4, lt(0.1), 1.5, 0, 2); }
+    for (const run of runs.t) {
+      strokeRun(run, 7, crustCol, 0, 3.5, 0);
+      strokeRun(run, 6, ink2(0.3), 0, 8.5, 3);      // the face falls into shadow under the cap
+      strokeRun(run, 5, lt(0.22), 0, 2.5, 2);        // the lit rim band, soft
+      strokeRun(run, 1.2, lt(0.36), 0, 1.9, 0);      // a crisp pale hairline right under the ink
     }
     ctx.restore();
 
-    // ---- 5. erosion and contour. Every exposed edge is eaten inward along an absolute-position profile
-    // (so adjacent runs and corners agree), convex corners get a rounded bulge or an undercut bite,
-    // undersides scallop and sag between supports, and the eroded edge is inked as one stroke.
-    const ef = (x, y) => at(x, y) === '#' ? 1 : 0.12; // cracked and locked blocks keep flat, built faces
-    const wob = (u, a) => 0.15 + 0.85 * (0.5 + 0.3 * Math.sin(u * 0.21 + a) + 0.2 * Math.sin(u * 0.057 + a * 1.7));
-    const topY = (px, tx, ty) => ty * T + 0.3 + eT0 * ef(tx, ty) * (solid(tx, ty + 1) ? 1 : 0.6) * wob(px, n(ty * 13, 1) * 6.283);
-    const botY = (px, tx, ty) => { const per = 26 + n(ty * 7, 2) * 22, sag = 0.5 + 0.5 * Math.cos(px * 6.283 / per + n(ty * 7, 3) * 6.283); return (ty + 1) * T - 0.4 - eS0 * ef(tx, ty) * (solid(tx, ty - 1) ? 1 : 0.5) * (0.25 + 0.75 * sag) * (0.55 + 0.45 * wob(px, n(ty * 13, 3) * 6.283)); };
-    const lftX = (py, tx, ty) => tx * T + 0.4 + eS0 * ef(tx, ty) * (solid(tx + 1, ty) ? 1 : 0.5) * wob(py, n(tx * 11, 4) * 6.283);
-    const rgtX = (py, tx, ty) => (tx + 1) * T - 0.4 - eS0 * ef(tx, ty) * (solid(tx - 1, ty) ? 1 : 0.5) * wob(py, n(tx * 11, 5) * 6.283);
-    // convex corner at grid point (cx, cy); the solid tile (tx, ty) lies toward (sx, sy). Returns the curve from the horizontal face (A) to the vertical face (B).
-    const corner = (cx, cy, sx, sy, tx, ty) => {
-      const e = ef(tx, ty), cr = organic ? (3.5 + n(cx * 3 + cy * 5, 6) * 2.5) * e : 1.2, bulge = n(cx * 3 + cy * 5, 7) < 0.62;
-      const A = [cx + sx * cr, sy > 0 ? topY(cx + sx * cr, tx, ty) : botY(cx + sx * cr, tx, ty)];
-      const B = [sx > 0 ? lftX(cy + sy * cr, tx, ty) : rgtX(cy + sy * cr, tx, ty), cy + sy * cr];
-      const cb = bulge ? 0.6 : cr * 0.95, C = [cx + sx * cb, cy + sy * cb];
-      const out = []; for (let k = 0; k <= 4; k++) { const u = k / 4, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c2 = u * u; out.push([a * A[0] + b * C[0] + c2 * B[0], a * A[1] + b * C[1] + c2 * B[1]]); }
-      return out;
-    };
-    const rev = (pts) => pts.slice().reverse();
-    const strokePts = (pts, w, col) => { TILE_PATH(ctx, pts); ctx.strokeStyle = col || p.ink; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); };
-    const clearPoly = (pts) => { ctx.save(); ctx.globalCompositeOperation = 'destination-out'; TILE_PATH(ctx, pts); ctx.closePath(); ctx.fillStyle = '#000'; ctx.fill(); ctx.restore(); };
-    const shift = (pts, dx, dy) => pts.map(([px, py]) => [px + dx, py + dy]);
-    const hatch = (pts, dx, dy) => { ctx.strokeStyle = ink(0.7); ctx.lineWidth = 0.9; ctx.beginPath(); for (let i = 1; i < pts.length - 1; i++) { const [px, py] = pts[i]; if (n(Math.round(px * 3 + py * 7), 9) < 0.45) continue; const len = 2.5 + n(Math.round(px + py), 10) * 3.5; ctx.moveTo(px + dx, py + dy); ctx.lineTo(px + dx * (1 + len) + dy * 0.6, py + dy * (1 + len) + dx * 0.6); } ctx.stroke(); };
-    const TOP = TILE_RUNS_H(ZW, ZH, (x, y) => solid(x, y) && !solid(x, y - 1));
-    const BOT = TILE_RUNS_H(ZW, ZH, (x, y) => solid(x, y) && !solid(x, y + 1));
-    const LFT = TILE_RUNS_V(ZW, ZH, (x, y) => solid(x, y) && !solid(x - 1, y));
-    const RGT = TILE_RUNS_V(ZW, ZH, (x, y) => solid(x, y) && !solid(x + 1, y));
-    const txOf = (px, r) => clamp(Math.floor(px / T), r.x, r.x1), tyOf = (py, r) => clamp(Math.floor(py / T), r.y, r.y1);
-    // bottom faces first (heaviest ink), then sides, then tops, so the top's lit lip ends up on top at corners
-    for (const r of BOT) {
-      const y0 = (r.y + 1) * T, xa = r.x * T, xb = (r.x1 + 1) * T;
-      const cvL = !solid(r.x - 1, r.y), cvR = !solid(r.x1 + 1, r.y);
-      const cL = cvL ? rev(corner(xa, y0, 1, -1, r.x, r.y)) : [], cR = cvR ? corner(xb, y0, -1, -1, r.x1, r.y) : [];
-      const x0 = cvL ? cL[cL.length - 1][0] + 2 : xa - 1, x1 = cvR ? cR[0][0] - 2 : xb + 1;
-      const core = []; for (let px = x0; px < x1; px += 3) core.push([px, botY(px, txOf(px, r), r.y)]); core.push([x1, botY(x1, txOf(x1, r), r.y)]);
-      const pts = cL.concat(core, cR);
-      clearPoly([[xa, y0 + 8]].concat(pts, [[xb, y0 + 8]]));
-      hatch(core, 0, -1);
-      strokePts(pts, 2.1);
-    }
-    for (const r of LFT) {
-      const x0 = r.x * T, ya = r.y * T, yb = (r.y1 + 1) * T;
-      const cvT = !solid(r.x, r.y - 1), cvB = !solid(r.x, r.y1 + 1);
-      const cT = cvT ? corner(x0, ya, 1, 1, r.x, r.y) : [], cB = cvB ? rev(corner(x0, yb, 1, -1, r.x, r.y1)) : [];
-      const y0 = cvT ? cT[cT.length - 1][1] + 2 : ya - 1, y1 = cvB ? cB[0][1] - 2 : yb + 1;
-      const core = []; for (let py = y0; py < y1; py += 3) core.push([lftX(py, r.x, tyOf(py, r)), py]); core.push([lftX(y1, r.x, tyOf(y1, r)), y1]);
-      const pts = cT.concat(core, cB);
-      clearPoly([[x0 - 8, ya]].concat(pts, [[x0 - 8, yb]]));
-      strokePts(shift(core, 1.3, 0), 1, rim(0.4));
-      strokePts(pts, 1.7);
-    }
-    for (const r of RGT) {
-      const x0 = (r.x + 1) * T, ya = r.y * T, yb = (r.y1 + 1) * T;
-      const cvT = !solid(r.x, r.y - 1), cvB = !solid(r.x, r.y1 + 1);
-      const cT = cvT ? corner(x0, ya, -1, 1, r.x, r.y) : [], cB = cvB ? rev(corner(x0, yb, -1, -1, r.x, r.y1)) : [];
-      const y0 = cvT ? cT[cT.length - 1][1] + 2 : ya - 1, y1 = cvB ? cB[0][1] - 2 : yb + 1;
-      const core = []; for (let py = y0; py < y1; py += 3) core.push([rgtX(py, r.x, tyOf(py, r)), py]); core.push([rgtX(y1, r.x, tyOf(y1, r)), y1]);
-      const pts = cT.concat(core, cB);
-      clearPoly([[x0 + 8, ya]].concat(pts, [[x0 + 8, yb]]));
-      hatch(core, -1, 0);
-      strokePts(pts, 2.0);
-    }
-    const lipCol = TILE_MIX(p.rim, '#ffffff', 0.6, 0.85);
-    for (const r of TOP) {
-      const y0 = r.y * T, xa = r.x * T, xb = (r.x1 + 1) * T;
-      const cvL = !solid(r.x - 1, r.y), cvR = !solid(r.x1 + 1, r.y);
-      const cL = cvL ? rev(corner(xa, y0, 1, 1, r.x, r.y)) : [], cR = cvR ? corner(xb, y0, -1, 1, r.x1, r.y) : [];
-      const x0 = cvL ? cL[cL.length - 1][0] + 2 : xa - 1, x1 = cvR ? cR[0][0] - 2 : xb + 1;
-      const core = []; for (let px = x0; px < x1; px += 3) core.push([px, topY(px, txOf(px, r), r.y)]); core.push([x1, topY(x1, txOf(x1, r), r.y)]);
-      const pts = cL.concat(core, cR);
-      clearPoly([[xa, y0 - 8]].concat(pts, [[xb, y0 - 8]]));
-      strokePts(shift(core, 0, 2.0), 1.3, rim(0.8)); // the lit lip follows the eroded edge
-      strokePts(shift(core, 0, 1.0), 0.9, lipCol);   // a near-white hairline right under the ink
-      strokePts(shift(pts, 0, -0.3), 1.5);
-    }
+    // ---- 6. the outline: one thick, smooth, still stroke along the whole contour
+    ctx.save(); ctx.strokeStyle = ink2C; ctx.lineWidth = 2.8; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(shape); ctx.restore();
 
-    // ---- 6. the static part of what hangs from the undersides: stalactites, moss tufts and pebbles on the tops
+    // ---- 7. the static part of what hangs from the undersides: stalactites, moss clumps and pebbles on the tops
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       if (!solid(x, y)) continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17;
       if (at(x, y - 1) === '.') {
-        const gy = topY(X + 8, x, y) - 0.2;
-        if (st.strata === 'wavy' && n(s, 67) < 0.28) Ink.blob(ctx, X + 2 + n(s, 68) * 12, gy, 2 + n(s, 69) * 2, 1.3, { fill: TILE_RGBA(p.moss, 0.9), jit: 0, t: 0, n: 7 }); // a moss tuft
-        if (n(s, 64) < 0.2) Ink.blob(ctx, X + 3 + n(s, 65) * 10, gy - 0.4, 1.5 + n(s, 66) * 1.3, 1.1, { fill: rockLt, w: 0.8, color: p.ink, jit: 0, t: 0, n: 7 }); // a pebble
+        const gy = topY(X + 8, x, y) - 0.6;
+        if (st.strata === 'wavy' && n(s, 67) < 0.14) { const mx = X + 3 + n(s, 68) * 10, mr = 3.5 + n(s, 69) * 3; Paint.blob(ctx, mx, gy + 0.5, mr, 2.2, { fill: p.moss, light: TILE_MIX(p.moss, lightC, 0.35), shade: TILE_MIX(p.moss, ink2C, 0.4), ink: ink2C, w: 1.6, n: 9 }); } // a clump of moss over the lip
+        if (n(s, 64) < 0.08) Paint.blob(ctx, X + 3 + n(s, 65) * 10, gy - 0.6, 2 + n(s, 66) * 1.6, 1.6, { fill: rockLt, light: Paint.mix(rockLt, lightC, 0.4), shade: rockFill, ink: ink2C, w: 1.4, n: 8 }); // a pebble
       }
-      if (at(x, y + 1) === '.' && n(s, 3) < st.stal) this._tileStal(ctx, X, botY(X + 8, x, y) - 0.5, s, n, p, rockDk);
+      if (at(x, y + 1) === '.' && n(s, 3) < st.stal * 0.6) this._tileStal(ctx, X, botY(X + 8, x, y) - 0.5, s, n, p, rockDk);
     }
 
-    // ---- 7. fixtures: platforms, spikes, cracks, locks, rubble, door frames, loose stones
+    // ---- 8. fixtures: platforms, spikes, cracks, locks, rubble, door frames, loose stones
     for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (at(x, y) !== '=') { x++; continue; } let x1 = x; while (x1 + 1 < ZW && at(x1 + 1, y) === '=') x1++; this._tilePlatform(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, st, p); x = x1 + 1; } }
     const seenL = new Set();
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
@@ -406,17 +370,17 @@ Object.assign(Art, {
       } else if (ch === 'd' || ch === 'e' || ch === 'G' || ch === 'D') {
         // stone jambs and a lintel housing; the moving bars are drawn per frame
         ctx.fillStyle = rockDk; ctx.fillRect(X, Y, 3, T); ctx.fillRect(X + T - 3, Y, 3, T);
-        ctx.fillStyle = rim(0.35); ctx.fillRect(X + 1, Y, 1, T); ctx.fillRect(X + T - 2, Y, 1, T);
-        ctx.fillStyle = p.ink; ctx.fillRect(X + 2.5, Y, 1, T); ctx.fillRect(X + T - 3.5, Y, 1, T);
-        if (at(x, y - 1) !== ch) { ctx.fillStyle = rockDk; ctx.fillRect(X - 1, Y - 1, T + 2, 4); ctx.fillStyle = rim(0.5); ctx.fillRect(X - 1, Y, T + 2, 1); ctx.fillStyle = p.ink; ctx.fillRect(X - 1, Y + 2.5, T + 2, 1.2); ctx.fillStyle = rim(0.6); ctx.fillRect(X + 6, Y - 1, 4, 1.5); }
+        ctx.fillStyle = lt(0.3); ctx.fillRect(X + 1, Y, 1, T); ctx.fillRect(X + T - 2, Y, 1, T);
+        ctx.fillStyle = ink2C; ctx.fillRect(X + 2.5, Y, 1.4, T); ctx.fillRect(X + T - 3.9, Y, 1.4, T);
+        if (at(x, y - 1) !== ch) { ctx.fillStyle = rockDk; ctx.fillRect(X - 1, Y - 1, T + 2, 4); ctx.fillStyle = lt(0.45); ctx.fillRect(X - 1, Y, T + 2, 1); ctx.fillStyle = ink2C; ctx.fillRect(X - 1, Y + 2.5, T + 2, 1.6); ctx.fillStyle = lt(0.6); ctx.fillRect(X + 6, Y - 1, 4, 1.5); }
       }
       if (decor[y] && decor[y][x] === ':' && ch === '.') this._tileStones(ctx, X, Y, s, n, p, rockLt);
     }
 
-    // ---- 8. a soft dark halo under everything, on the air side, so terrain and platforms separate from the parallax
+    // ---- 9. a soft dark halo under everything, on the air side, so terrain and platforms separate from the parallax
     const halo = document.createElement('canvas'); halo.width = W; halo.height = H; const hc = halo.getContext('2d');
     hc.drawImage(c, 0, 0); hc.globalCompositeOperation = 'source-in'; hc.fillStyle = p.ink; hc.fillRect(0, 0, W, H);
-    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.filter = 'blur(2.5px)'; ctx.globalAlpha = 0.75;
+    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.filter = 'blur(2.5px)'; ctx.globalAlpha = 0.7;
     ctx.drawImage(halo, 0, 0); ctx.drawImage(halo, 0, 1); ctx.restore();
 
     this.tileCache = c; this.tileCacheKey = key;
@@ -437,12 +401,17 @@ Object.assign(Art, {
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       if (at(x, y) !== '#') continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17;
-      if (at(x, y - 1) === '.' && st.grass !== 'none') items.push({ k: 'g', X, Y, s, b: 0, v: 0 });
+      if (at(x, y - 1) === '.' && st.grass !== 'none') {
+        // grass grows in clumps, not on every tile: more likely at the ends of a ledge, and a clump is one to three tufts
+        const edge = !solidCh(at(x - 1, y)) || !solidCh(at(x + 1, y)) || at(x - 1, y - 1) !== '.' || at(x + 1, y - 1) !== '.';
+        if (n(s, 59) < (edge ? 0.6 : 0.3)) items.push({ k: 'g', X, Y, s, b: 0, v: 0, c: 1 + Math.floor(n(s, 58) * 2.6) });
+      }
       if (at(x, y + 1) === '.') {
         if (st.hang === 'drip') {
           if (n(s, 20) < 0.4) { let fy = y + 1; while (fy < ZH && fy < y + 16 && at(x, fy) === '.' && !(world.decor && world.decor[fy] && world.decor[fy][x] === '~')) fy++; const floorY = (fy < ZH && fy < y + 16) ? fy * T + (at(x, fy) === '=' ? 1 : 0) : null; items.push({ k: 'd', X: X + 2 + n(s, 21) * 12, Y: Y + T, s, per: 3 + n(s, 22) * 3, off: n(s, 23) * 9, floorY }); }
-          if (n(s, 23) < 0.25) items.push({ k: 'h', X, Y: Y + T, s });
-        } else if (st.hang !== 'none') items.push({ k: 'h', X, Y: Y + T, s });
+          if (n(s, 23) < 0.2) items.push({ k: 'h', X, Y: Y + T, s });
+        } else if (st.hang === 'chain') items.push({ k: 'h', X, Y: Y + T, s });
+        else if (st.hang !== 'none' && n(s, 23) < 0.38) items.push({ k: 'h', X, Y: Y + T, s });
       }
     }
     this._grow = { key, items, st, n, zs }; this._growKey = key;
@@ -568,9 +537,9 @@ Object.assign(Art, {
   },
   _platformBody(ctx, X, Y, L, s, n, st, p) {
     const rim = (a) => TILE_RGBA(p.rim, a), acc = (a) => TILE_RGBA(p.accent, a), ink = (a) => TILE_RGBA(p.ink, a), dk = (a) => TILE_RGBA(p.rockDark, a);
-    const top = (yy, w) => { const pts = []; for (let px = X; px <= X + L; px += 4) pts.push([px, yy]); Ink.line(ctx, pts, { w, color: p.ink, jit: 0.7, seed: s, t: 0 }); };
+    const top = (yy, w) => { const pts = []; for (let px = X; px <= X + L; px += 4) pts.push([px, yy]); Ink.line(ctx, pts, { w: w + 0.8, color: p.ink2 || p.ink, jit: 0, seed: s, t: 0 }); };
     const shadow = (h) => { const g = ctx.createLinearGradient(0, Y + h, 0, Y + h + 4); g.addColorStop(0, ink(0.45)); g.addColorStop(1, ink(0)); ctx.fillStyle = g; ctx.fillRect(X + 1, Y + h, L - 2, 4); };
-    const ends = (h) => { ctx.fillStyle = p.ink; ctx.fillRect(X - 0.5, Y, 1.3, h + 0.5); ctx.fillRect(X + L - 0.8, Y, 1.3, h + 0.5); };
+    const ends = (h) => { ctx.fillStyle = p.ink2 || p.ink; ctx.fillRect(X - 1, Y, 2.2, h + 0.5); ctx.fillRect(X + L - 1.2, Y, 2.2, h + 0.5); };
     ctx.lineCap = 'round';
     switch (st.plat) {
       case 'plank': { // driftwood boards lashed with rope, frayed ends hanging well below
@@ -733,9 +702,9 @@ Object.assign(Art, {
       ctx.fillStyle = 'rgba(10,8,6,0.8)'; ctx.fillRect(X, Y + T - 1, T, 1); ctx.fillRect(X + T - 1, Y, 1, T);
       for (const [rx, ry] of [[2.5, 2.5], [T - 5.5, 2.5], [2.5, T - 5.5], [T - 5.5, T - 5.5]]) { ctx.fillStyle = '#17110c'; ctx.fillRect(X + rx, Y + ry, 3, 3); ctx.fillStyle = '#b09070'; ctx.fillRect(X + rx + 0.5, Y + ry + 0.5, 1.2, 1.2); }
       // outer ink where the plate meets rock or air
-      ctx.fillStyle = p.ink;
-      if (at(gx, gy - 1) !== 'L') ctx.fillRect(X, Y, T, 1.6); if (at(gx, gy + 1) !== 'L') ctx.fillRect(X, Y + T - 1.6, T, 1.6);
-      if (at(gx - 1, gy) !== 'L') ctx.fillRect(X, Y, 1.6, T); if (at(gx + 1, gy) !== 'L') ctx.fillRect(X + T - 1.6, Y, 1.6, T);
+      ctx.fillStyle = p.ink2 || p.ink;
+      if (at(gx, gy - 1) !== 'L') ctx.fillRect(X, Y, T, 2.6); if (at(gx, gy + 1) !== 'L') ctx.fillRect(X, Y + T - 2.6, T, 2.6);
+      if (at(gx - 1, gy) !== 'L') ctx.fillRect(X, Y, 2.6, T); if (at(gx + 1, gy) !== 'L') ctx.fillRect(X + T - 2.6, Y, 2.6, T);
     }
     const X0 = minx * T, Y0 = miny * T, BW = (maxx - minx + 1) * T, BH = (maxy - miny + 1) * T;
     const kx = X0 + BW * 0.5, ky = Y0 + BH * 0.5;
@@ -864,7 +833,7 @@ Object.assign(Art, {
         it.v = (it.v + (target - it.b) * K * dt) * ex; it.b += it.v * dt;
         if (Math.abs(it.b) < 0.02 && Math.abs(it.v) < 0.05 && !target) { it.b = 0; it.v = 0; }
         const sw = Math.sin(t * 1.5 + it.X * 0.3) * (st.grass === 'kelp' ? 1.6 : 1.0) + Math.sin(t * 2.3 + it.X * 0.11) * 0.4;
-        this._tileGrass(ctx, it.X, it.Y, it.s, n, st, p, rockLt, sw, it.b, t);
+        for (let k = 0; k < (it.c || 1); k++) this._tileGrass(ctx, it.X + (k ? (k % 2 ? 3 : -3) : 0), it.Y, it.s + k * 977, n, st, p, rockLt, sw, it.b, t);
       } else if (it.k === 'h') {
         this._tileHang(ctx, it.X, it.Y, it.s, n, st, p, rockDk, t, 1);
       } else {

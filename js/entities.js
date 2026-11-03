@@ -446,13 +446,7 @@ class Player {
   draw(ctx, t) {
     if (this.dead) return;
     Art.drawPlayer(ctx, this, t);
-    if (this.focusing && this.healT > 0) {
-      // the focus ring tightens as the hour is wound back in
-      const k = this.healT / HEAL_TIME, cx = this.x + this.w / 2, cy = this.y + this.h / 2;
-      ctx.save(); ctx.strokeStyle = `rgba(255,210,122,${0.3 + 0.5 * k})`; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(cx, cy, 22 - 12 * k, 0, Math.PI * 2 * k); ctx.stroke();
-      ctx.fillStyle = `rgba(255,210,122,${0.1 + 0.15 * k})`; ctx.beginPath(); ctx.arc(cx, cy, 14 + 4 * Math.sin(t * 14), 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    }
+    // (the focus ring is drawn by the player art)
   }
 }
 
