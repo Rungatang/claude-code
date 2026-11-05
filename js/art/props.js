@@ -434,3 +434,20 @@ Object.assign(Art, {
 
   // ====================================================================== PORTRAITS,
 });
+
+// ---- Power seal icons (the time powers pass) ------------------------------
+// The engine ids are age / hold / restore / echo / cut; the old ids (wither / stall / mend / sever)
+// still resolve so nothing breaks mid-transition. `hold` is new: a closed ring with a bar through it,
+// a clock held still. Icons are one flat silhouette in the caller's fillStyle inside a 10x10 box.
+const PR_POWER_ALIAS = { age: 'wither', wither: 'wither', restore: 'mend', mend: 'mend', cut: 'sever', sever: 'sever', hold: 'hold', stall: 'hold', echo: 'echo', dash: 'dash' };
+Art.drawPowerIconBase = Art.drawPowerIcon;
+Art.drawPowerIcon = function (ctx, id, x, y, s) {
+  const k = PR_POWER_ALIAS[id] || id;
+  if (k !== 'hold') return this.drawPowerIconBase(ctx, k, x, y, s);
+  ctx.save(); ctx.translate(x, y); const sc = s / 10; ctx.scale(sc, sc);
+  const col = ctx.fillStyle;
+  ctx.globalAlpha = 0.28; ctx.beginPath(); ctx.arc(5, 5, 3.6, 0, Math.PI * 2); ctx.fill();          // soft fill inside the ring
+  ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(5, 5, 4.8, 0, Math.PI * 2); ctx.arc(5, 5, 2.9, 0, Math.PI * 2, true); ctx.fill('evenodd'); // the thick closed ring
+  ctx.strokeStyle = col; ctx.lineWidth = 1.7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(1.4, 5); ctx.lineTo(8.6, 5); ctx.stroke(); // the bar: the hand that does not move
+  ctx.restore();
+};
