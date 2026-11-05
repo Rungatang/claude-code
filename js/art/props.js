@@ -10,6 +10,8 @@
 const PR_INK = '#0a0810';
 const PR_BRASS = '#a8843a', PR_BRASS_HI = '#e2c27a', PR_BRASS_LO = '#5e4418';
 const PR_IRON = '#484652', PR_IRON_HI = '#8a8896', PR_IRON_LO = '#22202a';
+const PR_ROPE = '#b89a68', PR_ROPE_DK = '#6a5234';
+const PR_STEEL = '#c8ccd6', PR_STEEL_HI = '#eef0f6', PR_STEEL_LO = '#7a7e8c';
 const prClamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const prEase = (u) => u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u);
 const prPal = () => (typeof World !== 'undefined' && World.room && PALETTES[World.room.region]) || PALETTES.hours;
@@ -323,6 +325,249 @@ Object.assign(Art, {
     if (ant > 0) { const gx = c.x + 2 + ((c.w - 4) * ((ant * 1.3) % 1)); ctx.fillStyle = `rgba(255,255,255,${0.9 * ant})`; ctx.fillRect(gx - 0.6, c.y + c.h + 3.4, 1.4, 2.2); ctx.fillRect(gx - 1.8, c.y + c.h + 4.2, 4, 0.6); }
     // dust kicked up at the moment of rest
     if (resting && c.timer !== undefined) { const k = prClamp(c.timer / 0.5, 0, 1); ctx.fillStyle = `rgba(200,196,210,${k * 0.35})`; for (let i = 0; i < 6; i++) { const s = i < 3 ? -1 : 1, u = 1 - k; ctx.beginPath(); ctx.arc(cx + s * (c.w / 2 + 2 + u * 10 + (i % 3) * 3), c.y + c.h + 4 - u * (3 + (i % 3) * 2), 1.5 + u * 2, 0, Math.PI * 2); ctx.fill(); } }
+    ctx.restore();
+  },
+
+  // ---- the mechanisms of the second pass: hanging and track platforms, the blade, the boulder, the lever, the sluice.
+  // Hold visuals (the blue tint and clock ring) are drawn by game.js; nothing here reacts to `held`.
+
+  // A rope, pivot to foot, as a dark cord with a twist picked out along it. fray 0..1 thins the top third and lets fibres loose.
+  _prRope(ctx, pts, ink, fray, t) {
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const path = () => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); };
+    ctx.strokeStyle = ink; ctx.lineWidth = 3.4; path(); ctx.stroke();
+    ctx.strokeStyle = PR_ROPE; ctx.lineWidth = 1.7; path(); ctx.stroke();
+    // the twist: short dark ticks every few px, and the fray: the cord worn thin and strands sprung loose near the top
+    let acc = 0; ctx.strokeStyle = PR_ROPE_DK; ctx.lineWidth = 0.9; ctx.beginPath();
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], L = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / L, uy = (by - ay) / L;
+      for (let d = acc; d < L; d += 4.5) { const x = ax + ux * d, y = ay + uy * d; ctx.moveTo(x - uy * 0.9 - ux * 0.5, y + ux * 0.9 - uy * 0.5); ctx.lineTo(x + uy * 0.9 + ux * 0.5, y - ux * 0.9 + uy * 0.5); }
+      acc = (acc + Math.ceil((L - acc) / 4.5) * 4.5) - L;
+    }
+    ctx.stroke();
+    if (fray > 0) {
+      const [x0, y0] = pts[0], [x1, y1] = pts[Math.min(pts.length - 1, 2)], fx = x0 + (x1 - x0) * 0.45, fy = y0 + (y1 - y0) * 0.45;
+      // the worn spot: a notch of ink eating into the cord
+      ctx.fillStyle = ink; ctx.beginPath(); ctx.ellipse(fx, fy, 2.2 * fray + 0.4, 1.2 + fray * 1.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = PR_ROPE_DK; ctx.beginPath(); ctx.ellipse(fx, fy, 0.9, 1.2 + fray, 0, 0, Math.PI * 2); ctx.fill();
+      const nF = Math.ceil(fray * 5);
+      ctx.strokeStyle = PR_ROPE; ctx.lineWidth = 0.9;
+      for (let i = 0; i < nF; i++) { const a = (i / 5 - 0.5) * 2.6 + Math.sin(t * 2 + i) * 0.1, len = 3 + Ink.n(i, 61) * 3 * fray; ctx.beginPath(); ctx.moveTo(fx, fy - 1 + i * 0.8); ctx.quadraticCurveTo(fx + Math.sin(a) * len * 0.6, fy + i * 0.8 - len * 0.3, fx + Math.sin(a) * len, fy + i * 0.8 + Math.cos(a) * len * 0.4); ctx.stroke(); }
+    }
+    ctx.restore();
+  },
+
+  // A plank of the region's rock hung from the ceiling on a rope. hung / rising: the rope runs ropeTop -> top centre, with a
+  // bridle to the ends; aging frays the rope (rot) and sheds dust; falling: a whipping stub; down: no rope, a crack in the slab.
+  drawHangingPlatform(ctx, e, t) {
+    const p = prPal(), ink = prInk(), cx = e.x + e.w / 2, st = e.state || 'hung', rot = prClamp(e.rot || 0, 0, 1);
+    const ropeX = e.ropeX === undefined ? cx : e.ropeX, ropeTop = e.ropeTop === undefined ? e.y - 64 : e.ropeTop, footY = e.y - 5;
+    const roped = st === 'hung' || st === 'rising' || st === 'held';
+    const sway = roped ? Math.sin(t * 0.9 + e.x * 0.03) * 0.7 + (rot > 0 ? Math.sin(t * 38) * 0.5 * rot : 0) : 0;
+    ctx.save();
+    if (roped) {
+      Paint.blob(ctx, ropeX, ropeTop + 1.5, 3.2, 2.4, prBrass({ ink, w: 1.6, n: 8 })); // the ceiling eye
+      const pts = []; for (let k = 0; k <= 6; k++) { const u = k / 6; pts.push([ropeX + (cx - ropeX) * u + Math.sin(u * Math.PI) * sway, ropeTop + 2 + (footY - ropeTop - 2) * u]); }
+      this._prRope(ctx, pts, ink, rot, t);
+      if (rot > 0.15) { // dust shaken off the rope and the slab's ends while it is aged
+        ctx.fillStyle = Paint.rgba(p.rim, 0.55);
+        for (let i = 0; i < 5; i++) { const sp = 0.7 + i * 0.23, ph = (t * sp + Ink.n(i, 71)) % 1, cyc = Math.floor(t * sp + Ink.n(i, 71)); const sx = i < 2 ? pts[1][0] + (Ink.n(i + cyc, 72) - 0.5) * 4 : e.x + Ink.n(i + cyc, 73) * e.w, sy = i < 2 ? pts[1][1] : e.y + e.h; ctx.globalAlpha = (1 - ph) * rot; ctx.fillRect(sx, sy + 2 + ph * ph * 18, 1.6, 1.6); }
+        ctx.globalAlpha = 1;
+      }
+    } else if (st === 'falling') {
+      const pts = []; for (let k = 0; k <= 4; k++) { const u = k / 4; pts.push([cx + Math.sin(t * 22 + u * 4) * 3 * u, footY - u * 9]); }
+      this._prRope(ctx, pts.reverse(), ink, 1, t);
+    }
+    ctx.translate(sway * 0.35, 0);
+    if (st !== 'down') for (const ex of [e.x + 4, e.x + e.w - 4]) { ctx.lineCap = 'round'; ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ex, e.y + 0.5); ctx.lineTo(cx, footY); ctx.stroke(); ctx.strokeStyle = PR_ROPE; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(ex, e.y + 0.5); ctx.lineTo(cx, footY); ctx.stroke(); } // the bridle
+    // the slab
+    prSlab(ctx, cx, e.y, e.w, e.w - 2, e.h, prStone({ w: 2.4 }));
+    ctx.fillStyle = Paint.rgba(p.light || p.rim, 0.5); ctx.fillRect(e.x + 2.5, e.y + 1.1, e.w - 5, 1);
+    ctx.fillStyle = Paint.rgba(ink, 0.35); ctx.fillRect(e.x + 3, e.y + e.h - 2.4, e.w - 6, 1);
+    if (st !== 'down') for (const ex of [e.x + 4, e.x + e.w - 4]) { // the lashings round each end
+      ctx.lineCap = 'butt'; ctx.strokeStyle = ink; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.moveTo(ex, e.y - 0.6); ctx.lineTo(ex, e.y + e.h + 0.6); ctx.stroke();
+      ctx.strokeStyle = PR_ROPE; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(ex, e.y - 0.3); ctx.lineTo(ex, e.y + e.h + 0.3); ctx.stroke();
+      ctx.fillStyle = PR_ROPE_DK; ctx.fillRect(ex - 0.8, e.y + 2.5, 1.6, 0.8); ctx.fillRect(ex - 0.8, e.y + 5, 1.6, 0.8);
+    }
+    if (st !== 'down') Paint.blob(ctx, cx, footY, 2.2, 2, { fill: PR_ROPE, light: '#d8c098', shade: PR_ROPE_DK, ink, w: 1.3, n: 8 }); // the knot where rope meets bridle
+    if (st === 'down') { // the crack across the slab, and its chips
+      const kx = e.x + e.w * (0.36 + Ink.n(Math.floor(e.x), 74) * 0.2);
+      Ink.line(ctx, [[kx, e.y - 0.5], [kx + 2.2, e.y + 3], [kx + 0.8, e.y + 5.2], [kx + 3, e.y + e.h + 0.5]], { w: 1.4, color: ink, jit: 0, t: 0 });
+      Ink.line(ctx, [[kx + 1.6, e.y + 3.6], [kx + 5, e.y + 4.4]], { w: 0.9, color: ink, jit: 0, t: 0 });
+      ctx.fillStyle = Paint.rgba(p.light || p.rim, 0.5); ctx.fillRect(kx - 3, e.y + 1.2, 2.2, 1);
+      ctx.fillStyle = p.rockDark; ctx.beginPath(); ctx.moveTo(kx - 1, e.y - 0.5); ctx.lineTo(kx + 2.5, e.y - 0.5); ctx.lineTo(kx + 1, e.y + 1.6); ctx.closePath(); ctx.fill(); // a corner chipped from the crack
+    }
+    ctx.restore();
+  },
+
+  // An iron tray on a rail: small wheels or guides on the platform, a short rail segment through its travel; lift mode hangs
+  // a counterweight chain from one corner.
+  drawTrackPlatform(ctx, e, t) {
+    const ink = prInk(), cx = e.x + e.w / 2, horiz = e.axis !== 'v', moving = !e.parked && (Math.abs(e.vx || 0) + Math.abs(e.vy || 0)) > 1;
+    ctx.save(); ctx.lineCap = 'round';
+    // the rail: dark iron with a lit edge, a bumper block at each end of the segment we know about
+    if (horiz) {
+      const ry = e.y + e.h + 3.2, x0 = e.x - 16, x1 = e.x + e.w + 16;
+      ctx.strokeStyle = ink; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(x0, ry); ctx.lineTo(x1, ry); ctx.stroke();
+      ctx.strokeStyle = PR_IRON; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0, ry); ctx.lineTo(x1, ry); ctx.stroke();
+      ctx.strokeStyle = Paint.rgba(PR_IRON_HI, 0.6); ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(x0 + 2, ry - 0.7); ctx.lineTo(x1 - 2, ry - 0.7); ctx.stroke();
+      ctx.fillStyle = Paint.rgba(ink, 0.6); for (let tx = x0 + 6; tx < x1 - 2; tx += 10) ctx.fillRect(tx, ry + 1.2, 2.4, 2.4); // ties
+      for (const bx of [x0, x1 - 4]) prSlab(ctx, bx + 2, ry - 3.6, 4, 5, 3.6, { fill: PR_IRON_LO, light: PR_IRON, shade: '#111016', ink, w: 1.4 });
+    } else {
+      const rx = e.x - 4.5, y0 = e.y - 16, y1 = e.y + e.h + 16;
+      ctx.strokeStyle = ink; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(rx, y0); ctx.lineTo(rx, y1); ctx.stroke();
+      ctx.strokeStyle = PR_IRON; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(rx, y0); ctx.lineTo(rx, y1); ctx.stroke();
+      ctx.strokeStyle = Paint.rgba(PR_IRON_HI, 0.6); ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(rx - 0.7, y0 + 2); ctx.lineTo(rx - 0.7, y1 - 2); ctx.stroke();
+      for (const by of [y0, y1 - 4]) prSlab(ctx, rx, by, 5, 5, 4, { fill: PR_IRON_LO, light: PR_IRON, shade: '#111016', ink, w: 1.4 });
+    }
+    // lift: the counterweight chain rising off the far corner
+    if (e.lift) {
+      const chx = e.x + e.w - 3, top = e.y - 400, ph = ((e.vy || 0) * 0.1 + t * 0) % 7;
+      ctx.strokeStyle = ink; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(chx, top); ctx.lineTo(chx, e.y); ctx.stroke();
+      ctx.strokeStyle = PR_IRON; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(chx, top); ctx.lineTo(chx, e.y); ctx.stroke();
+      ctx.strokeStyle = PR_IRON_HI; ctx.lineWidth = 1; for (let y = e.y - 3 - ph; y > Math.max(top, e.y - 420); y -= 7) { ctx.beginPath(); ctx.ellipse(chx, y, 1.3, 2.2, 0, 0, Math.PI * 2); ctx.stroke(); }
+      Paint.blob(ctx, chx, e.y + 0.5, 2.6, 2.2, prBrass({ ink, w: 1.4, n: 8 })); // the shackle
+    }
+    // the tray: an iron pan with a rolled lip, a row of brass rivets
+    prSlab(ctx, cx, e.y, e.w, e.w - 2, e.h, { fill: PR_IRON, light: e.parked ? '#6e6c7a' : PR_IRON_HI, shade: PR_IRON_LO, ink, w: 2.2 });
+    ctx.fillStyle = Paint.rgba(PR_IRON_HI, 0.5); ctx.fillRect(e.x + 2, e.y + 1.1, e.w - 4, 0.9);
+    ctx.fillStyle = Paint.rgba(ink, 0.45); ctx.fillRect(e.x + 2, e.y + 3.2, e.w - 4, 1);
+    for (let rx = e.x + 5; rx < e.x + e.w - 3; rx += 8) Paint.blob(ctx, rx, e.y + 5.3, 1.1, 1, prBrass({ ink, w: 0.9, n: 8 }));
+    // wheels under a horizontal tray (the hub turns with its travel); guide brackets gripping a vertical rail
+    if (horiz) for (const wx of [e.x + 4.5, e.x + e.w - 4.5]) {
+      Paint.blob(ctx, wx, e.y + e.h + 0.8, 2.7, 2.7, { fill: PR_IRON_LO, light: PR_IRON, shade: '#111016', ink, w: 1.6, n: 10 });
+      const a = e.x * 0.35; ctx.strokeStyle = Paint.rgba(PR_IRON_HI, 0.8); ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(wx - Math.cos(a) * 1.6, e.y + e.h + 0.8 - Math.sin(a) * 1.6); ctx.lineTo(wx + Math.cos(a) * 1.6, e.y + e.h + 0.8 + Math.sin(a) * 1.6); ctx.stroke();
+    } else for (const gy of [e.y + 1.2, e.y + e.h - 3.4]) { ctx.fillStyle = ink; ctx.fillRect(e.x - 7.2, gy - 0.8, 8.4, 3.8); ctx.fillStyle = PR_IRON_LO; ctx.fillRect(e.x - 6.4, gy, 6.8, 2.2); ctx.fillStyle = Paint.rgba(PR_IRON_HI, 0.7); ctx.fillRect(e.x - 6.4, gy, 6.8, 0.7); }
+    // speed: faint streaks trailing the tray
+    if (moving) { const vx = e.vx || 0, vy = e.vy || 0, sp = Math.hypot(vx, vy), ux = -vx / sp, uy = -vy / sp; ctx.strokeStyle = 'rgba(230,230,245,0.16)'; ctx.lineWidth = 1.2; for (let i = 0; i < 3; i++) { const k = Ink.n(i, 75), sx = horiz ? e.x + 3 + k * (e.w - 6) : e.x + e.w + 2, sy = horiz ? e.y + 1 + (i % 2) * (e.h - 2) : e.y + 2 + k * (e.h - 4), L = 5 + Ink.n(i, 76) * 8 * prClamp(sp / 80, 0.3, 1); ctx.beginPath(); ctx.moveTo(sx + ux * 2, sy + uy * 2); ctx.lineTo(sx + ux * (2 + L), sy + uy * (2 + L)); ctx.stroke(); } }
+    ctx.restore();
+  },
+
+  // A pendulum: a brass pivot plate in the ceiling, a dark rod of length len, a crescent of steel at the end whose 14x14
+  // head rect is the hitbox (the drawn blade stays within 2 px of it). Fallen: nothing (rock tiles replace it).
+  drawBlade(ctx, e, t) {
+    if (e.state === 'fallen') return;
+    const ink = prInk(), px = e.px, py = e.py, ang = e.ang || 0, len = e.len || 40;
+    const head = e.head || { x: px + Math.sin(ang) * len - 7, y: py + Math.cos(ang) * len - 7, w: 14, h: 14 }, hcx = head.x + head.w / 2, hcy = head.y + head.h / 2;
+    const dx = hcx - px, dy = hcy - py, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, a = Math.atan2(dx, dy); // the rod's true direction
+    ctx.save(); ctx.lineCap = 'round';
+    // the pivot plate and axle
+    prSlab(ctx, px, py - 4, 15, 12, 5, prBrass({ ink, w: 1.8 }));
+    for (const bx of [-5, 5]) { ctx.fillStyle = ink; ctx.fillRect(px + bx - 1, py - 3.2, 2, 2); ctx.fillStyle = PR_BRASS_HI; ctx.fillRect(px + bx - 0.5, py - 2.8, 0.9, 0.9); }
+    // the rod: dark, a pale hairline on the lit side, ending at the collar on the head
+    const ex = hcx - ux * 5.5, ey = hcy - uy * 5.5;
+    ctx.strokeStyle = ink; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = PR_IRON_LO; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = Paint.rgba(PR_IRON_HI, 0.55); ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(px - uy * 0.9, py + ux * 0.9); ctx.lineTo(ex - uy * 0.9, ey + ux * 0.9); ctx.stroke();
+    Paint.blob(ctx, px, py, 2.6, 2.6, { fill: PR_IRON_LO, light: PR_IRON, shade: '#0c0a10', ink, w: 1.6, n: 10 });
+    // the head, in its own frame: +y points along the rod
+    ctx.translate(hcx, hcy); ctx.rotate(-a);
+    if (e.state === 'swinging') { ctx.save(); ctx.globalAlpha = 0.14; for (const o of [-0.1, 0.1]) { ctx.save(); ctx.translate(0, -5.5); ctx.rotate(o); ctx.translate(0, 5.5); this._prCrescent(ctx, ink, true); ctx.restore(); } ctx.restore(); }
+    this._prCrescent(ctx, ink, false);
+    Paint.blob(ctx, 0, -5, 3.2, 2.4, prBrass({ ink, w: 1.5, n: 8 })); // the collar the rod sets into
+    // a glint runs along the edge as it swings
+    const gk = Math.max(0, Math.sin(ang * 4 + t * 1.6)); if (gk > 0.6) { const k = (gk - 0.6) / 0.4, ga = -0.5 + k * 1.0; ctx.fillStyle = `rgba(255,255,255,${0.9 * k})`; ctx.fillRect(Math.sin(ga) * 5.6 - 0.7, Math.cos(ga) * 5.6 - 1, 1.4, 2); }
+    ctx.restore();
+  },
+  _prCrescent(ctx, ink, ghost) {
+    // the blade: a crescent of pale steel, horns up, within a 14 px circle
+    // outer edge: a wide arc bowed downward; inner edge: a tighter arc back
+    // outer edge: a 7 px arc, horns reaching above the centre, belly at the bottom; inner edge: a 6 px arc about a point 2.8 px up
+    const outer = [], inner = [];
+    for (let i = 0; i <= 12; i++) { const u = -0.06 + i / 12 * (Math.PI + 0.12); outer.push([-Math.cos(u) * 6.9, Math.sin(u) * 6.9]); }
+    for (let i = 12; i >= 0; i--) { const u = -0.1 + i / 12 * (Math.PI + 0.2); inner.push([-Math.cos(u) * 5.4, Math.sin(u) * 5.4 - 3.4]); }
+    Paint.shape(ctx, outer.concat(inner), { fill: ghost ? '#8a8e9c' : PR_STEEL, light: PR_STEEL_HI, shade: PR_STEEL_LO, ink, w: 2.2 });
+    if (!ghost) { ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 2; i < 11; i++) { const u = i / 12 * Math.PI; ctx.lineTo(-Math.cos(u) * 5.6, Math.sin(u) * 5.6); } ctx.stroke(); } // the honed edge
+  },
+
+  // A round boulder of the region's rock: a thick outline, a top-lit fill, three surface marks that roll with rot.
+  // hanging: a pale thread from threadTop to its crown with a glint sliding down it.
+  drawBoulder(ctx, e, t) {
+    const p = prPal(), ink = prInk(), cx = e.x + e.w / 2, cy = e.y + e.h / 2, r = e.w / 2, rot = e.rot || 0, st = e.state || 'rolling';
+    ctx.save();
+    if (st === 'hanging') {
+      const top = e.threadTop === undefined ? e.y - 64 : e.threadTop;
+      ctx.lineCap = 'round'; ctx.strokeStyle = Paint.rgba(ink, 0.55); ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx, e.y + 1); ctx.stroke();
+      ctx.strokeStyle = THREAD_GOLD; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx, e.y + 1); ctx.stroke();
+      const gk = (t * 0.3 + e.x * 0.013) % 1, gy = top + (e.y - top) * gk; // the glint
+      Paint.glow(ctx, cx, gy, 5, THREAD_GOLD_HI, 0.35); ctx.fillStyle = '#ffffff'; ctx.fillRect(cx - 0.6, gy - 1.6, 1.2, 3.2);
+      Paint.blob(ctx, cx, top + 1.2, 2.6, 2, prBrass({ ink, w: 1.4, n: 8 })); // the ceiling eye
+    } else if (st === 'rolling') prShadow(ctx, cx, e.y + e.h + 0.6, r * 0.9, 1.7, 0.32);
+    else if (st === 'falling') { ctx.fillStyle = 'rgba(230,230,245,0.14)'; for (let i = 0; i < 3; i++) { const sx = e.x + 3 + Ink.n(i, 77) * (e.w - 6), L = 6 + Ink.n(i, 78) * 10; ctx.fillRect(sx, e.y - L - ((t * 300 + i * 5) % 5), 1.2, L); } }
+    // the body: slightly irregular, drawn upright so the light stays on top
+    const pts = []; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, rr = r - 0.7 + Math.sin(i * 2.3 + 1) * 0.45; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+    Paint.shape(ctx, pts, prStone({ w: 2.6 }));
+    ctx.fillStyle = Paint.rgba(p.light || p.rim, 0.35); ctx.beginPath(); ctx.ellipse(cx - r * 0.25, cy - r * 0.5, r * 0.38, r * 0.16, -0.4, 0, Math.PI * 2); ctx.fill();
+    // the marks that roll: a pit, a vein, a pale chip
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot); ctx.beginPath(); ctx.arc(0, 0, r - 1.8, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = Paint.rgba(ink, 0.6); ctx.beginPath(); ctx.ellipse(r * 0.32, -r * 0.3, 1.7, 1.3, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = Paint.rgba(ink, 0.6); ctx.lineWidth = 1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-r * 0.55, r * 0.1); ctx.quadraticCurveTo(-r * 0.2, r * 0.5, r * 0.25, r * 0.4); ctx.stroke();
+    ctx.fillStyle = Paint.rgba(p.light || p.rim, 0.45); ctx.fillRect(-r * 0.35, -r * 0.55, 2.4, 1.3);
+    ctx.restore();
+    if (st === 'hanging') { ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.arc(cx, e.y + 2.8, 3.6, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke(); ctx.strokeStyle = THREAD_GOLD; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(cx, e.y + 2.8, 3.6, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke(); } // the noose over the crown
+    ctx.restore();
+  },
+
+  // A bronze lever on a stone base. off: handle tilted left; on: tilted right, a warm glow at the base; broken: the handle
+  // snapped off and lying beside the base. kick (0..1, decaying) jolts the handle and throws a spark from the pivot.
+  drawLever(ctx, e, t) {
+    const p = prPal(), ink = prInk(), x = e.x, y = e.y, w = e.w || 16, h = e.h || 16, cx = x + w / 2, baseY = y + h - 5.5, st = e.state || 'off', kick = prClamp(e.kick || 0, 0, 1), L = p.lights[0];
+    ctx.save();
+    if (st === 'on') { Paint.glow(ctx, cx, baseY + 1.5, 15, L, 0.4 * prBreath(t, x)); prPool(ctx, cx, y + h, 16, L, 0.32); }
+    prSlab(ctx, cx, baseY, w - 3, w - 0.5, 5.5, prStone({ w: 2.2 }));
+    ctx.fillStyle = Paint.rgba(p.light || p.rim, 0.45); ctx.fillRect(x + 2.5, baseY + 1, w - 5, 1);
+    if (st === 'on') { ctx.fillStyle = Paint.rgba(L, 0.75); ctx.fillRect(x + 3, baseY + 3.2, w - 6, 1); } // the lit seam in the base
+    // the handle
+    const tilt = st === 'on' ? 0.66 : -0.66, jolt = kick > 0 ? Math.sin(kick * 14) * 0.14 * kick : 0;
+    const a = (st === 'broken' ? -0.25 : tilt) + jolt, len = st === 'broken' ? 3.6 : 10.5, hx = cx + Math.sin(a) * len, hy = baseY - Math.cos(a) * len;
+    const rod = (x0, y0, x1, y1) => { ctx.lineCap = 'round'; ctx.strokeStyle = ink; ctx.lineWidth = 4.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.strokeStyle = BRONZE; ctx.lineWidth = 2.1; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1; ctx.strokeStyle = Paint.rgba(BRONZE_HI, 0.75); ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(x0 + dy / d * 0.7, y0 - dx / d * 0.7); ctx.lineTo(x1 + dy / d * 0.7, y1 - dx / d * 0.7); ctx.stroke(); };
+    rod(cx, baseY, hx, hy);
+    if (st !== 'broken') Paint.blob(ctx, hx, hy, 2.7, 2.7, { fill: BRONZE, light: BRONZE_HI, shade: BRONZE_LO, ink, w: 1.6, n: 10 });
+    else { // the jagged stub, and the handle lying beside the base
+      ctx.fillStyle = ink; ctx.beginPath(); ctx.moveTo(hx - 2.2, hy + 0.8); ctx.lineTo(hx - 0.6, hy - 2.2); ctx.lineTo(hx + 0.6, hy - 0.4); ctx.lineTo(hx + 2, hy - 2.4); ctx.lineTo(hx + 2.4, hy + 1); ctx.closePath(); ctx.fill();
+      const lx0 = x + w + 1.5, ly = y + h - 1.8; rod(lx0, ly, lx0 + 8.5, ly - 1.2);
+      Paint.blob(ctx, lx0 + 10, ly - 1.6, 2.5, 2.5, { fill: BRONZE, light: BRONZE_HI, shade: BRONZE_LO, ink, w: 1.6, n: 10 });
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(lx0 + 5, y + h + 0.4, 7, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    Paint.blob(ctx, cx, baseY, 2.4, 2.1, prBrass({ ink, w: 1.4, n: 8 })); // the pivot boss over the handle's root
+    if (kick > 0) { // the spark
+      Paint.glow(ctx, cx, baseY - 1, 9, '#ffd27a', 0.6 * kick);
+      ctx.strokeStyle = `rgba(255,238,190,${kick})`; ctx.lineWidth = 1.2; ctx.lineCap = 'round'; ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const sa = i / 6 * Math.PI * 2 + 0.4, r0 = 2.5 + (1 - kick) * 5, r1 = r0 + 2 + kick * 2.5; ctx.moveTo(cx + Math.cos(sa) * r0, baseY - 1 + Math.sin(sa) * r0); ctx.lineTo(cx + Math.cos(sa) * r1, baseY - 1 + Math.sin(sa) * r1); }
+      ctx.stroke(); ctx.fillStyle = '#fff8e8'; ctx.fillRect(cx - 1, baseY - 2, 2, 2);
+    }
+    ctx.restore();
+  },
+
+  // The grate of a sluice, inside the stone frame tiles.js paints on the 'q' tile. Closed: a bronze grate holding water
+  // back; open: the grate rotted to stubs round a rusted hole, water falling out of it while the drain (0..1) runs.
+  drawSluice(ctx, e, t) {
+    const ink = prInk(), ox = e.x + 3, oy = e.y + 3, ow = 10, drain = prClamp(e.drain || 0, 0, 1);
+    ctx.save();
+    if (!e.open) {
+      ctx.fillStyle = 'rgba(40,120,130,0.4)'; ctx.fillRect(ox + 1, oy + 1, ow - 2, ow - 2); // water held behind the bars
+      ctx.fillStyle = 'rgba(200,245,240,0.35)'; ctx.fillRect(ox + 1, oy + 1.5 + Math.sin(t * 1.3) * 0.6, ow - 2, 1);
+      for (const by of [oy + 2.6, oy + 6.6]) { ctx.fillStyle = ink; ctx.fillRect(ox, by - 0.8, ow, 2.6); ctx.fillStyle = BRONZE; ctx.fillRect(ox, by, ow, 1.3); ctx.fillStyle = Paint.rgba(BRONZE_HI, 0.8); ctx.fillRect(ox, by, ow, 0.5); }
+      for (const bx of [ox + 1.8, ox + 5, ox + 8.2]) { ctx.fillStyle = ink; ctx.fillRect(bx - 1.3, oy, 2.6, ow); ctx.fillStyle = BRONZE; ctx.fillRect(bx - 0.7, oy, 1.4, ow); ctx.fillStyle = Paint.rgba(BRONZE_HI, 0.8); ctx.fillRect(bx - 0.7, oy, 0.5, ow); }
+      ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.strokeRect(ox + 0.4, oy + 0.4, ow - 0.8, ow - 0.8);
+      ctx.strokeStyle = BRONZE_LO; ctx.lineWidth = 0.8; ctx.strokeRect(ox + 1.2, oy + 1.2, ow - 2.4, ow - 2.4);
+      ctx.fillStyle = BRONZE_HI; for (const [rx, ry] of [[ox + 1, oy + 1], [ox + ow - 2, oy + 1], [ox + 1, oy + ow - 2], [ox + ow - 2, oy + ow - 2]]) ctx.fillRect(rx, ry, 1, 1);
+      // a seep at the sill
+      ctx.fillStyle = 'rgba(180,235,230,0.5)'; ctx.fillRect(ox + 3 + Math.sin(t * 0.7) * 1.5, oy + ow, 1, 2 + Math.sin(t * 2.1) * 0.8);
+    } else {
+      ctx.fillStyle = '#04070a'; ctx.fillRect(ox, oy, ow, ow);
+      ctx.fillStyle = 'rgba(150,80,40,0.65)'; ctx.fillRect(ox, oy, ow, 1.6); ctx.fillRect(ox, oy, 1.6, ow); ctx.fillRect(ox + ow - 2.5, oy + 4, 2.5, 6); // rust round the hole
+      ctx.fillStyle = RUST_BLOOM; ctx.fillRect(ox - 1, oy + ow, ow + 2, 2.2);
+      // stubs of the rotted bars
+      const stub = (x0, y0, x1, y1) => { ctx.lineCap = 'butt'; ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.strokeStyle = BRONZE_LO; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.fillStyle = 'rgba(180,100,50,0.9)'; ctx.fillRect(x1 - 0.8, y1 - 0.8, 1.6, 1.6); };
+      stub(ox + 1.8, oy, ox + 1.8, oy + 3.2); stub(ox + 8.2, oy, ox + 8.2, oy + 2.2); stub(ox + 5, oy + ow, ox + 5, oy + ow - 2.6); stub(ox, oy + 6.6, ox + 3, oy + 6.6);
+      // water falling out of it: strands while the drain still runs, drips after
+      const flow = 1 - drain;
+      if (flow > 0.05) { for (let i = 0; i < 3; i++) { const sx = ox + 2.5 + i * 2.6 + Math.sin(t * 3 + i) * 0.4, L = 10 + flow * 22 + Ink.n(i, 79) * 6; ctx.fillStyle = `rgba(150,215,215,${0.22 + 0.4 * flow})`; ctx.fillRect(sx - 0.6, oy + 3, 1.2, ow - 3 + L); ctx.fillStyle = `rgba(230,250,248,${0.4 * flow})`; ctx.fillRect(sx - 0.2, oy + 3, 0.5, ow - 3 + L); } }
+      for (let i = 0; i < 3; i++) { const ph = (t * (1.1 + i * 0.3) + i * 0.37) % 1; ctx.fillStyle = 'rgba(190,240,236,0.85)'; ctx.fillRect(ox + 2 + i * 3 - 0.7, oy + ow + ph * ph * 24, 1.4, 2.2); }
+      // the wet shine on the sill
+      ctx.fillStyle = 'rgba(200,245,240,0.45)'; ctx.fillRect(ox - 1, oy + ow - 0.5, ow + 2, 1);
+    }
     ctx.restore();
   },
 

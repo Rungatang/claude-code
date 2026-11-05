@@ -81,6 +81,9 @@ const CAST = pose({ hipA: 0.45, kneeA: 0.3, footA: 0, hipB: -0.5, kneeB: 0.18, f
 // sitting at a bench: knees up, arms wrapped over them, head hanging
 const REST = pose({ hipA: 2.25, kneeA: 1.85, footA: 0.3, hipB: 2.05, kneeB: 1.7, footB: 0.3, shA: 1.45, elA: 1.3, shB: 1.3, elB: 1.3, torso: 0.18, headTilt: 0.2, headDy: 0.45, headDx: 0.3, hem: -2.0, lift: 0.3, brow: 0.3, sxk: 1 });
 // focusing: a low crouch, both hands cupped over the glass
+// Wall cling (pl.clinging): body pressed to the wall it faces, legs bent with the feet on it, the near hand flat on the
+// stone, the far arm hanging; the cloak hangs straight down (no lift), the head looks up the wall.
+const CLING = pose({ hipA: 0.95, kneeA: 1.7, footA: 0.5, hipB: 0.55, kneeB: 1.45, footB: 0.45, shA: 2.1, elA: 0.35, shB: 0.25, elB: 0.2, torso: 0.3, headTilt: -0.3, headDy: 0.2, headDx: 0.3, rot: 0.08, hem: -1.2, lift: 0, brow: -0.3 });
 const FOCUS = pose({ hipA: 0.55, kneeA: 0.8, footA: 0, hipB: -0.45, kneeB: 0.7, footB: 0, shA: 0.95, elA: -2.4, shB: 0.75, elB: -2.2, torso: 0.2, headTilt: 0.34, headDy: 0.4, brow: 0.2 });
 // Strikes: wind-up, hit and rest poses (hit/rest shoulder angles continue the
 // wind angle without wrapping), blade length, and the crescent drawn from
@@ -145,6 +148,7 @@ function buildPose(anim, t, pl, ghost) {
   const br = 0.5 + 0.5 * Math.sin(t * 2.1);
   let p;
   if (pl.hurtT > 0 && !ghost) anim = 'hurt';
+  else if (pl.clinging && !onG && !ghost) anim = 'cling';
   switch (anim) {
     case 'run': p = runPose(pl.runPhase === undefined ? t * 13 : pl.runPhase, Math.max(0.35, Math.min(1, Math.abs(vx) / 175))); break;
     case 'jump': p = blend(JUMP_APEX, JUMP_OFF, Math.pow(cl01(-vy / 430), 0.8)); break;
@@ -153,6 +157,7 @@ function buildPose(anim, t, pl, ghost) {
     case 'skid': p = Object.assign({}, SKID); break;
     case 'land': p = blend(LAND, pose({ breath: br }), sm(landT / 0.2)); break;
     case 'hurt': p = Object.assign({}, HURT); break;
+    case 'cling': { p = Object.assign({}, CLING); p.breath = br; p.torso += br * 0.02; p.hem += Math.sin(t * 5) * 0.25 + cl01(vy / 300) * 0.8; break; }
     case 'rest': { p = Object.assign({}, REST); p.breath = br; p.headDy += br * 0.25; p.torso += br * 0.015; break; }
     default: {
       const sway = Math.sin(t * 0.9);
@@ -379,8 +384,17 @@ Object.assign(Art, {
     ctx.save();
     if (pl.invuln > 0 && pl.dashT <= 0 && pl.hurtT <= 0 && Math.floor(t * 20) % 2 === 0) ctx.globalAlpha = 0.45;
     if (pl.frozen > 0) ctx.globalAlpha = 0.7;
-    this.drawTamBody(ctx, cx, by, pl.facing, pl.anim, t, pl, false);
+    const wallDir = pl.clinging ? (typeof pl.clinging === 'number' ? (Math.sign(pl.clinging) || pl.facing) : (/^(l|left|-1)$/i.test(String(pl.clinging)) ? -1 : /^(r|right|1)$/i.test(String(pl.clinging)) ? 1 : pl.facing)) : 0;
+    this.drawTamBody(ctx, cx, by, wallDir && !pl.onGround ? wallDir : pl.facing, pl.anim, t, pl, false);
     ctx.restore();
+    // wall cling: grit scraped off the stone under the feet
+    if (wallDir && !pl.onGround && !pl.dead) {
+      const f = fr(t), wx = cx + wallDir * (pl.w / 2 + 0.5);
+      ctx.fillStyle = 'rgba(190,186,200,0.55)';
+      for (let i = 0; i < 3; i++) { const ph = (t * (1.6 + i * 0.5) + Ink.n(i, 93)) % 1; ctx.globalAlpha = 1 - ph; ctx.fillRect(wx - wallDir * (1 + ph * 4) - 0.8, by - 2 + ph * 7, 1.6, 1.6); }
+      ctx.globalAlpha = 1;
+      if (typeof Game !== 'undefined' && Game.particle && Ink.n(f, 94) < 0.35) Game.particle(wx, by - 1, -wallDir * (8 + Ink.n(f, 95) * 12), -6 - Ink.n(f, 96) * 14, 0.25 + Ink.n(f, 97) * 0.25, '#9a9aa8', 1.5);
+    }
     // focus: a glyph ring tightens about the glass while the hour is wound back in
     if (pl.focusing && pl.healT > 0) {
       const k = cl01(pl.healT / 0.95), gy = by - 11;

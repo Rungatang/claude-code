@@ -46,8 +46,10 @@ Object.assign(Art, {
     // but as AIR for the contour loops: every island, including the border frame, must close into a
     // loop or the evenodd fill inverts in a fully enclosed room.
     const at = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? '#' : tiles[y][x];
-    const solidCh = (ch) => ch === '#' || ch === 'C' || ch === 'L';
+    const solidCh = (ch) => ch === '#' || ch === 'C' || ch === 'L' || ch === 'f'; // 'f' (weak floor) is rock that will give; 'y' (thorns) is a fixture, not mass
     const solid = (x, y) => solidCh(at(x, y));
+    const vineAt = (x, y) => !!(world.vineAt && world.vineAt(x, y));
+    const hingeAt = (x, y) => !!(world.hingeDoor && world.hingeDoor(x, y));
     const solidIn = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? false : solidCh(tiles[y][x]);
     const zs = world.zoneId.length * 97 + world.zoneId.charCodeAt(0) * 13 + world.zoneId.charCodeAt(world.zoneId.length - 1);
     const rng = mulberry32(zs);
@@ -73,7 +75,7 @@ Object.assign(Art, {
     // inward along slow profiles and rounded at convex corners. The loops become ONE path: the painted mass is
     // clipped to it, the ink is stroked along it. Erosion only ever removes rock, so the grid stays the collision.
     const eT0 = Math.max(1.2, st.erode[0]), eS0 = Math.max(1.2, st.erode[1]);
-    const ef = (x, y) => at(x, y) === '#' ? 1 : 0.25; // cracked and locked blocks keep flat, built faces
+    const ef = (x, y) => { const ch = at(x, y); return ch === '#' ? 1 : ch === 'f' ? 1.6 : 0.25; }; // cracked and locked blocks keep flat, built faces; weak floors are worn thinner
     const wob = (u, a) => 0.3 + 0.7 * (0.5 + 0.3 * Math.sin(u * 0.19 + a) + 0.2 * Math.sin(u * 0.051 + a * 1.7));
     const topE = (px, tx, ty) => Math.max(1.0, eT0 * ef(tx, ty) * wob(px, n(ty * 13, 1) * 6.283));
     const botE = (px, tx, ty) => { const per = 30 + n(ty * 7, 2) * 26, sag = 0.5 + 0.5 * Math.cos(px * 6.283 / per + n(ty * 7, 3) * 6.283); return Math.max(1.0, eS0 * ef(tx, ty) * (0.35 + 0.65 * sag) * (0.55 + 0.45 * wob(px, n(ty * 13, 3) * 6.283))); };
@@ -146,6 +148,8 @@ Object.assign(Art, {
     // ---- 2. the painted mass, clipped to the contour
     ctx.save(); ctx.clip(shape, 'evenodd');
     ctx.fillStyle = rockFill; ctx.fillRect(0, 0, W, H);
+    // weak floors sit a shade lighter than the mass around them (they are thinner stone, more light gets in)
+    ctx.fillStyle = lt(0.09); for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) if (at(x, y) === 'f') ctx.fillRect(x * T - 1, y * T - 1, T + 2, T + 2);
     // broad tonal drift so a big mass never reads as one flat slab
     const nb = Math.ceil(ZW * ZH / 110);
     for (let i = 0; i < nb; i++) {
@@ -352,11 +356,26 @@ Object.assign(Art, {
     }
 
     // ---- 8. fixtures: platforms, spikes, cracks, locks, rubble, door frames, loose stones
-    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (at(x, y) !== '=') { x++; continue; } let x1 = x; while (x1 + 1 < ZW && at(x1 + 1, y) === '=') x1++; this._tilePlatform(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, st, p); x = x1 + 1; } }
+    const plank = (x, y) => at(x, y) === '=' && !vineAt(x, y);
+    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (!plank(x, y)) { x++; continue; } let x1 = x; while (x1 + 1 < ZW && plank(x1 + 1, y)) x1++; this._tilePlatform(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, st, p); x = x1 + 1; } }
+    // weak floors: one fissure per run; thread bridges: one span per run; thread curtains: one fall per column
+    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (at(x, y) !== 'f') { x++; continue; } let x1 = x; while (x1 + 1 < ZW && at(x1 + 1, y) === 'f') x1++; this._tileWeakFloor(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, p, at(x, y - 1) === '.'); x = x1 + 1; } }
+    const threadV = (x, y) => at(x, y) === 'b' && (at(x, y - 1) === 'b' || at(x, y + 1) === 'b');
+    const threadH = (x, y) => at(x, y) === 'b' && !threadV(x, y);
+    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (!threadH(x, y)) { x++; continue; } let x1 = x; while (x1 + 1 < ZW && threadH(x1 + 1, y)) x1++; this._tileThreadBridge(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, p, solidIn(x - 1, y), solidIn(x1 + 1, y)); x = x1 + 1; } }
+    for (let x = 0; x < ZW; x++) { let y = 0; while (y < ZH) { if (!threadV(x, y)) { y++; continue; } let y1 = y; while (y1 + 1 < ZH && threadV(x, y1 + 1)) y1++; this._tileThreadCurtain(ctx, x * T, y * T, (y1 - y + 1) * T, x * 131 + y * 17, n, p); y = y1 + 1; } }
     const seenL = new Set();
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       const ch = at(x, y), X = x * T, Y = y * T, s = x * 131 + y * 17;
       if (ch === '^') this._tileSpikes(ctx, X, Y, s, n, p);
+      else if (ch === 's') this._tileSeed(ctx, X, Y, s, n, p);
+      else if (ch === 'q' || (ch === '.' && world.orig && world.orig(x, y) === 'q')) this._tileSluiceFrame(ctx, X, Y, p); // the frame stays once the grate has rotted ('q' -> '.')
+      else if (ch === '=' && vineAt(x, y)) this._tileVineRung(ctx, X, Y, s, n, p, at(x, y - 1) === '=' && vineAt(x, y - 1), (at(x, y + 1) === '=' && vineAt(x, y + 1)) || at(x, y + 1) === 's');
+      else if (ch === 'y' && !seenL.has('y' + x + ',' + y)) {
+        const group = []; const stack = [[x, y]];
+        while (stack.length) { const [gx, gy] = stack.pop(); const kk = 'y' + gx + ',' + gy; if (seenL.has(kk) || at(gx, gy) !== 'y') continue; seenL.add(kk); group.push([gx, gy]); stack.push([gx + 1, gy], [gx - 1, gy], [gx, gy + 1], [gx, gy - 1]); }
+        this._tileThorns(ctx, group, at, n, p);
+      }
       else if (ch === 'C' && !seenL.has('C' + x + ',' + y)) {
         const group = []; const stack = [[x, y]];
         while (stack.length) { const [gx, gy] = stack.pop(); const kk = 'C' + gx + ',' + gy; if (seenL.has(kk) || at(gx, gy) !== 'C') continue; seenL.add(kk); group.push([gx, gy]); stack.push([gx + 1, gy], [gx - 1, gy], [gx, gy + 1], [gx, gy - 1]); }
@@ -366,7 +385,9 @@ Object.assign(Art, {
       else if (ch === 'L' && !seenL.has(x + ',' + y)) {
         const group = []; const stack = [[x, y]];
         while (stack.length) { const [gx, gy] = stack.pop(); const kk = gx + ',' + gy; if (seenL.has(kk) || at(gx, gy) !== 'L') continue; seenL.add(kk); group.push([gx, gy]); stack.push([gx + 1, gy], [gx - 1, gy], [gx, gy + 1], [gx, gy - 1]); }
-        this._tileLock(ctx, group, at, n, p);
+        let gx0 = 1e9, gx1 = -1e9, gy0 = 1e9, gy1 = -1e9; for (const [gx, gy] of group) { gx0 = Math.min(gx0, gx); gx1 = Math.max(gx1, gx); gy0 = Math.min(gy0, gy); gy1 = Math.max(gy1, gy); }
+        if (gx0 === gx1 && gy1 > gy0 && group.every(([gx, gy]) => hingeAt(gx, gy))) this._tileHingeDoor(ctx, gx0 * T, gy0 * T, (gy1 - gy0 + 1) * T, s, n, p);
+        else this._tileLock(ctx, group, at, n, p);
       } else if (ch === 'd' || ch === 'e' || ch === 'G' || ch === 'D') {
         // stone jambs and a lintel housing; the moving bars are drawn per frame
         ctx.fillStyle = rockDk; ctx.fillRect(X, Y, 3, T); ctx.fillRect(X + T - 3, Y, 3, T);
@@ -394,7 +415,7 @@ Object.assign(Art, {
     if (this._growKey === key && this._grow) return this._grow;
     const region = world.room.region, st = TILE_STYLES[region] || TILE_STYLES.shore, T = TILE, ZW = world.zone.W, ZH = world.zone.H, tiles = world.tiles;
     const at = (x, y) => (x < 0 || y < 0 || x >= ZW || y >= ZH) ? '#' : tiles[y][x];
-    const solidCh = (ch) => ch === '#' || ch === 'C' || ch === 'L';
+    const solidCh = (ch) => ch === '#' || ch === 'C' || ch === 'L' || ch === 'f' || ch === 'y';
     const zs = world.zoneId.length * 97 + world.zoneId.charCodeAt(0) * 13 + world.zoneId.charCodeAt(world.zoneId.length - 1);
     const n = (i, k) => Ink.n(i + zs, k);
     const items = [];
@@ -735,6 +756,175 @@ Object.assign(Art, {
     }
     for (let k = 0; k < 3; k++) { ctx.fillStyle = `rgba(122,240,208,${0.25 + n(s, 40 + k) * 0.35})`; ctx.fillRect(X + 1 + n(s, 30 + k) * 14, Y + 1 + n(s, 34 + k) * 13, 1, 1); }
   },
+  // ---- the new letters: weak floors, thorn walls, vine seeds and rungs, thread bridges and curtains, sluice frames, hinge doors ----
+  _tileWeakFloor(ctx, X, Y, L, s, n, p, exposed) {
+    // a floor that will give: one hairline fissure wandering the length of the run, side cracks forking off it,
+    // chips lifted along the top. The shake is NOT here: drawDynamicTiles redraws a shaking tile over itself, offset.
+    const ink2C = p.ink2 || p.ink, ink = (a) => TILE_RGBA(ink2C, a), lt = (a) => TILE_RGBA(p.light || p.rim, a);
+    const steps = Math.max(4, Math.round(L / 5)), pts = [];
+    for (let k = 0; k <= steps; k++) { const u = k / steps; pts.push([X + 1 + u * (L - 2), Y + 9.5 + Math.sin(u * 7 + n(s, 1) * 6) * 1.8 + (n(s, 10 + k) - 0.5) * 1.4]); }
+    Ink.line(ctx, pts.map(([x, y]) => [x, y + 1.1]), { w: 1.2, color: lt(0.16), jit: 0, t: 0 }); // the lit lower lip of the fissure
+    Ink.line(ctx, pts, { w: 1.4, color: ink(0.95), jit: 0, t: 0 });
+    // side cracks: up toward the surface or down into what is left of the stone
+    for (let k = 2; k < pts.length - 2; k += 2) {
+      if (n(s, 30 + k) < 0.5) continue;
+      const [x, y] = pts[k], up = n(s, 40 + k) < 0.55, len = 2.5 + n(s, 50 + k) * 3, dx = (n(s, 60 + k) - 0.5) * 4;
+      Ink.line(ctx, [[x, y], [x + dx * 0.5, y + (up ? -len * 0.5 : len * 0.5)], [x + dx, y + (up ? -len : len)]], { w: 0.9, color: ink(0.8), jit: 0, t: 0 });
+    }
+    // chips lifted on the top (only where the top is a floor)
+    if (exposed) for (let k = 0; k < L / 11; k++) { const cx = X + 3 + n(s, 70 + k) * (L - 7); ctx.fillStyle = ink(0.55); ctx.fillRect(cx, Y + 5.4, 3, 1); ctx.fillStyle = lt(0.28); ctx.fillRect(cx, Y + 4.6, 3, 0.9); }
+    // the run's ends: a dark break line where the weak stone meets sound rock
+    ctx.fillStyle = ink(0.5); ctx.fillRect(X + 0.5, Y + 4, 1, TILE - 6); ctx.fillRect(X + L - 1.5, Y + 4, 1, TILE - 6);
+  },
+  _tileThorns(ctx, group, at, n, p) {
+    // a thorn wall: a dark tangle of outlined vines filling the block, pale thorn tips, clipped to the block
+    const T = TILE; let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    const clip = new Path2D();
+    for (const [gx, gy] of group) { clip.rect(gx * T, gy * T, T, T); minx = Math.min(minx, gx); maxx = Math.max(maxx, gx); miny = Math.min(miny, gy); maxy = Math.max(maxy, gy); }
+    const s = minx * 131 + miny * 17, X0 = minx * T, Y0 = miny * T, BW = (maxx - minx + 1) * T, BH = (maxy - miny + 1) * T;
+    const ink2C = p.ink2 || p.ink, vine = TILE_MIX(p.rockDark, p.moss, 0.4), vineLt = TILE_MIX(p.rock, p.moss, 0.55), tip = TILE_MIX(p.light || p.rim, '#ffffff', 0.4);
+    ctx.save(); ctx.clip(clip);
+    ctx.fillStyle = TILE_RGBA(ink2C, 0.88); ctx.fillRect(X0, Y0, BW, BH);
+    ctx.fillStyle = TILE_RGBA(p.moss, 0.1); ctx.fillRect(X0, Y0, BW, BH);
+    const cnt = Math.ceil(group.length * 1.3) + 2, vines = [];
+    for (let i = 0; i < cnt; i++) {
+      const horiz = BW === BH ? n(s, 100 + i) < 0.5 : (BW > BH ? n(s, 100 + i) < 0.75 : n(s, 100 + i) < 0.25);
+      const span = (horiz ? BW : BH) + 14, steps = 7, pts = [];
+      let px = horiz ? X0 - 7 : X0 - 3 + n(s, 110 + i) * (BW + 6), py = horiz ? Y0 - 3 + n(s, 120 + i) * (BH + 6) : Y0 - 7;
+      let ang = (horiz ? 0 : Math.PI / 2) + (n(s, 130 + i) - 0.5) * 0.7;
+      for (let k = 0; k <= steps; k++) { pts.push([px, py]); ang += (n(s, 150 + i * 9 + k) - 0.5) * 1.0; px += Math.cos(ang) * span / steps; py += Math.sin(ang) * span / steps; }
+      vines.push({ pts, w: 3 + n(s, 160 + i) * 2, i });
+    }
+    vines.forEach((v, idx) => {
+      const back = idx < cnt * 0.45;
+      Ink.line(ctx, v.pts, { w: v.w + 2.6, color: ink2C, jit: 0, t: 0 });
+      Ink.line(ctx, v.pts, { w: v.w, color: back ? Paint.mix(vine, ink2C, 0.45) : vine, jit: 0, t: 0 });
+      if (back) return;
+      Ink.line(ctx, v.pts.map(([x, y]) => [x, y - v.w * 0.28]), { w: 0.8, color: Paint.rgba(vineLt, 0.55), jit: 0, t: 0 });
+      // thorns: short pale spikes off the cord, outlined
+      for (let k = 1; k < v.pts.length - 1; k++) {
+        if (n(s, 200 + v.i * 9 + k) < 0.2) continue;
+        const [x, y] = v.pts[k], [x2, y2] = v.pts[k + 1], dx = x2 - x, dy = y2 - y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+        const side = n(s, 300 + v.i * 9 + k) < 0.5 ? 1 : -1, nx = -uy * side, ny = ux * side, bx = x + dx * 0.4, by = y + dy * 0.4, tl = 5.5 + n(s, 400 + v.i * 9 + k) * 2.5;
+        // a curved spike: wide where it leaves the cord (so it reads under its own outline), tapering to a point swept along the vine
+        ctx.fillStyle = tip; ctx.strokeStyle = ink2C; ctx.lineWidth = 1.2; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(bx - ux * 1.8, by - uy * 1.8); ctx.quadraticCurveTo(bx + nx * tl * 0.5 - ux * 0.6, by + ny * tl * 0.5 - uy * 0.6, bx + nx * tl + ux * 1.8, by + ny * tl + uy * 1.8); ctx.quadraticCurveTo(bx + nx * tl * 0.45 + ux * 1.5, by + ny * tl * 0.45 + uy * 1.5, bx + ux * 1.8, by + uy * 1.8); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(bx + nx * tl * 0.35 - 0.5, by + ny * tl * 0.35 - 0.5, 1, 1);
+      }
+    });
+    ctx.restore();
+    // the block's outline where it meets anything that is not thorn
+    ctx.fillStyle = ink2C;
+    for (const [gx, gy] of group) {
+      const X = gx * T, Y = gy * T;
+      if (at(gx, gy - 1) !== 'y') ctx.fillRect(X, Y, T, 2.4); if (at(gx, gy + 1) !== 'y') ctx.fillRect(X, Y + T - 2.4, T, 2.4);
+      if (at(gx - 1, gy) !== 'y') ctx.fillRect(X, Y, 2.4, T); if (at(gx + 1, gy) !== 'y') ctx.fillRect(X + T - 2.4, Y, 2.4, T);
+    }
+  },
+  _tileSeed(ctx, X, Y, s, n, p) {
+    // a vine seed: a pale pod sitting on the floor of its tile, a curl of root biting into the stone, a sprout
+    const T = TILE, ink2C = p.ink2 || p.ink, pale = TILE_MIX(p.light || p.rim, '#ffffff', 0.3), cx = X + 8, gy = Y + T, acc = (a) => TILE_RGBA(p.accent, a);
+    ctx.fillStyle = TILE_RGBA(ink2C, 0.35); ctx.beginPath(); ctx.ellipse(cx, gy - 0.3, 5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+    // roots: two curls, outlined
+    const root = TILE_MIX(p.rockDark, p.moss, 0.5);
+    for (const pass of [[ink2C, 3.4], [root, 1.5]]) {
+      ctx.strokeStyle = pass[0]; ctx.lineWidth = pass[1]; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx - 1.2, gy - 2.5); ctx.quadraticCurveTo(cx - 5.5, gy - 3.5, cx - 6, gy + 0.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 1.2, gy - 2.5); ctx.quadraticCurveTo(cx + 4.5, gy - 1.5, cx + 5.5, gy + 1); ctx.stroke();
+    }
+    // the pod
+    Paint.shape(ctx, [[cx, gy - 10.8], [cx + 3.4, gy - 7.6], [cx + 3.8, gy - 3.6], [cx, gy - 1.2], [cx - 3.8, gy - 3.6], [cx - 3.4, gy - 7.6]], { fill: pale, light: '#ffffff', shade: Paint.mix(pale, p.moss, 0.5), ink: ink2C, w: 2 });
+    ctx.strokeStyle = TILE_RGBA(p.moss, 0.75); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx + 0.2, gy - 9); ctx.quadraticCurveTo(cx + 1.4, gy - 6, cx + 0.2, gy - 2.4); ctx.stroke();
+    // the sprout curling out of the top
+    for (const pass of [[ink2C, 3.2], [p.moss, 1.3]]) { ctx.strokeStyle = pass[0]; ctx.lineWidth = pass[1]; ctx.beginPath(); ctx.moveTo(cx, gy - 10.5); ctx.quadraticCurveTo(cx - 1.5, gy - 14, cx + 2.6, gy - 14.2); ctx.stroke(); }
+    ctx.fillStyle = acc(0.85); ctx.fillRect(cx + 2.2, gy - 14.9, 1.4, 1.4);
+  },
+  _tileVineRung(ctx, X, Y, s, n, p, above, below) {
+    // one rung of a grown vine ladder (an '=' the engine marks as vine): the stem runs the height of the tile and
+    // joins its neighbours, a pair of broad leaves spreads at the standing edge, a tendril curls off the stem
+    const T = TILE, ink2C = p.ink2 || p.ink, stem = TILE_MIX(p.rockDark, p.moss, 0.6), stemLt = TILE_MIX(p.moss, p.light || p.rim, 0.3), leaf = p.moss, cx = X + 8;
+    const y0 = above ? Y - 2 : Y + 1.5, y1 = below ? Y + T + 2 : Y + T - 2, ph = n(s, 1) * 6, pts = [];
+    for (let yy = y0; yy < y1 + 2; yy += 3) { const y = Math.min(yy, y1); pts.push([cx + Math.sin(y * 0.3 + ph) * 1.1, y]); if (y === y1) break; }
+    Ink.line(ctx, pts, { w: 5.4, color: ink2C, jit: 0, t: 0 });
+    Ink.line(ctx, pts, { w: 2.8, color: stem, jit: 0, t: 0 });
+    Ink.line(ctx, pts.map(([x, y]) => [x - 0.7, y]), { w: 0.8, color: Paint.rgba(stemLt, 0.55), jit: 0, t: 0 });
+    // the tendril
+    const td = n(s, 2) < 0.5 ? 1 : -1, ty = Y + 9 + n(s, 3) * 3;
+    for (const pass of [[ink2C, 2.8], [stem, 1.1]]) { ctx.strokeStyle = pass[0]; ctx.lineWidth = pass[1]; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(cx + td, ty); ctx.quadraticCurveTo(cx + td * 4.5, ty - 1, cx + td * 4.2, ty + 2.6); ctx.stroke(); }
+    // the leaves: the platform you stand on
+    for (const d of [-1, 1]) {
+      const lx = cx + d * 5.2, ly = Y + 2.4 + (d > 0 ? 0 : 0.5);
+      Paint.blob(ctx, lx, ly, 4.8, 2.0, { fill: leaf, light: TILE_MIX(leaf, p.light || p.rim, 0.45), shade: TILE_MIX(leaf, ink2C, 0.45), ink: ink2C, w: 1.8, n: 10, rot: d * -0.1 });
+      ctx.strokeStyle = Paint.rgba(stemLt, 0.55); ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(cx + d * 1.5, ly + 0.2); ctx.lineTo(lx + d * 3.4, ly - 0.4); ctx.stroke();
+    }
+    if (n(s, 5) < 0.5) { ctx.fillStyle = TILE_RGBA(p.accent, 0.85); ctx.fillRect(cx + td * 4.2 - 0.7, ty + 2.2, 1.4, 1.4); } // a bud at the tendril's tip
+  },
+  _tileThreadBridge(ctx, X, Y, L, s, n, p, lf, rt) {
+    // a bridge of taut pale gold thread: a doubled span with a slight sag, lashed with knots, a hairline highlight
+    const ink2C = p.ink2 || p.ink, gold = THREAD_GOLD, hi = THREAD_GOLD_HI;
+    const sag = Math.min(3, 0.6 + L * 0.03), yAt = (u) => Y + 2.6 + Math.sin(u * Math.PI) * sag;
+    const pts = []; for (let k = 0; k <= 16; k++) pts.push([X + L * k / 16, yAt(k / 16)]);
+    const pts2 = pts.map(([x, y], i) => [x, y + 2.4 + Math.sin(i / 16 * Math.PI) * 1.6]);
+    Ink.line(ctx, pts, { w: 7, color: TILE_RGBA(gold, 0.1), jit: 0, t: 0 }); // the thread's own faint light
+    Ink.line(ctx, pts2, { w: 2.6, color: ink2C, jit: 0, t: 0 }); Ink.line(ctx, pts2, { w: 1, color: TILE_MIX(gold, p.rock, 0.35), jit: 0, t: 0 }); // the slack under-strand
+    // the lashings between the strands
+    ctx.strokeStyle = TILE_RGBA(gold, 0.7); ctx.lineWidth = 0.8; ctx.beginPath();
+    for (let bx = X + 4; bx < X + L - 3; bx += 5.5) { const u = (bx - X) / L; ctx.moveTo(bx, yAt(u)); ctx.lineTo(bx + 1.5, yAt(u) + 2.4 + Math.sin(u * Math.PI) * 1.6); } ctx.stroke();
+    Ink.line(ctx, pts, { w: 3.6, color: ink2C, jit: 0, t: 0 }); Ink.line(ctx, pts, { w: 1.7, color: gold, jit: 0, t: 0 });
+    Ink.line(ctx, pts.map(([x, y]) => [x, y - 0.55]), { w: 0.7, color: hi, jit: 0, t: 0 }); // 1 px highlight
+    // knots along the span, and the anchors biting into whatever holds the ends
+    for (let bx = X + 8 + n(s, 1) * 5; bx < X + L - 5; bx += 12 + n(s, Math.floor(bx)) * 7) Paint.blob(ctx, bx, yAt((bx - X) / L) + 0.3, 1.9, 1.6, { fill: gold, light: hi, shade: THREAD_GOLD_LO, ink: ink2C, w: 1.2, n: 8 });
+    for (const [ex, has] of [[X + 1, lf], [X + L - 1, rt]]) Paint.blob(ctx, ex, Y + 2.6, has ? 2.6 : 2.2, has ? 2.3 : 1.9, { fill: gold, light: hi, shade: THREAD_GOLD_LO, ink: ink2C, w: 1.4, n: 8 });
+  },
+  _tileThreadCurtain(ctx, X, Y, h, s, n, p) {
+    // a curtain of hanging threads: the region's fog behind, a header the strands hang from, five 1 px strands, beads
+    const T = TILE, ink2C = p.ink2 || p.ink, gold = THREAD_GOLD, hi = THREAD_GOLD_HI, fogC = p.fogColor || p.rim;
+    const g = ctx.createLinearGradient(0, Y, 0, Y + h); g.addColorStop(0, TILE_RGBA(fogC, 0.5)); g.addColorStop(1, TILE_RGBA(fogC, 0.12)); ctx.fillStyle = g; ctx.fillRect(X, Y, T, h);
+    ctx.fillStyle = TILE_RGBA(gold, 0.06); ctx.fillRect(X + 1, Y, T - 2, h);
+    ctx.fillStyle = ink2C; ctx.fillRect(X - 1, Y, T + 2, 3); ctx.fillStyle = gold; ctx.fillRect(X, Y + 0.8, T, 1); ctx.fillStyle = hi; ctx.fillRect(X + 2, Y + 0.8, T - 4, 0.5);
+    for (let i = 0; i < 5; i++) {
+      const sx = X + 2.2 + i * 2.9 + n(s, 10 + i) * 1.2, len = h - 2 - n(s, 20 + i) * Math.min(12, h * 0.3), drift = (n(s, 30 + i) - 0.5) * 3;
+      const path = () => { ctx.beginPath(); ctx.moveTo(sx, Y + 2.5); ctx.quadraticCurveTo(sx + drift, Y + len * 0.6, sx + drift * 0.6, Y + len); };
+      ctx.lineCap = 'round'; ctx.strokeStyle = TILE_RGBA(ink2C, 0.75); ctx.lineWidth = 2.2; path(); ctx.stroke();
+      ctx.strokeStyle = i % 2 ? gold : TILE_MIX(gold, '#ffffff', 0.35); ctx.lineWidth = 1; path(); ctx.stroke();
+      if (n(s, 40 + i) < 0.55) { const u = 0.25 + n(s, 50 + i) * 0.65, by = Y + len * u, bxx = sx + drift * (2 * u * (1 - u) * 1 + u * u * 0.6); Paint.blob(ctx, bxx, by, 1.5, 1.7, { fill: gold, light: hi, shade: THREAD_GOLD_LO, ink: ink2C, w: 1.1, n: 8 }); }
+      ctx.fillStyle = TILE_RGBA(hi, 0.9); ctx.fillRect(sx + drift * 0.6 - 0.6, Y + len - 0.5, 1.2, 1.2); // the strand's end
+    }
+  },
+  _tileSluiceFrame(ctx, X, Y, p) {
+    // the stone housing of a sluice: a dressed frame round a dark opening (the grate inside is the entity's)
+    const T = TILE, ink2C = p.ink2 || p.ink, stone = TILE_MIX(p.rock, p.rim, 0.25), stoneLt = TILE_MIX(p.rock, p.light || p.rim, 0.5), stoneDk = TILE_MIX(p.rock, p.rockDark, 0.6);
+    ctx.fillStyle = ink2C; ctx.fillRect(X - 1, Y - 1, T + 2, T + 2);
+    ctx.fillStyle = stone; ctx.fillRect(X + 1.2, Y + 1.2, T - 2.4, T - 2.4);
+    ctx.fillStyle = stoneLt; ctx.fillRect(X + 1.2, Y + 1.2, T - 2.4, 1.2); ctx.fillRect(X + 1.2, Y + 1.2, 1.2, T - 2.4);
+    ctx.fillStyle = stoneDk; ctx.fillRect(X + 1.2, Y + T - 2.6, T - 2.4, 1.4); ctx.fillRect(X + T - 2.6, Y + 1.2, 1.4, T - 2.4);
+    ctx.fillStyle = TILE_RGBA(ink2C, 0.6); ctx.fillRect(X + 8, Y + 1, 1, 2.5); ctx.fillRect(X + 8, Y + T - 3.5, 1, 2.5); ctx.fillRect(X + 1, Y + 8, 2.5, 1); ctx.fillRect(X + T - 3.5, Y + 8, 2.5, 1); // joints
+    ctx.fillStyle = ink2C; ctx.fillRect(X + 2.6, Y + 2.6, T - 5.2, T - 5.2);
+    ctx.fillStyle = '#04070a'; ctx.fillRect(X + 4, Y + 4, T - 8, T - 8);
+  },
+  _tileHingeDoor(ctx, X, Y, h, s, n, p) {
+    // a tall rusted iron door the height of its run: one plate, two hinge straps on the left jamb, a bar across, a ring
+    const T = TILE, ink2C = p.ink2 || p.ink;
+    ctx.fillStyle = ink2C; ctx.fillRect(X - 1, Y - 1, T + 2, h + 2);
+    ctx.fillStyle = RUST_IRON; ctx.fillRect(X + 1.6, Y + 1.6, T - 3.2, h - 3.2);
+    ctx.fillStyle = TILE_RGBA(RUST_IRON_HI, 0.55); ctx.fillRect(X + 2, Y + 2, 1.2, h - 4); ctx.fillRect(X + 2, Y + 2, T - 4, 1.2);
+    ctx.fillStyle = TILE_RGBA(RUST_IRON_LO, 0.75); ctx.fillRect(X + T - 3.6, Y + 2, 1.6, h - 4); ctx.fillRect(X + 2, Y + h - 3.6, T - 4, 1.6);
+    ctx.fillStyle = TILE_RGBA(ink2C, 0.5); ctx.fillRect(X + 6.2, Y + 2, 1, h - 4); ctx.fillRect(X + 10.4, Y + 2, 1, h - 4); // plank seams
+    for (let k = 0; k < 3; k++) { ctx.fillStyle = RUST_BLOOM; ctx.fillRect(X + 3 + n(s, 10 + k) * 8, Y + 4 + n(s, 20 + k) * (h - 14), 2 + n(s, 30 + k) * 2, 5 + n(s, 40 + k) * 8); }
+    for (const hy of [Y + h * 0.18, Y + h * 0.82]) { // hinge straps with a knuckle on the jamb
+      ctx.fillStyle = ink2C; ctx.fillRect(X - 1, hy - 3.2, 12.5, 6.4);
+      ctx.fillStyle = '#2c2622'; ctx.fillRect(X - 0.5, hy - 2, 11, 4); ctx.fillStyle = TILE_RGBA(RUST_IRON_HI, 0.6); ctx.fillRect(X - 0.5, hy - 2, 11, 1);
+      ctx.fillStyle = ink2C; ctx.beginPath(); ctx.arc(X + 1, hy, 3.2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#3e3630'; ctx.beginPath(); ctx.arc(X + 1, hy, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = TILE_RGBA(RUST_IRON_HI, 0.7); ctx.fillRect(X + 0.2, hy - 1.4, 1, 1);
+      ctx.fillStyle = BRONZE_HI; ctx.fillRect(X + 7.5, hy - 0.8, 1.6, 1.6); ctx.fillStyle = RUST_BLOOM; ctx.fillRect(X + 7.8, hy + 2, 1.2, 4);
+    }
+    const by = Y + h * 0.5; // the bar across the middle, lying in two brackets
+    ctx.fillStyle = ink2C; ctx.fillRect(X - 1.5, by - 3.2, T + 3, 6.4);
+    ctx.fillStyle = '#4a403a'; ctx.fillRect(X - 1, by - 2, T + 2, 4); ctx.fillStyle = TILE_RGBA(RUST_IRON_HI, 0.75); ctx.fillRect(X - 1, by - 2, T + 2, 1); ctx.fillStyle = TILE_RGBA(RUST_IRON_LO, 0.8); ctx.fillRect(X - 1, by + 1.2, T + 2, 0.8);
+    for (const bx of [X + 2.5, X + T - 5.5]) { ctx.fillStyle = ink2C; ctx.fillRect(bx - 0.8, by - 4.2, 4.6, 8.4); ctx.fillStyle = '#2c2622'; ctx.fillRect(bx, by - 3.2, 3, 6.4); ctx.fillStyle = BRONZE_HI; ctx.fillRect(bx + 0.9, by - 0.6, 1.2, 1.2); }
+    ctx.strokeStyle = ink2C; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.arc(X + 11.5, by + 7, 2.3, 0, Math.PI * 2); ctx.stroke(); // the ring
+    ctx.strokeStyle = BRONZE; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(X + 11.5, by + 7, 2.3, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = BRONZE_HI; ctx.fillRect(X + 10.2, by + 5.2, 1, 1);
+  },
   _portcullis(ctx, X, Y, h, kind, hiA) {
     // an iron (or brass) lattice with a spiked foot; drawn as one piece and clipped by the caller
     const bar = kind === 'brass' ? '#5a4024' : '#262630', hi = kind === 'brass' ? '#d4a661' : '#8f99b0', lo = '#08080c';
@@ -762,8 +952,28 @@ Object.assign(Art, {
     // ---- the growing things: grass that sways and rustles, hanging things that swing, drips that fall
     this._drawGrow(ctx, world, t, dt, cam.x - 24, cam.y - 24, cam.x + vw + 24, cam.y + vh + 24, p);
 
+    // ---- weak floors: the cracked look lives in the cache; a tile the engine is shaking is redrawn over itself, offset, and sheds dust
+    const cache = this.tileCache, shakeFn = world.tileShake ? (x, y) => world.tileShake(x, y) : null, fr = Math.floor(t * 60);
+    // ---- flooding: on a screen with a flood level, the '~' tiles under the level are one body of water and those above are air
+    const floodFn = world.floodLevel && world.screenAt ? (sc) => world.floodLevel(sc.id) : null;
+    // a screen is a flood screen when its level is above 0, or when the engine lists it in World.floods (then level 0 = drained = air)
+    const floodOf = (X, Y) => { if (!floodFn) return null; const sc = world.screenAt(X, Y); if (!sc) return null; const lv = floodFn(sc); return lv > 0 || (world.floods && world.floods[sc.id]) ? this._floodSurface(world, sc, lv || 0) : null; };
+
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const ch = tiles[y][x]; const X = x * T, Y = y * T;
+      if (ch === 'f' && shakeFn && cache) {
+        const k = shakeFn(x, y);
+        if (k > 0) {
+          const kk = Math.min(1, k), ox = (Ink.n(fr + x * 7, 41) - 0.5) * 3 * kk, oy = (Ink.n(fr + y * 5, 42) - 0.5) * 3 * kk;
+          ctx.drawImage(cache, X - 2, Y - 2, T + 4, T + 4, X - 2 + ox, Y - 2 + oy, T + 4, T + 4);
+          if (at(x, y + 1) === '.') { // dust shed from the underside: two motes per tile on their own slow loops
+            ctx.fillStyle = TILE_RGBA(p.rim, 0.6);
+            for (let i = 0; i < 2; i++) { const sp = 0.8 + i * 0.5, ph = (t * sp + Ink.n(x * 3 + i, 43)) % 1, cyc = Math.floor(t * sp + Ink.n(x * 3 + i, 43)); const dx = X + 2 + Ink.n(x + i * 11 + cyc, 44) * 12; ctx.globalAlpha = (1 - ph) * kk; ctx.fillRect(dx, Y + T + 1 + ph * ph * 16, 1.6, 1.6); }
+            ctx.globalAlpha = 1;
+            if (typeof Game !== 'undefined' && Game.particle && Ink.n(fr + x * 13, 45) < 0.1 * kk) Game.particle(X + 2 + Ink.n(fr, 46) * 12, Y + T, (Ink.n(fr, 47) - 0.5) * 10, 16 + Ink.n(fr, 48) * 20, 0.4 + Ink.n(fr, 49) * 0.3, p.rim, 1.5);
+          }
+        }
+      }
       if (ch === 'G' || ch === 'D' || ch === 'd' || ch === 'e') {
         // find the column this tile belongs to and draw it once, from its top tile
         let ty = y; while (at(x, ty - 1) === ch) ty--;
@@ -802,12 +1012,17 @@ Object.assign(Art, {
           if (!open && ch === 'd' && door && door.timer > 0) { const k = clamp(door.timer / door.hold, 0, 1); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(X + 3, TY + 4, 10, 2); ctx.fillStyle = '#ffd27a'; ctx.fillRect(X + 3, TY + 4, 10 * k, 2); }
         }
       }
-      const d = decor[y] ? decor[y][x] : '.';
-      if (d === '~') {
-        let sx = x; while (sx > 0 && decor[y][sx - 1] === '~') sx--;
+      // water: '~' in the decor layer is a standing pool; on a flood screen the engine leaves '~' in the tile layer itself
+      const wat = (xx) => (decor[y] && decor[y][xx] === '~') || tiles[y][xx] === '~';
+      if (wat(x)) {
+        // one run per row; on a flood-capable zone a run never crosses a screen edge, so each screen keeps its own level
+        const scx = Math.floor(x / ROOM_W), same = (xx) => !floodFn || Math.floor(xx / ROOM_W) === scx;
+        let sx = x; while (sx > 0 && wat(sx - 1) && same(sx - 1)) sx--;
         if (sx !== x && sx >= x0) continue;
-        let len = 1; while (sx + len < ZW && decor[y][sx + len] === '~') len++;
-        this._water(ctx, sx * T, Y, len * T, t, p, solid(sx - 1, y), solid(sx + len, y));
+        let len = 1; while (sx + len < ZW && wat(sx + len) && same(sx + len)) len++;
+        const fl = floodOf(sx * T, Y);
+        if (fl) { if (Y + T > fl.surfaceY) this._flood(ctx, sx * T, Y, len * T, fl.surfaceY, t, p); }
+        else this._water(ctx, sx * T, Y, len * T, t, p, solid(sx - 1, y), solid(sx + len, y));
       }
     }
   },
@@ -853,6 +1068,43 @@ Object.assign(Art, {
       }
     }
     ctx.restore();
+  },
+  // where the flood surface sits on a screen: the engine's level is a fraction (0..1) of the screen's '~' rows when it is at
+  // most 1, or a world-pixel y of the surface when it is larger; either way the surface is kept within the '~' rows
+  _floodSurface(world, sc, lv) {
+    const T = TILE, key = world.zoneId + ':' + world.tileVersion + ':' + sc.id;
+    this._floodExt = this._floodExt || {};
+    let ext = this._floodExt[key];
+    if (!ext) {
+      const fl = world.floods && world.floods[sc.id];
+      if (fl && fl.top !== undefined && fl.bottom !== undefined) ext = { minRow: fl.top, maxRow: fl.bottom };
+      else {
+        let minRow = 1e9, maxRow = -1e9; const decor = world.decor || [], tiles = world.tiles || [];
+        for (let y = sc.oy; y < sc.oy + ROOM_H; y++) for (let x = sc.ox; x < sc.ox + ROOM_W; x++) if ((decor[y] && decor[y][x] === '~') || (tiles[y] && tiles[y][x] === '~')) { minRow = Math.min(minRow, y); maxRow = Math.max(maxRow, y); }
+        ext = { minRow, maxRow };
+      }
+      this._floodExt[key] = ext;
+    }
+    if (ext.maxRow < 0) return null;
+    const bottom = (ext.maxRow + 1) * T, top = ext.minRow * T;
+    const surfaceY = lv <= 1 ? bottom - lv * (bottom - top) : lv;
+    return { surfaceY: Math.max(top, Math.min(bottom, surfaceY)), minRow: ext.minRow, maxRow: ext.maxRow }; // surfaceY == bottom: drained, nothing drawn
+  },
+  _flood(ctx, X, Y, L, surfaceY, t, p) {
+    // flood water: a translucent dark teal body, and on the row that holds the surface a slow ripple, a soft pale band
+    // under it and a 1 px surface line (cheap: flat fills and two strokes, no gradients)
+    const T = TILE, top = Math.max(Y, surfaceY), hasSurf = surfaceY >= Y && surfaceY < Y + T;
+    const body = TILE_MIX('#0b3a44', p.accent, 0.14, 0.62);
+    if (!hasSurf) { ctx.fillStyle = body; ctx.fillRect(X, top, L, Y + T - top); return; }
+    const surf = (x) => surfaceY + Math.sin(x * 0.07 + t * 0.9) * 0.8 + Math.sin(x * 0.023 - t * 0.5) * 0.7;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(X, Y + T); for (let x = X; x <= X + L; x += 4) ctx.lineTo(x, surf(x)); ctx.lineTo(X + L, Y + T); ctx.closePath();
+    ctx.fillStyle = body; ctx.fill();
+    ctx.clip();
+    ctx.beginPath(); for (let x = X; x <= X + L; x += 4) ctx.lineTo(x, surf(x) + 3); ctx.strokeStyle = 'rgba(190,240,232,0.13)'; ctx.lineWidth = 6; ctx.stroke(); // the glow band under the surface
+    ctx.fillStyle = 'rgba(220,250,244,0.35)'; for (let i = 0; i < L / 16; i++) { const fx = X + ((i * 47 + t * 7) % L); ctx.fillRect(fx, surf(fx) + 4 + Ink.n(i, 7) * 3, 2 + Ink.n(i, 8) * 3, 1); } // slow glints
+    ctx.restore();
+    ctx.beginPath(); for (let x = X; x <= X + L; x += 4) ctx.lineTo(x, surf(x)); ctx.strokeStyle = 'rgba(222,250,244,0.85)'; ctx.lineWidth = 1.1; ctx.lineCap = 'round'; ctx.stroke(); // the 1 px surface line
   },
   _water(ctx, X, Y, L, t, p, lf, rt) {
     const T = TILE, acc = (a) => TILE_RGBA(p.accent, a);

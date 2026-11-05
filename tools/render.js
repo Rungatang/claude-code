@@ -1,7 +1,9 @@
 'use strict';
 // Render contact sheets of the game's artwork for review.
 //   node tools/render.js <what> [outDir]
-// what: player | enemies | bosses | portraits | illustrations | env | tiles | hud | all
+// what: player | enemies | bosses | portraits | illustrations | objects | env | tiles | hud | all
+// objects: the second-pass mechanisms (hanging/track platforms, blade, boulder, lever, sluice, wall cling) in every state,
+//          and the new tile letters (f y s b q, vine rungs, hinge doors, flood water) in an inline sample zone.
 // Writes PNGs into outDir (default: ./renders). Needs playwright + chromium.
 const { chromium } = require('playwright');
 const path = require('path');
@@ -22,7 +24,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
   // helper: take over the canvas for a sheet of the given size, drawn at scale
   const sheet = async (name, w, h, drawFn, arg) => {
-    await page.evaluate(({ w, h }) => { Game.manual = true; Game.draw = () => {}; const c = document.getElementById('game'); c.width = w; c.height = h; c.style.width = w + 'px'; c.style.height = h + 'px'; }, { w, h });
+    await page.evaluate(({ w, h }) => { Game.manual = true; Game.draw = () => {}; Game.resize = () => {}; const c = document.getElementById('game'); c.width = w; c.height = h; c.style.width = w + 'px'; c.style.height = h + 'px'; }, { w, h });
     await page.setViewportSize({ width: w, height: h });
     await page.evaluate(drawFn, arg);
     await page.screenshot({ path: path.join(outDir, name + '.png') });
@@ -75,6 +77,75 @@ fs.mkdirSync(outDir, { recursive: true });
     const names = Object.keys(Art.illustrations);
     names.forEach((n, i) => { const off = document.createElement('canvas'); off.width = 640; off.height = 368; Art.illustrations[n](off.getContext('2d'), n === 'map' ? 8.5 : 3.5); ctx.drawImage(off, (i % 2) * 640, Math.floor(i / 2) * 368); ctx.fillStyle = '#fff'; ctx.font = '14px monospace'; ctx.fillText(n, (i % 2) * 640 + 8, Math.floor(i / 2) * 368 + 16); });
   });
+
+  if (want('objects')) {
+    await sheet('objects', 1280, 640, () => {
+      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+      World.room = World.room || { region: 'hours' }; World.room.region = 'hours';
+      const p = PALETTES.hours; ctx.fillStyle = p.bgBot; ctx.fillRect(0, 0, 1280, 640);
+      ctx.save(); ctx.scale(3, 3);
+      ctx.fillStyle = p.rock; ctx.fillRect(0, 0, 427, 10); ctx.fillRect(0, 203, 427, 11); // a ceiling and a floor for things to hang from and stand on
+      const t = 1.37;
+      // row 1: hanging platforms in each state, then track platforms
+      const hp = (x, w, extra) => Art.drawHangingPlatform(ctx, Object.assign({ x, y: 64, w, h: 8, state: 'hung', ropeTop: 10, ropeX: x + w / 2, rot: 0, held: false }, extra), t);
+      hp(8, 48, {}); hp(66, 32, { rot: 0.4 }); hp(108, 32, { rot: 0.95 }); hp(150, 40, { state: 'falling', y: 90 }); hp(200, 40, { state: 'down', y: 195 }); hp(250, 24, { state: 'rising', y: 40, ropeX: 262 + 6 });
+      const tp = (x, y, extra) => Art.drawTrackPlatform(ctx, Object.assign({ x, y, w: 32, h: 8, axis: 'h', lift: false, parked: false, vx: 0, vy: 0, held: false }, extra), t);
+      tp(290, 64, { parked: true }); tp(340, 64, { vx: 60 }); tp(395, 70, { axis: 'v', lift: true, vy: -30, w: 24 });
+      // row 2: blades, boulders, levers, sluices
+      const bl = (px, ang, extra) => { const len = 40, hx = px + Math.sin(ang) * len, hy = 92 + Math.cos(ang) * len; Art.drawBlade(ctx, Object.assign({ px, py: 92, len, ang, state: 'swinging', head: { x: hx - 7, y: hy - 7, w: 14, h: 14 }, held: false }, extra), t); ctx.strokeStyle = 'rgba(255,80,80,0.35)'; ctx.lineWidth = 0.5; ctx.strokeRect(hx - 7, hy - 7, 14, 14); };
+      bl(44, -0.9, {}); bl(84, 0, {}); bl(118, 0.9, { state: 'held' }); bl(150, 0.3, { state: 'fallen' });
+      const bo = (x, extra) => Art.drawBoulder(ctx, Object.assign({ x, y: 187, w: 16, h: 16, state: 'rolling', dir: 1, rot: 0, held: false }, extra), t);
+      bo(160, {}); bo(184, { rot: 1.3 }); bo(208, { rot: 2.4, state: 'falling', y: 150 }); bo(236, { state: 'hanging', y: 120, threadTop: 92 });
+      const lv = (x, extra) => Art.drawLever(ctx, Object.assign({ x, y: 187, w: 16, h: 16, state: 'off', kick: 0 }, extra), t);
+      lv(266, {}); lv(292, { state: 'on' }); lv(318, { state: 'broken' }); lv(352, { state: 'on', kick: 0.7 });
+      // sluices get their stone frame from tiles.js; here a stand-in frame so the grate reads in context
+      const sl = (x, extra) => { Art._tileSluiceFrame(ctx, x, 187, p); Art.drawSluice(ctx, Object.assign({ x, y: 187, open: false, drain: 0 }, extra), t); };
+      sl(372, {}); sl(392, { open: true, drain: 0.15 }); sl(412, { open: true, drain: 0.9 });
+      // wall cling: a wall at x=20 (the player clings to its left face) and one at the right, facing both ways
+      ctx.fillStyle = p.rock; ctx.fillRect(0, 128, 12, 62); ctx.fillRect(415, 128, 12, 62);
+      const base = { w: 10, h: 22, facing: 1, invuln: 0, hurtT: 0, castT: 0, attackT: 0, attackDur: 0.3, attackKind: 'slash', step: 0, vx: 0, vy: 120, onGround: false, frozen: 0, dashT: 0, attackPhase() { return 'active'; } };
+      const c1 = Object.assign({}, base, { anim: 'fall', x: 12, y: 150, clinging: -1, facing: 1 }); for (let k = 0; k < 10; k++) Art.drawPlayer(ctx, c1, 1 + k * 0.016); ctx.fillStyle = p.bgBot; ctx.fillRect(12, 128, 30, 62); Art.drawPlayer(ctx, c1, 1.5);
+      const c2 = Object.assign({}, base, { anim: 'fall', x: 405, y: 150, clinging: 1, facing: -1 }); for (let k = 0; k < 10; k++) Art.drawPlayer(ctx, c2, 1 + k * 0.016); ctx.fillStyle = p.bgBot; ctx.fillRect(385, 128, 30, 62); Art.drawPlayer(ctx, c2, 1.5);
+      ctx.restore();
+      ctx.fillStyle = '#fff'; ctx.font = '12px monospace';
+      ctx.fillText('row 1: hanging platform hung / rot .4 / rot .95 / falling / down / rising | track h parked / h moving / v lift', 12, 20);
+      ctx.fillText('row 2: blade -52deg / 0 / +52deg held / fallen(nothing) | boulder rolling / rolled / falling / hanging | lever off / on / broken / on+kick | sluice closed / open drain .15 / open drain .9 | cling L, cling R', 12, 630);
+    });
+    await sheet('objects_tiles', 1040, 960, () => {
+      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const grid = [
+        '##########################',
+        '#....................b...#',
+        '#..L.......bbbbb.....b...#',
+        '#..L.................b...#',
+        '#..L...=.........^...b...#',
+        '#......=....q............#',
+        '#......=......yy.........#',
+        '#......s......yy..~~~~~..#',
+        '#fffff.######.yy..~~~~~..#',
+        '#.........#.......~~~~~..#',
+        '#.........#..............#',
+        '##########################'];
+      const mk = (region, zoneId) => {
+        const tiles = grid.map((r) => r.split('')), decor = grid.map((r) => r.split('').map(() => '.'));
+        for (let y = 0; y < tiles.length; y++) for (let x = 0; x < tiles[y].length; x++) if (tiles[y][x] === '~') { decor[y][x] = '~'; tiles[y][x] = '.'; }
+        const sc = { id: 'sheet', ox: 0, oy: 0 };
+        return { zoneId, tileVersion: 1, room: { region }, zone: { W: 26, H: 12 }, W: 26 * 16, H: 12 * 16, tiles, decor, doors: {}, bossActive: false,
+          screenAt: () => sc, tileShake: (tx, ty) => (ty === 8 && (tx === 2 || tx === 3)) ? 0.9 : 0, vineAt: (tx, ty) => tx === 7 && tiles[ty][tx] === '=', hingeDoor: (tx) => tx === 3, floodLevel: () => 0.55 };
+      };
+      ['shore', 'hours'].forEach((region, i) => {
+        const world = mk(region, 'sheet' + i), p = PALETTES[region];
+        World.room = World.room || { region }; World.room.region = region;
+        ctx.save(); ctx.translate(0, i * 480); ctx.scale(2.5, 2.5);
+        ctx.fillStyle = p.bgBot; ctx.fillRect(0, 0, world.W, world.H);
+        Art.tileCacheKey = ''; const cache = Art.roomTiles(world); ctx.drawImage(cache, 0, 0);
+        Art.drawDynamicTiles(ctx, world, 1.37, { x: 0, y: 0 });
+        ctx.restore();
+        ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.fillText(region + ': L hinge door (col 3) | b bridge + curtain | = vine rungs over an s seed | q sluice frame | y thorns | f weak floor (two tiles shaking) | ~ flood at .55 (top row is air)', 12, i * 480 + 14);
+      });
+      Art.tileCacheKey = ''; Art._growKey = '';
+    });
+  }
 
   if (want('env') || want('tiles') || want('hud')) {
     await page.setViewportSize({ width: 1280, height: 736 });

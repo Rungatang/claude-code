@@ -13,6 +13,12 @@ const PALETTES = {
   mills:   { name: 'The Bone Mills',       bgTop: '#15100e', bgBot: '#3a2a24', rock: '#4a3a32', rockDark: '#281e1a', rim: '#b8a690', ink: '#0b0806', accent: '#e8d8c0', glow: 'rgba(232,216,192,0.12)', fog: 'rgba(200,180,150,0.08)', moss: '#7a6a50', far: '#1f1714', mid: '#2c211c' , ink2: '#140f0c', light: '#d8c8b0', fogColor: '#4a3a30', lights: ['#e8d8c0', '#c9a24a'] },
   root:    { name: 'The Root',             bgTop: '#0a0608', bgBot: '#2a1218', rock: '#38202a', rockDark: '#1c1016', rim: '#a04a5a', ink: '#060305', accent: '#ff6a7a', glow: 'rgba(255,106,122,0.14)', fog: 'rgba(160,70,90,0.08)', moss: '#8a3a4a', far: '#140a0e', mid: '#1f1016' , ink2: '#120709', light: '#c89aa8', fogColor: '#4a1c26', lights: ['#ff6a7a', '#ff3355'] },
 };
+// The thread: the one colour shared by every region's thread bridges, curtains, hanging boulders' lines and the
+// anchor's sand. Pale gold with a cream highlight; never used for anything that is not thread or hour-light.
+const THREAD_GOLD = '#f0d9a4', THREAD_GOLD_HI = '#fff4d2', THREAD_GOLD_LO = '#8a7040';
+// Bronze and rusted iron for the built mechanisms (levers, sluices, hinge doors): shared so every region's machinery matches.
+const BRONZE = '#9a6a3a', BRONZE_HI = '#d8a870', BRONZE_LO = '#4a2e14';
+const RUST_IRON = '#3a3430', RUST_IRON_HI = '#6a6058', RUST_IRON_LO = '#1e1a18', RUST_BLOOM = 'rgba(184,106,58,0.55)';
 
 const Ink = {
   n(i, k) { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); },
