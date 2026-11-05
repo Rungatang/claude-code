@@ -184,6 +184,14 @@ Work items:
 Done when each power has four traversal rooms and one combat use, the solver passes, and a fresh
 player can finish each tutorial room without reading text.
 
+Status of step 2 (2026-11-05): `docs/POWERS.md` is the one-page-per-power design (item 1). Slice 2a
+landed (commit "Make every power target one thing"): every cast looks in a box in front of Tam and acts
+on the nearest valid target or fizzles for free; ids are `age hold restore echo cut` (displayed as
+Wither, Hold, Mend, Echo, Sever); Stall is gone, the whole-screen stop is the scripted beat in the Sef
+fight; recall streaks; thread regrows to three outside fights; lanterns refill it; saves migrate to v4.
+Slice 2b in flight: the ten new tiles (`f u y s q l x O m b`), levers replacing the relic seals, wall
+cling and the second jump, then the level pass that uses them (items 2, 4, 5).
+
 ## Step 3: currency, shop and charms (2 to 3 days)
 
 Story fit: the city runs on borrowed hours, so the money is "grains" of sand.
