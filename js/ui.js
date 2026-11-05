@@ -54,6 +54,13 @@ function uiMask(ctx, x, y, on, t, i) {
 }
 
 const UI = {
+  // hints show only for a budget of play seconds after they first become relevant, then fall silent (mystery)
+  hintLive(key, budget) {
+    const save = Game.save; if (!save) return true;
+    const t = save.hintT || (save.hintT = {});
+    if (Game.state === 'play' && !Game.paused) t[key] = (t[key] || 0) + 1 / 60;
+    return (t[key] || 0) < budget;
+  },
   menuIndex: 0,
   banner: null,
   toast: null,
@@ -172,8 +179,8 @@ const UI = {
     // hints beneath: thin pale text, no plate
     let hy = 77;
     if (pl.anchor) { uiText(ctx, '⚓ anchor set  (F returns, ' + RECALL_COST + ' thread)', 16, hy, { font: '10px Georgia, serif', color: '#f0d9a4' }); hy += 13; }
-    else if (Game.save.flags['scene:A2']) { uiText(ctx, 'F: set anchor', 16, hy, { font: '10px Georgia, serif', color: '#9d9686' }); hy += 13; }
-    if (pl.hp < pl.maxHp && pl.thread >= HEAL_COST) uiText(ctx, pl.focusing ? 'focusing...' : 'Hold H: focus (' + HEAL_COST + ' thread = 1 hour)', 16, hy, { font: '10px Georgia, serif', color: pl.focusing ? '#ffd27a' : '#c8bc9e', glow: pl.focusing ? 'rgba(255,210,122,0.8)' : null });
+    else if (Game.save.flags['scene:A2'] && UI.hintLive('anchor', 60)) { uiText(ctx, 'F: set anchor', 16, hy, { font: '10px Georgia, serif', color: '#9d9686' }); hy += 13; }
+    if (pl.hp < pl.maxHp && pl.thread >= HEAL_COST && (pl.focusing || UI.hintLive('focus', 45))) uiText(ctx, pl.focusing ? 'focusing...' : 'Hold H: focus (' + HEAL_COST + ' thread = 1 hour)', 16, hy, { font: '10px Georgia, serif', color: pl.focusing ? '#ffd27a' : '#c8bc9e', glow: pl.focusing ? 'rgba(255,210,122,0.8)' : null });
     // powers: soft round seals along the top right, the chosen one lifted and glowing
     const list = Game.powerList();
     list.forEach((id, i) => {
@@ -352,18 +359,32 @@ const UI = {
     uiText(ctx, 'M / Tab to close', VIEW_W - ox, ly + 16, { font: '11px Georgia, serif', color: '#7a7366', align: 'right' });
   },
 
-  drawOverlayCard(ctx, title, text, t, color) {
-    ctx.fillStyle = 'rgba(4,3,8,0.66)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawOverlayCard(ctx, title, text, t, color, ot, memory) {
+    ot = ot === undefined ? 1 : ot;
+    const a = Math.min(1, ot / 0.45), rise = (1 - Paint.ease.out(a)) * 14;
+    ctx.fillStyle = `rgba(4,3,8,${0.66 * a})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     Paint.vignette(ctx, VIEW_W, VIEW_H, 0.4);
-    const bx = 84, by = 100, bw = VIEW_W - 168, bh = 168, c = color || this.GOLD;
+    const bx = 84, by = 100 + rise, bw = VIEW_W - 168, bh = 168, c = color || this.GOLD;
+    ctx.save(); ctx.globalAlpha = a;
     Paint.glow(ctx, VIEW_W / 2, by + 40, 120, c, 0.18);
     this.frame(ctx, bx, by, bw, bh, { rule: c, fill: 'rgba(10,8,14,0.6)' });
-    uiText(ctx, title, VIEW_W / 2, by + 40, { font: '17px Georgia, serif', color: Paint.mix(c, '#ffffff', 0.35), align: 'center', spacing: 3, glow: Paint.rgba(c, 0.7) });
-    uiFlourish(ctx, VIEW_W / 2, by + 50, 140, c, 0.85);
+    const tscale = 0.85 + 0.15 * Paint.ease.outBack(Math.min(1, ot / 0.6));
+    ctx.save(); ctx.translate(VIEW_W / 2, by + 40); ctx.scale(tscale, tscale);
+    uiText(ctx, memory ? 'MEMORY' : title, 0, 0, { font: '17px Georgia, serif', color: Paint.mix(c, '#ffffff', 0.35), align: 'center', spacing: 3, glow: Paint.rgba(c, 0.7) });
+    ctx.restore();
+    uiFlourish(ctx, VIEW_W / 2, by + 50, 140 * Math.min(1, ot / 0.8), c, 0.85);
+    if (memory) uiText(ctx, title, VIEW_W / 2, by + 66, { font: 'italic 12px Georgia, serif', color: Paint.mix(c, '#ffffff', 0.1), align: 'center', alpha: Math.min(1, Math.max(0, (ot - 0.4) / 0.4)) });
     ctx.font = '13px Georgia, serif';
     const lines = wrapText(ctx, text, bw - 64);
-    lines.forEach((l, i) => uiText(ctx, l, VIEW_W / 2, by + 76 + i * 18, { font: '13px Georgia, serif', color: '#efe7d6', align: 'center' }));
+    // memories surface a few words at a time; other cards simply fade in
+    const shown = memory ? Math.floor(Math.max(0, ot - 0.7) * 38) : Infinity;
+    let count = 0;
+    lines.forEach((l, i) => {
+      let piece = l; if (memory) { const left = shown - count; piece = left <= 0 ? '' : l.slice(0, left); count += l.length + 1; }
+      if (piece) uiText(ctx, piece, VIEW_W / 2 - (memory && piece.length < l.length ? (ctx.measureText(l).width - ctx.measureText(piece).width) / 2 : 0), by + (memory ? 86 : 76) + i * 18, { font: '13px Georgia, serif', color: '#efe7d6', align: 'center', alpha: memory ? 1 : Math.min(1, Math.max(0, (ot - 0.3) / 0.5)) });
+    });
     const k = 0.5 + Math.sin(t * 3) * 0.5;
-    uiText(ctx, 'Enter', VIEW_W / 2, by + bh - 14, { font: '11px Georgia, serif', color: '#9d9686', align: 'center', alpha: 0.4 + k * 0.6, spacing: 1 });
+    if (ot > 0.9) uiText(ctx, 'Enter', VIEW_W / 2, by + bh - 14, { font: '11px Georgia, serif', color: '#9d9686', align: 'center', alpha: 0.4 + k * 0.6, spacing: 1 });
+    ctx.restore();
   },
 };

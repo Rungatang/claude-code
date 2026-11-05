@@ -796,6 +796,16 @@ const AudioSys = {
       case 'roar': this.tone(70, 0.9, 'sawtooth', 0.3, 0.6, now, { lp: 900, q: 3 }); this.tone(35, 0.9, 'square', 0.12, 0.6, now, { lp: 400 }); this.noise(0.6, 0.35, 400, now, { attack: 0.05 }); this.noise(0.4, 0.2, 1500, now + 0.1, { type: 'bandpass', q: 2, sweep: 500 }); this.duck(0.5, 0.6); break;
       case 'bossdie': for (let i = 0; i < 5; i++) { this.noise(0.4, 0.3, 500, now + i * 0.16); this.tone(120 - i * 15, 0.5, 'sine', 0.3, 0.5, now + i * 0.16); this.noise(0.05, 0.25, 2500, now + i * 0.16, { type: 'highpass' }); } this.noise(1.6, 0.3, 3000, now + 0.8, { type: 'highpass', attack: 0.02 }); this.tone(40, 2, 'sine', 0.35, 0.6, now + 0.8); this.duck(0.2, 2.5); break;
       case 'tell': this.tone(1760, 0.09, 'sine', 0.22, 0.75, now, { rev: 0.4 }); this.tone(2640, 0.06, 'sine', 0.1, 0.8); this.tone(880, 0.14, 'triangle', 0.1, 1.5, now + 0.03); this.noise(0.02, 0.15, 5000, now, { type: 'highpass' }); this.duck(0.55, 0.16); break;
+      case 'rite': { // a power awakens: slow rising fifths, a bloom, a low bell
+        for (let i = 0; i < 6; i++) this.tone(220 * Math.pow(1.5, i % 3) * (i >= 3 ? 2 : 1), 0.9, 'sine', 0.1, 0.4, now + i * 0.28, { rev: 0.9 });
+        this.tone(110, 2.4, 'triangle', 0.14, 0.2, now + 1.4, { rev: 1 }); this.tone(1760, 1.6, 'sine', 0.06, 0.3, now + 1.5, { rev: 1 });
+        this.noise(1.2, 0.05, 2600, now + 1.3, { type: 'bandpass' }); break; }
+      case 'memory': { // a shard remembers: three soft detuned bells and a long reversed hush
+        [523, 659, 784].forEach((f, i) => { this.tone(f, 1.4, 'sine', 0.09, 0.3, now + i * 0.22, { rev: 0.9 }); this.tone(f * 1.004, 1.4, 'sine', 0.05, 0.3, now + i * 0.22 + 0.02, { rev: 0.9 }); });
+        this.noise(1.6, 0.03, 1800, now, { type: 'bandpass' }); break; }
+      case 'relic': { // a relic found: a bright chime and a warm chord beneath
+        this.tone(1319, 0.5, 'sine', 0.12, 0.6, now, { rev: 0.7 }); this.tone(1976, 0.4, 'sine', 0.06, 0.7, now + 0.08, { rev: 0.7 });
+        [330, 415, 494].forEach((f, i) => this.tone(f, 1.1, 'triangle', 0.05, 0.3, now + 0.1 + i * 0.05, { rev: 0.8 })); break; }
       case 'heal': for (let i = 0; i < 4; i++) this.tone(660 * Math.pow(1.26, i), 0.35, 'sine', 0.12, 1, this.ctx ? this.ctx.currentTime + i * 0.07 : 0); break;
       case 'menu': this.tone(520, 0.05, 'sine', 0.1, 1.3); this.tone(1040, 0.04, 'sine', 0.03); break;
       case 'text': { let h = 0; const who = String(arg || ''); for (let i = 0; i < who.length; i++) h = (h * 31 + who.charCodeAt(i)) >>> 0; const f = 700 + (h % 7) * 90; this.tone(f, 0.03, 'triangle', 0.035, 1.2); this.noise(0.012, 0.03, 6000, now, { type: 'highpass' }); break; }

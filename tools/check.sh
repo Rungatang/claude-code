@@ -11,6 +11,7 @@ for f in js/*.js js/art/*.js js/rooms/*.js; do node -e "new Function(require('fs
 [ ${#fail[@]} -eq 0 ] && pass+=("syntax")
 run layouts node tools/validate.js
 expect smoke "errors: none" node tools/tests/smoke.js
+expect rite "flow: OK" node tools/tests/rite.js
 if [ "$1" != "quick" ]; then
   expect solver "SOLVER OK" node tools/solve.js
   expect mechanics "errors: none" node tools/tests/mech.js

@@ -109,6 +109,7 @@ class Player {
     if (this.frozen > 0) { this.animTick(dt, 0); this.record(); return; }
     const wasGround = this.onGround, prevFacing = this.facing;
     if (this.restT > 0) { this.restT -= dt; this.anim = 'rest'; this.vx = 0; this.record(); World.moveBody(this, dt, {}); return; }
+    if (this.riteT > 0) { this.riteT -= dt; this.anim = 'rite'; this.vx = 0; this.vy = Math.min(this.vy, 0); this.record(); World.moveBody(this, dt, {}); return; }
     const controllable = this.hurtT <= 0;
     let move = 0;
     if (controllable) move = (Input.held('right') ? 1 : 0) - (Input.held('left') ? 1 : 0);

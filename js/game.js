@@ -13,6 +13,7 @@ const Game = {
   cam: { x: 0, y: 0 },
   hitStop: 0, flashWhite: 0, hurtFlash: 0, floaters: [],
   killed: new Set(), restGlow: 0, lanterns: [],
+  rite: null, riteT: 0, overlayT: 0, zoomK: 1, focus: null,
   timeScale: 1, stallT: 0, severT: 0, stopFx: 0,
   transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
   deathT: 0, overlay: null, debug: false, manual: false,
@@ -200,29 +201,55 @@ const Game = {
       this.save.flags['spool:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
       pl.maxThread = Math.min(15, pl.maxThread + 1); pl.thread = pl.maxThread; this.save.maxThread = pl.maxThread;
       AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#8fb3ff', 16, 90);
-      this.overlay = { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' };
-      this.state = 'overlay';
+      this.startRite('spool', p, { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' });
     } else if (p.kind === 'heart') {
       this.save.flags['heart:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
       pl.maxHp++; pl.hp = pl.maxHp; this.save.maxHp = pl.maxHp;
       AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
-      this.overlay = { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now. Maximum health increased.', color: '#ff5a5a' };
-      this.state = 'overlay';
+      this.startRite('heart', p, { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now.', color: '#ff5a5a' });
     } else if (p.kind === 'shard') {
       this.save.flags['shard:' + p.index] = true;
       AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
       const sh = Story.shards[p.index] || { title: 'Memory', text: '...' };
-      this.overlay = { title: 'MEMORY — ' + sh.title, text: sh.text, color: '#e6d8ff' };
-      this.state = 'overlay';
+      this.startRite('shard', p, { title: sh.title, text: sh.text, color: '#e6d8ff', memory: true });
     } else if (p.kind === 'ability') {
       this.save.abilities[p.ability] = true;
       AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
       const ab = Story.abilities[p.ability];
       this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'sever') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
-      this.state = 'overlay';
+      this.startRite('ability', p, this.overlay); this.overlay = null;
       const idx = POWER_ORDER.indexOf(p.ability); if (idx >= 0) this.powerIndex = this.powerList().indexOf(p.ability);
     }
     this.writeSave();
+  },
+  // A rite: the moment a power or a memory enters Tam. Time holds, the camera draws in on him, the light
+  // gathers, and only then does the card open. Shards play as a memory: the colour drains out first.
+  startRite(kind, p, card) {
+    const pl = this.player;
+    const dur = kind === 'ability' ? 2.6 : kind === 'shard' ? 1.9 : 1.5;
+    this.rite = { kind, x: pl.x + pl.w / 2, y: pl.y + pl.h / 2 - 4, dur, card, color: card.color || '#ffd27a', srcX: p.x + 8, srcY: p.y + 8 };
+    this.riteT = 0; this.state = 'rite'; pl.vx = 0; pl.riteT = dur; pl.anim = 'rite'; pl.healT = 0; pl.attackT = 0; pl.castT = 0;
+    AudioSys.duck(0.25, dur + 1.5); AudioSys.sfx(kind === 'ability' ? 'rite' : kind === 'shard' ? 'memory' : 'relic');
+    this.flashWhite = kind === 'ability' ? 0.1 : 0.04;
+  },
+  stepRite(dt) {
+    const r = this.rite; this.riteT += dt; this.stepParticles(dt);
+    const k = this.riteT / r.dur, pl = this.player;
+    // light gathers into him: threads of the rite's colour spiral in from a ring
+    const n = r.kind === 'ability' ? 5 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = Ink.n(Math.floor(this.riteT * 60) * 7 + i, 1) * Math.PI * 2, rad = 70 + Ink.n(i, 2) * 50;
+      const sx = r.x + Math.cos(a) * rad, sy = r.y + Math.sin(a) * rad;
+      this.particle(sx, sy, (r.x - sx) * 1.6, (r.y - sy) * 1.6, 0.6, r.color, 2);
+    }
+    if (r.kind === 'ability' && k > 0.55 && k < 0.6) { World.shake = Math.max(World.shake, 0.18); this.burst(r.x, r.y, '#fff', 30, 160); }
+    if (this.riteT >= r.dur) { this.overlay = r.card; this.overlayT = 0; this.state = 'overlay'; }
+  },
+  // extra zoom during a rite and the card, eased; the draw code centres it on the rite
+  riteZoom() {
+    if (this.state === 'rite' && this.rite) { const k = Math.min(1, this.riteT / Math.min(1.1, this.rite.dur)); return 1 + 0.32 * Paint.ease.inOut(k); }
+    if (this.state === 'overlay' && this.rite) return 1.32;
+    return 1;
   },
   talkTo(id) {
     const f = this.save.flags;
@@ -310,7 +337,8 @@ const Game = {
       case 'title': this.stepTitle(); break;
       case 'cutscene': Cutscene.update(dt); if (Cutscene.overlay) this.stepParticles(dt); break;
       case 'play': this.stepPlay(dt); break;
-      case 'overlay': this.stepParticles(dt); if (Input.hit('confirm')) { const o = this.overlay; this.overlay = null; this.state = 'play'; if (o.onClose) o.onClose(); } break;
+      case 'rite': this.stepRite(dt); break;
+      case 'overlay': this.stepParticles(dt); this.overlayT += dt; if (Input.hit('confirm') && this.overlayT > 0.6) { const o = this.overlay; this.overlay = null; this.rite = null; this.state = 'play'; if (o.onClose) o.onClose(); } break;
       case 'map': if (Input.hit('map') || Input.hit('pause')) { this.state = 'play'; AudioSys.sfx('menu'); } break;
       case 'pause': this.stepPause(); break;
       case 'dead': this.deathT += dt; this.stepParticles(dt); if (this.deathT > 1.2 && Input.hit('confirm')) this.respawn(); break;
@@ -492,7 +520,12 @@ const Game = {
     }
     Art.drawBackground(ctx, World.room.region, t, cam);
     // world space: magnified by ZOOM, scrolled by the camera
-    ctx.setTransform(ZOOM, 0, 0, ZOOM, -Math.round(cam.x * ZOOM) + shx, -Math.round(cam.y * ZOOM) + shy);
+    const zk = this.riteZoom();
+    if (zk > 1) {
+      const Z = ZOOM * zk, e = (zk - 1) / 0.32, fx = cam.x + VW / 2 + (this.rite.x - cam.x - VW / 2) * e, fy = cam.y + VH / 2 + (this.rite.y - cam.y - VH / 2) * e;
+      ctx.setTransform(Z, 0, 0, Z, Math.round(VIEW_W / 2 - fx * Z) + shx, Math.round(VIEW_H / 2 - fy * Z) + shy);
+      this.focus = { x: VIEW_W / 2 - (fx - this.rite.x) * Z, y: VIEW_H / 2 - (fy - this.rite.y) * Z };
+    } else { ctx.setTransform(ZOOM, 0, 0, ZOOM, -Math.round(cam.x * ZOOM) + shx, -Math.round(cam.y * ZOOM) + shy); this.focus = null; }
     World.draw(ctx, t, cam);
     const pl = this.player;
     if (pl.anchor) Art.drawAnchor(ctx, pl.anchor, t);
@@ -501,6 +534,23 @@ const Game = {
     for (const p of this.projectiles) p.draw(ctx, t);
     pl.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
+    if (this.rite && this.focus) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const r = this.rite, k = this.state === 'rite' ? Math.min(1, this.riteT / r.dur) : 1, f = this.focus;
+      // darkness closes in, leaving a pool of light on him; memories drain the colour first
+      const dark = r.card.memory ? 0.55 : 0.62;
+      ctx.fillStyle = `rgba(4,3,8,${dark * Math.min(1, k * 2)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      if (r.card.memory) { ctx.save(); ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = `rgba(128,128,128,${0.8 * Math.min(1, k * 1.5)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); ctx.restore(); }
+      Paint.glow(ctx, f.x, f.y, 150 + Math.sin(t * 2) * 10, r.color, 0.35 + 0.25 * k);
+      Paint.glow(ctx, f.x, f.y, 60, '#ffffff', 0.25 * k);
+      // a glyph ring that opens as the rite completes
+      ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(t * 0.4); ctx.strokeStyle = Paint.rgba(r.color, 0.4 + 0.4 * k); ctx.lineWidth = 1.5;
+      const R = 26 + 70 * Paint.ease.out(k);
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2 * Math.min(1, k * 1.2)); ctx.stroke();
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; const len = 3 + 5 * Ink.n(i, 4); ctx.beginPath(); ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); ctx.lineTo(Math.cos(a) * (R + len), Math.sin(a) * (R + len)); ctx.stroke(); }
+      ctx.restore();
+      ctx.setTransform(ZOOM * zk, 0, 0, ZOOM * zk, 0, 0);
+    }
     for (const f of this.floaters) {
       const k = f.t / f.life;
       if (f.kind === 'spark') {
@@ -528,7 +578,8 @@ const Game = {
     UI.drawHud(ctx, t);
     switch (this.state) {
       case 'cutscene': Cutscene.draw(ctx, t); break;
-      case 'overlay': UI.drawOverlayCard(ctx, this.overlay.title, this.overlay.text, t, this.overlay.color); break;
+      case 'overlay': UI.drawOverlayCard(ctx, this.overlay.title, this.overlay.text, t, this.overlay.color, this.overlayT, this.overlay.memory); break;
+      case 'rite': break;
       case 'map': UI.drawMap(ctx, t); break;
       case 'pause': UI.drawPause(ctx, t); break;
       case 'dead': UI.drawDeath(ctx, t, this.deathT / 1.2); break;
