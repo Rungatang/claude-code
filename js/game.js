@@ -127,6 +127,12 @@ const Game = {
         case 'save': this.entities.push(new SavePoint(s)); break;
         case 'plate': this.entities.push(new Plate(s)); break;
         case 'crusher': this.entities.push(new Crusher(s)); break;
+        case 'hanging': this.entities.push(new HangingPlatform(s)); break;
+        case 'track': this.entities.push(new TrackPlatform(s)); break;
+        case 'blade': this.entities.push(new Blade(s)); break;
+        case 'boulder': this.entities.push(new Boulder(s)); break;
+        case 'lever': this.entities.push(new Lever(s)); break;
+        case 'sluice': this.entities.push(new SluiceSite(s)); break;
         case 'tablet': this.entities.push(new Tablet(s)); break;
         case 'npc': {
           if (s.id === 'sef' && ROOMS.A5 && World.screenAt(s.x * TILE, s.y * TILE).id === 'A5' && f.sefLeftJetty) break;
@@ -143,6 +149,11 @@ const Game = {
       }
     }
     this.lanterns = this.entities.filter((e) => e instanceof SavePoint);
+    // lifts: on each screen the first hanging boulder (reading order) is the counterweight of the first tracked platform
+    for (const sc of Object.values(World.zone.screens)) {
+      const b = this.entities.find((e) => e instanceof Boulder && e.screen === sc.id && e.state === 'hanging'), m = this.entities.find((e) => e instanceof TrackPlatform && e.screen === sc.id);
+      if (b && m && !m.lift) { b.lift = m; m.makeLift(b); if (m.travelled = !!f['lift:' + sc.id + ':' + (m.tx - sc.ox) + ':' + (m.ty - sc.oy)]) { b.state = 'falling'; b.vy = 0; } }
+    }
     if (entry === 'start') { const p = World.startPosition(); pl.placeFeet(p.tx, p.bottom); }
     else if (entry === 'save') { pl.x = this.save.x; pl.y = this.save.y; }
     else if (entry === 'arrival') { const p = World.arrival; pl.placeFeet(p.tx, p.bottom); }
@@ -254,7 +265,7 @@ const Game = {
     } else if (p.kind === 'ability') {
       this.save.abilities[p.ability] = true;
       AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
-      const ab = Story.abilities[p.ability];
+      const mv = MOVES[p.ability] || {}, ab = Story.abilities[p.ability] || { title: (mv.name || p.ability).toUpperCase(), text: (POWERS[p.ability] && POWERS[p.ability].hint) || mv.hint || '', color: (POWERS[p.ability] && POWERS[p.ability].color) || mv.color || '#ffd27a' };
       this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'cut') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
       this.startRite('ability', p, this.overlay); this.overlay = null;
       const idx = POWER_ORDER.indexOf(p.ability); if (idx >= 0) this.powerIndex = this.powerList().indexOf(p.ability);
@@ -450,10 +461,12 @@ const Game = {
     if (this.streak) { this.streak.t -= dt; if (this.streak.t <= 0) this.streak = null; }
     // hit-stop: the sim holds its breath, but particles keep flying and the player's squash keeps springing
     if (this.hitStop > 0) { this.stepParticles(dt); if (this.player.animTick) this.player.animTick(dt, 0); if (this.player.bufferInputs) this.player.bufferInputs(); return; }
-    // dynamic platforms: whatever exposes a platformRect this frame (held things, pinned foes)
-    World.platforms = [];
-    for (const e of this.entities) if (e.platformRect && !e.dead) { const r = e.platformRect(); if (r) World.platforms.push(r); }
+    // dynamic platforms: whatever exposes a platformRect this frame (held things, pinned foes, hanging and tracked
+    // platforms); dynamic solids (a held boulder) block from every side
+    World.platforms = []; World.solids = [];
+    for (const e of this.entities) if (!e.dead) { if (e.platformRect) { const r = e.platformRect(); if (r) World.platforms.push(r); } if (e.solidRect) { const r = e.solidRect(); if (r) World.solids.push(r); } }
     for (const p of this.projectiles) if (p.platformRect && !p.dead) { const r = p.platformRect(); if (r) World.platforms.push(r); }
+    World.update(dt);
     const pl = this.player;
     pl.update(dt);
     for (const e of this.entities) e.update(dt);
@@ -539,7 +552,7 @@ const Game = {
   },
   debugKeys() {
     const ids = Object.keys(ZONES);
-    if (Input.pressed['Digit9']) { for (const a of ['dash', 'age', 'hold', 'restore', 'echo', 'cut']) this.save.abilities[a] = true; this.player.thread = 9; }
+    if (Input.pressed['Digit9']) { for (const a of ['dash', 'age', 'hold', 'restore', 'echo', 'cut', 'cling', 'wings']) this.save.abilities[a] = true; this.player.thread = 9; }
     if (Input.pressed['Digit0']) { this.player.hp = this.player.maxHp = 12; this.player.thread = 9; }
     if (Input.pressed['BracketRight'] || Input.pressed['BracketLeft']) {
       const i = (ids.indexOf(World.zoneId) + (Input.pressed['BracketRight'] ? 1 : ids.length - 1)) % ids.length;

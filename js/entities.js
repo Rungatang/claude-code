@@ -26,6 +26,13 @@ const QUICK_POWERS = { castA: 'age', castB: 'hold' };
 const POWER_ORDER = ['age', 'hold', 'restore', 'echo', 'cut'];
 const RECALL_COST = 2;
 const HOLD_DUR = 4.0;
+// Passive movement upgrades (Game.has(id)): not in the power list; picked up at altars like the powers.
+// Game.onPickup reads name/hint/color from here when Story.abilities has no card for the id.
+const MOVES = {
+  dash:  { name: 'Skip', color: '#8fb3ff', hint: 'C, L or Shift steps you forward faster than the moment can follow. Nothing can touch you mid-skip, and cracked walls shatter.' },
+  cling: { name: 'Cling', color: '#c8bc9e', hint: 'The drowned learned the walls. Hold toward a wall while falling to slide down it slowly; jump off it to leap away and up.' },
+  wings: { name: 'Second Wind', color: '#e6d8ff', hint: 'The bones of those who leapt the Well. Press jump once more in the air for a second, shorter leap. It comes back when you land, cling or bounce.' },
+};
 
 // ---------------------------------------------------------------------------
 // Feel helpers shared by the player, enemies and bosses: eased velocity
@@ -94,6 +101,8 @@ class Player {
     this.anchor = null;
     this.invuln = 0; this.hurtT = 0; this.frozen = 0;
     this.dropT = 0; this.spikeGrace = 0; this.boostT = 0; this.restT = 0;
+    // movement upgrades (animation contract too): clinging = 0 or the wall's side; airJumps = air jumps spent
+    this.clinging = 0; this.airJumps = 0; this.kickT = 0;
     // animation contract (read by js/art/player.js)
     this.anim = 'idle'; this.runPhase = 0; this.idleT = 0; this.turnT = 99; this.landImpact = 0;
     Feel.initAnim(this);
@@ -106,7 +115,9 @@ class Player {
   placeFeet(tx, bottomY) { this.x = tx * TILE + (TILE - this.w) / 2; this.y = bottomY - this.h; }
 
   update(dt) {
-    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT']) if (this[k] > 0) this[k] -= dt;
+    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT', 'kickT']) if (this[k] > 0) this[k] -= dt;
+    // an anchor set on a moving thing rides with it
+    if (this.anchor && this.anchor.ride) { const r = this.anchor.ride; if (r.dead) this.anchor.ride = null; else { this.anchor.x = r.x + this.anchor.dx; this.anchor.y = r.y + this.anchor.dy; } }
     for (const k in this.cds) if (this.cds[k] > 0) this.cds[k] -= dt;
     this.recentDamage = this.recentDamage.filter((d) => Game.t - d.t < 5);
     // the floor: outside a fight three grains always run back, one every 2.5 s
@@ -158,15 +169,23 @@ class Player {
         else if (vx !== 0 && sign(vx) !== sign(target)) { if (Math.abs(vx) > 120) { if (this.skidT <= 0) Feel.kick(this, 1.1, 0.92); this.skidT = 0.08; if (Math.random() < 0.5) Feel.dust(this, 1, 0.7, -move); } this.vx = Feel.approach(vx, 0, 0, 1900, dt); }
         else if (Math.abs(target) > Math.abs(vx)) this.vx = Feel.approach(vx, target, 10, 480, dt);
         else this.vx = Feel.approach(vx, target, 14, 800, dt);
-      } else {
+      } else if (this.kickT <= 0) {
         if (target === 0) this.vx = Feel.approach(vx, 0, 8, 600, dt);
         else this.vx = Feel.approach(vx, target, 15, 700, dt);
       }
-      if (move !== 0 && controllable && this.attackT <= 0 && this.castT <= 0) this.facing = move;
+      if (move !== 0 && controllable && this.attackT <= 0 && this.castT <= 0 && this.kickT <= 0) this.facing = move;
+      // wall cling: falling, holding toward bare rock: slide slowly with a scrape of dust; it also gives the second jump back
+      this.clinging = 0;
+      if (Game.has('cling') && !this.onGround && this.vy > 0 && move !== 0 && controllable && this.dashT <= 0 && World.clingWall(this, move)) {
+        this.clinging = move; this.airJumps = 0;
+        if (Math.random() < 0.35) Game.particle(move > 0 ? this.x + this.w : this.x, this.y + 4 + Math.random() * 14, -move * 20, 10 + Math.random() * 30, 0.25, Feel.dustColor(), 1 + Math.floor(Math.random() * 2));
+      }
 
       if (this.jumpBuf > 0 && controllable) {
         if (Input.held('downDir') && this.onGround && this.standingOnPlatform) { this.dropT = 0.2; this.jumpBuf = 0; this.y += 1; }
         else if (this.onGround || this.coyote > 0) { this.vy = -JUMP_V; this.jumpBuf = 0; this.coyote = 0; this.onGround = false; Feel.kick(this, 0.85, 1.18); Feel.dust(this, 2, 0.6, 0); AudioSys.sfx('jump'); }
+        else if (this.clinging) { this.vx = -this.clinging * 220; this.vy = -JUMP_V * 0.9; this.facing = -this.clinging; this.kickT = 0.14; this.jumpBuf = 0; this.clinging = 0; this.airJumps = 0; Feel.kick(this, 0.85, 1.18); Feel.dust(this, 3, 0.7, -this.facing); AudioSys.sfx('jump'); }
+        else if (Game.has('wings') && this.airJumps < 1) { this.vy = -JUMP_V * 0.85; this.airJumps++; this.jumpBuf = 0; Feel.kick(this, 0.8, 1.22); Game.burst(this.x + this.w / 2, this.y + this.h, '#e6d8ff', 8, 50); AudioSys.sfx('jump'); }
       }
       if (!Input.held('jump') && this.vy < -220 && controllable && this.boostT <= 0) this.vy = -220;
       // gravity: hang at the apex while the jump is held, come down heavier than you went up
@@ -174,6 +193,7 @@ class Player {
       if (this.vy > 0) g *= 1.3;
       if (!this.onGround && Math.abs(this.vy) < 70 && Input.held('jump')) g = GRAVITY * 0.55;
       this.vy = Math.min(MAX_FALL, this.vy + g * dt);
+      if (this.clinging) this.vy = Math.min(this.vy, 60); // the slide
       if (Game.has('dash') && (Input.hit('dash') || this.dashBuf > 0) && this.dashCd <= 0 && controllable) {
         this.dashT = DASH_TIME; this.dashCd = 0.5; this.dashBuf = 0; this.dashDir = move || this.facing; this.facing = this.dashDir;
         this.attackT = 0; this.castT = 0; this.invuln = Math.max(this.invuln, DASH_TIME + 0.05);
@@ -187,7 +207,7 @@ class Player {
 
     this.onGround = res.ground;
     this.standingOnPlatform = res.platform;
-    if (res.ground) this.coyote = 0.1;
+    if (res.ground) { this.coyote = 0.1; this.airJumps = 0; World.weighOn(this, dt, 'player'); }
     if (res.ground && !wasGround) this.onLand(fallV);
     if (this.facing !== prevFacing) this.turnT = 0;
     // feet: the run cycle advances with distance covered; a puff of dust on the first step and every other footfall
@@ -204,6 +224,7 @@ class Player {
       if (pa !== pb && pb % 2 === 0 && Math.abs(this.vx) > 100) Feel.dust(this, 1, 0.45, -sign(this.vx));
     }
     if (dashing) this.anim = 'dash';
+    else if (this.clinging) this.anim = 'cling';
     else if (!this.onGround) this.anim = this.vy < 0 ? 'jump' : 'fall';
     else if (this.landLock > 0) this.anim = 'land';
     else if (this.skidT > 0) this.anim = 'skid';
@@ -342,10 +363,11 @@ class Player {
     const box = this.attackBox();
     const dmg = this.meleeDamage();
     for (const e of Game.entities) {
-      if (!(e instanceof Enemy || e instanceof Boss || e instanceof Crusher) || e.dead || this.hitSet.has(e)) continue;
+      if (!(e instanceof Enemy || e instanceof Boss || e instanceof Crusher || e instanceof Lever) || e.dead || this.hitSet.has(e)) continue;
       if (!rectsOverlap(box, e)) continue;
       this.hitSet.add(e);
-      if (e instanceof Crusher) { if (this.attackKind === 'pogo') { this.vy = -400; this.canDash = true; } AudioSys.sfx('hit'); continue; }
+      if (e instanceof Lever) { e.strike(); continue; }
+      if (e instanceof Crusher) { if (this.attackKind === 'pogo') { this.vy = -400; this.airJumps = 0; } AudioSys.sfx('hit'); continue; }
       const bossState = e instanceof Boss ? e.state : null;
       const result = e.hurt(dmg, this.x + this.w / 2, { kind: this.attackKind, from: 'player', heavy: dmg >= 2 });
       if (result === 'blocked') { this.vx = -this.facing * 160; Game.hitStop = 0.03; Feel.kick(this, 0.9, 1.08); AudioSys.sfx('gate'); continue; }
@@ -359,7 +381,7 @@ class Player {
       else if (bossState !== null && bossState !== 'stagger' && e.state === 'stagger') { stop = 0.13; shake = 0.25; }
       Game.hitStop = Math.max(Game.hitStop, stop); World.shake = Math.max(World.shake, shake);
       Feel.kick(this, 1.08, 0.94);
-      if (this.attackKind === 'pogo') { this.vy = -400; this.dashCd = 0; }
+      if (this.attackKind === 'pogo') { this.vy = -400; this.dashCd = 0; this.airJumps = 0; }
       if (e instanceof Boss) this.vx -= this.facing * 40;
     }
     for (const p of Game.projectiles) {
@@ -367,7 +389,7 @@ class Player {
       if (!rectsOverlap(box, { x: p.x - p.r, y: p.y - p.r, w: p.r * 2, h: p.r * 2 })) continue;
       if (p.kind === 'arrow' || p.kind === 'bolt' || p.kind === 'gear') { p.hostile = false; p.vx = this.facing * Math.max(260, Math.abs(p.vx) * 1.3); p.vy = (this.attackKind === 'up' ? -1 : 0) * 200; p.dmg = 2; p.life = 2; p.hit = new Set(); Game.burst(p.x, p.y, '#fff', 6); }
       else { p.dead = true; Game.burst(p.x, p.y, '#fff', 4); }
-      if (this.attackKind === 'pogo') this.vy = -380;
+      if (this.attackKind === 'pogo') { this.vy = -380; this.airJumps = 0; }
       AudioSys.sfx('hit'); this.gainThread(1);
     }
   }
@@ -377,8 +399,11 @@ class Player {
   anchorKey() {
     if (!this.anchor) {
       this.anchor = { x: this.x, y: this.y, zone: World.zoneId, t: Game.t };
+      // set while standing on a moving thing (tracked platform, lift, held crusher): the anchor rides with it
+      const ride = this.riding && this.riding.owner;
+      if (ride && !ride.dead && (ride instanceof TrackPlatform || ride instanceof Crusher || ride instanceof HangingPlatform || ride instanceof Blade || ride instanceof Boulder)) Object.assign(this.anchor, { ride, dx: this.x - ride.x, dy: this.y - ride.y });
       AudioSys.sfx('save'); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffd27a', 10, 60);
-      UI.showToast('Anchor set. Press F again to return to it.');
+      UI.showToast(this.anchor.ride ? 'Anchor set. It rides with what you stand on.' : 'Anchor set. Press F again to return to it.');
     } else {
       if (this.thread < RECALL_COST) { UI.showToast('Not enough thread to return.'); AudioSys.sfx('menu'); return; }
       this.thread -= RECALL_COST;
@@ -419,20 +444,26 @@ class Player {
   castTargets(id) {
     if (id === 'echo') return [{ kind: 'self' }];
     const box = this.castBox(id), out = [], cx = box.ox, cy = box.oy;
-    const tileOk = id === 'age' ? (ch) => ch === 'L' || ch === 'C' : id === 'restore' ? (ch) => ch === 'R' : null;
+    // tiles by letter: Age takes locks, cracks, weak floor, thorns and a sealed sluice; Restore takes rubble, a seed
+    // not yet grown, and a crumbled floor or wilted thorn (air now, f or y in the zone's grid); Cut takes thread.
+    // The target's ch is the letter the dispatch acts on (World.ageTile / restoreTile / cutTile).
+    const tileOk = id === 'age' ? (ch) => (ch === 'L' || ch === 'C' || ch === 'f' || ch === 'y' || ch === 'q') && ch
+      : id === 'restore' ? (ch, tx, ty) => ch === 'R' ? 'R' : ch === 's' && !World.vineAt(tx, ty - 1) ? 's' : ch === '.' && (World.orig(tx, ty) === 'f' || World.orig(tx, ty) === 'y') ? World.orig(tx, ty) : null
+      : id === 'cut' ? (ch) => ch === 'b' && 'b' : null;
     if (tileOk) {
       const tx0 = Math.floor(box.x / TILE), tx1 = Math.floor((box.x + box.w - 1) / TILE), ty0 = Math.floor(box.y / TILE), ty1 = Math.floor((box.y + box.h - 1) / TILE);
-      for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { const ch = World.tile(tx, ty); if (tileOk(ch)) out.push({ kind: 'tile', tx, ty, ch, d: dist(cx, cy, tx * TILE + 8, ty * TILE + 8), pri: 0 }); }
+      for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { const ch = tileOk(World.tile(tx, ty), tx, ty); if (ch) out.push({ kind: 'tile', tx, ty, ch, d: dist(cx, cy, tx * TILE + 8, ty * TILE + 8), pri: 0 }); }
     }
     const held = Game.held && Game.held.obj;
     const add = (e, r) => out.push({ kind: 'entity', e, d: dist(cx, cy, r.x + r.w / 2, r.y + r.h / 2), pri: 1 });
     for (const e of Game.entities) {
-      if (e.dead || !rectsOverlap(box, e)) continue;
+      if (e.dead || !rectsOverlap(box, e.rect ? e.rect() : e)) continue;
       const foe = (e instanceof Enemy || e instanceof Boss) && e.visible !== false && !(e instanceof Boss && !e.active);
-      if (id === 'age' && foe) add(e, e);
-      else if (id === 'hold' && (e === held || e instanceof Crusher || e instanceof Echo || (foe && !(e instanceof Boss && e.holdCd > 0)))) add(e, e);
-      else if (id === 'restore' && foe && !(e instanceof Boss && e.rewindCd > 0)) add(e, e);
-      else if (id === 'cut' && foe && (e instanceof Boss || e.type === 'knight')) add(e, e);
+      const r = e.rect ? e.rect() : e;
+      if (id === 'age' && (foe || (e instanceof HangingPlatform && e.state === 'hung'))) add(e, r);
+      else if (id === 'hold' && (e === held || e instanceof Crusher || e instanceof Echo || e instanceof Blade || e instanceof Boulder || e instanceof TrackPlatform || (e instanceof HangingPlatform && e.state === 'falling') || (foe && !(e instanceof Boss && e.holdCd > 0)))) add(e, r);
+      else if (id === 'restore' && ((foe && !(e instanceof Boss && e.rewindCd > 0)) || (e instanceof HangingPlatform && e.state === 'down') || (e instanceof SluiceSite && e.open) || (e instanceof Lever && e.state === 'broken'))) add(e, r);
+      else if (id === 'cut' && ((foe && (e instanceof Boss || e.type === 'knight')) || (e instanceof HangingPlatform && (e.state === 'hung' || e.state === 'falling')) || (e instanceof Boulder && e.state === 'hanging') || (e instanceof Blade && e.state !== 'fallen'))) add(e, r);
     }
     if (id === 'hold') for (const p of Game.projectiles) if (p.hostile && !p.dead && p.kind !== 'wave' && rectsOverlap(box, p.rect())) add(p, p.rect());
     out.sort((a, b) => a.d - b.d || a.pri - b.pri);
@@ -458,8 +489,9 @@ class Player {
     if (id === 'echo') { Game.entities.push(new Echo(this.history.slice())); AudioSys.sfx('ability'); return; }
     const tg = this.castTargets(id)[0]; if (!tg) return;
     if (tg.kind === 'tile') {
-      if (id === 'age') { if (tg.ch === 'L') World.dissolveLock(tg.tx, tg.ty); else World.breakCrack(tg.tx, tg.ty); AudioSys.sfx('rust'); }
-      else if (id === 'restore') { if (World.mendRubble(tg.tx, tg.ty)) { AudioSys.sfx('weave'); World.shake = 0.2; } }
+      if (id === 'age') { if (World.ageTile(tg.tx, tg.ty)) AudioSys.sfx('rust'); }
+      else if (id === 'restore') { if (World.restoreTile(tg.tx, tg.ty)) { AudioSys.sfx('weave'); World.shake = 0.2; } }
+      else if (id === 'cut') World.cutTile(tg.tx, tg.ty);
       return;
     }
     if (tg.kind === 'self') {
@@ -471,9 +503,9 @@ class Player {
     }
     const e = tg.e, r = e.rect ? e.rect() : e;
     switch (id) {
-      case 'age': e.withered = 5; Game.burst(r.x + r.w / 2, r.y, '#9fc59a', 12, 50); AudioSys.sfx('rust'); break;
+      case 'age': if (e instanceof HangingPlatform) e.age(); else { e.withered = 5; Game.burst(r.x + r.w / 2, r.y, '#9fc59a', 12, 50); } AudioSys.sfx('rust'); break;
       case 'hold': Game.hold(e, e instanceof Boss ? 0.8 : e instanceof Enemy ? 2.5 : HOLD_DUR); break;
-      case 'restore': e.rewind(); AudioSys.sfx('weave'); break;
+      case 'restore': if (e.rewind) e.rewind(); else if (e.restore) e.restore(); AudioSys.sfx('weave'); break;
       case 'cut': e.cutThread(cx); break;
     }
   }
@@ -533,8 +565,9 @@ class Echo {
     if (this.attackT > 0) {
       this.attackT -= dt;
       const box = Player.prototype.attackBox.call(this);
-      for (const e of Game.entities) if ((e instanceof Enemy || e instanceof Boss) && !e.dead && !this.hitSet.has(e) && rectsOverlap(box, e)) { this.hitSet.add(e); e.hurt(1, this.x + this.w / 2, { kind: this.attackKind, from: 'echo' }); }
+      for (const e of Game.entities) if ((e instanceof Enemy || e instanceof Boss || e instanceof Lever) && !e.dead && !this.hitSet.has(e) && rectsOverlap(box, e)) { this.hitSet.add(e); if (e instanceof Lever) e.strike(); else e.hurt(1, this.x + this.w / 2, { kind: this.attackKind, from: 'echo' }); }
     }
+    if (f.g) World.weighOn(this, dt, 'echo'); // it weighs on a weak floor (shakes it) and never breaks it
     this.i++;
     if (this.i >= this.frames.length) { this.i = 0; this.loops--; if (this.loops <= 0) { this.dead = true; Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e6d8ff', 14, 80); } }
   }
@@ -553,7 +586,7 @@ class Plate {
     this.pressed = false;
     const pl = Game.player;
     if (!pl.dead && rectsOverlap(zone, pl)) this.pressed = true;
-    for (const e of Game.entities) if ((e instanceof Echo) && !e.dead && rectsOverlap(zone, e)) this.pressed = true;
+    for (const e of Game.entities) if ((e instanceof Echo || e instanceof Boulder) && !e.dead && rectsOverlap(zone, e)) this.pressed = true;
     if (this.pressed && !was) { AudioSys.sfx('menu'); Game.burst(this.x + 8, this.y, '#ffd27a', 6, 30); }
   }
   draw(ctx, t) { Art.drawPlate(ctx, this, t); }
@@ -578,6 +611,214 @@ class Crusher {
     if (!pl.dead && pl.invuln <= 0 && this.state === 'fall' && rectsOverlap(this, pl)) pl.hurt(2, pl.x + pl.w / 2 + (pl.x < this.x + this.w / 2 ? 30 : -30));
   }
   draw(ctx, t) { Art.drawCrusher(ctx, this, t); }
+}
+
+// ---------------------------------------------------------------------------
+// The interactable tiles that live as entities (docs/POWERS.md section 3). Each exposes the fields the
+// art contract names and draws a plain placeholder when its Art function is not there yet.
+const isHeldBy = (e) => !!(Game.held && Game.held.obj === e);
+const placeholder = (ctx, r, col) => { ctx.fillStyle = col; ctx.fillRect(r.x, r.y, r.w, r.h); };
+// the first solid, one-way or dynamic surface under a run of cells starting at row ty; returns the row (or H)
+const landingRow = (tx0, tx1, ty) => { for (let r = ty; r < World.zone.H; r++) for (let tx = tx0; tx <= tx1; tx++) if (World.isSolidAt(tx, r) || World.tile(tx, r) === '=' || World.bridgeAt(tx, r)) return r; return World.zone.H; };
+
+// u: hangs on a rope from the ceiling above its centre. Age rots the rope (0.4 s), Cut drops it at once; it falls
+// until any of its cells has rock, a ledge or a platform beneath and lies there (flag rope: = px fallen); Restore
+// lifts it back in 0.6 s. Held while falling it hangs in the air.
+class HangingPlatform {
+  constructor(spec) {
+    this.x = spec.x * TILE; this.y = spec.y * TILE; this.w = spec.w * TILE; this.h = 8; this.hungY = this.y; this.tx = spec.x; this.ty = spec.y;
+    let r = spec.y - 1; while (r > 0 && !World.isSolidAt(spec.x + Math.floor(spec.w / 2), r)) r--;
+    this.ropeTop = (r + 1) * TILE; this.ropeX = this.x + this.w / 2;
+    this.state = 'hung'; this.rot = 0; this.vx = 0; this.vy = 0; this.dead = false; this.held = false;
+    if (spec.dy !== null && spec.dy !== undefined) { this.state = 'down'; this.y = this.hungY + spec.dy; }
+  }
+  rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  platformRect() { return { x: this.x, y: this.y, w: this.w, h: this.h, vx: 0, vy: this.state === 'falling' && !this.held ? this.vy : 0, owner: this }; }
+  key() { return World.localKey(this.tx, this.ty); }
+  age() { if (this.state === 'hung' && this.rot <= 0) { this.rot = 0.001; Game.burst(this.ropeX, this.ropeTop + 4, '#9fc59a', 6, 30); } }
+  cutThread() { if (this.state === 'hung') { this.drop(); AudioSys.sfx('cut'); } }
+  drop() { this.state = 'falling'; this.vy = 0; this.rot = 0; Game.burst(this.ropeX, this.ropeTop + 4, '#ff3355', 8, 40); }
+  restore() { if (this.state === 'down') { this.state = 'rising'; const k = this.key(); if (k) { delete Game.save.flags['rope:' + k]; Game.writeSave(); } Game.burst(this.x + this.w / 2, this.y, '#7af0d0', 10, 40); } }
+  update(dt) {
+    this.held = isHeldBy(this);
+    if (this.held) return;
+    if (this.state === 'hung' && this.rot > 0) { this.rot += dt / 0.4; if (this.rot >= 1) { this.drop(); AudioSys.sfx('crack'); } return; }
+    if (this.state === 'falling') {
+      this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+      const ny = this.y + this.vy * dt, tx0 = Math.floor(this.x / TILE), tx1 = Math.floor((this.x + this.w - 1) / TILE);
+      // tiles: the first row (from the cell below the one it is in) with rock, a ledge or a bridge under any cell
+      const row = landingRow(tx0, tx1, Math.floor(this.y / TILE) + 1);
+      let landY = row * TILE - TILE;
+      // dynamic platforms (a held crusher, another platform): rest on its top
+      for (const p of World.platforms) if (p.owner !== this && p.owner && !(p.owner instanceof HangingPlatform && p.owner.state === 'falling') && this.x + this.w > p.x && this.x < p.x + p.w && p.y >= this.y + this.h && p.y - this.h < landY) landY = p.y - this.h;
+      if (ny >= landY) { this.y = landY; this.vy = 0; this.state = 'down'; const k = this.key(); if (k) { Game.save.flags['rope:' + k] = Math.round(this.y - this.hungY); Game.writeSave(); } World.shake = Math.max(World.shake, 0.18); Game.burst(this.x + this.w / 2, this.y + this.h, '#9a9aa8', 10, 60); AudioSys.sfx('land'); }
+      else this.y = ny;
+    } else if (this.state === 'rising') {
+      const speed = Math.max(40, (this.y - this.hungY) / 0.6);
+      this.vy = -speed; this.y -= speed * dt;
+      if (this.y <= this.hungY) { this.y = this.hungY; this.vy = 0; this.state = 'hung'; }
+    } else this.vy = 0;
+  }
+  draw(ctx, t) { if (Art.drawHangingPlatform) Art.drawHangingPlatform(ctx, this, t); else { ctx.strokeStyle = '#8a7a66'; ctx.beginPath(); ctx.moveTo(this.ropeX, this.ropeTop); ctx.lineTo(this.ropeX, this.y); ctx.stroke(); placeholder(ctx, this, '#8a7a66'); } }
+}
+
+// m: a platform on a track, horizontal if the run has air beside it else vertical, 48 px/s, pausing 0.5 s at each
+// end. Lift mode (paired with the screen's first hanging boulder): parked until the thread is cut, then travels to
+// the far end and parks for good (flag lift:). Hold stops it 4 s. Carries riders.
+class TrackPlatform {
+  constructor(spec) {
+    this.x = spec.x * TILE; this.y = spec.y * TILE; this.w = spec.w * TILE; this.h = 8; this.tx = spec.x; this.ty = spec.y; this.tw = spec.w; this.screen = spec.screen;
+    const air = (x, y) => World.tile(x, y) === '.';
+    this.axis = air(spec.x - 1, spec.y) || air(spec.x + spec.w, spec.y) ? 'h' : 'v';
+    this.dir = this.axis === 'h' ? (air(spec.x + spec.w, spec.y) ? 1 : -1) : (air(spec.x, spec.y - 1) ? -1 : 1);
+    this.lift = false; this.parked = false; this.parkedFar = !!spec.parkedFar; this.pause = 0; this.vx = 0; this.vy = 0; this.dead = false; this.held = false;
+    this.homeX = this.x; this.homeY = this.y;
+  }
+  rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  platformRect() { return { x: this.x, y: this.y, w: this.w, h: this.h, vx: this.held || this.parked ? 0 : this.vx, vy: this.held || this.parked ? 0 : this.vy, owner: this }; }
+  // the farthest position along the track in a direction: the cell before the first one that is not air
+  limit(dir) {
+    let tx = Math.round(this.x / TILE), ty = Math.round(this.y / TILE);
+    for (let n = 0; n < 60; n++) {
+      const nx = this.axis === 'h' ? tx + dir : tx, ny = this.axis === 'v' ? ty + dir : ty;
+      let ok = true;
+      if (this.axis === 'h') ok = World.tile(dir > 0 ? nx + this.tw - 1 : nx, ny) === '.';
+      else for (let i = 0; i < this.tw; i++) if (World.tile(nx + i, ny) !== '.') ok = false;
+      if (!ok) break;
+      tx = nx; ty = ny;
+    }
+    return this.axis === 'h' ? tx * TILE : ty * TILE;
+  }
+  makeLift(boulder) { this.lift = true; this.parked = true; this.boulder = boulder; if (this.parkedFar) { this.parkedFar = false; if (this.axis === 'h') this.x = this.limit(this.dir); else this.y = this.limit(this.dir); } }
+  release() { if (this.lift && this.parked && !this.travelled) { this.parked = false; this.travelled = true; this.pause = 0.3; AudioSys.sfx('gate'); } }
+  update(dt) {
+    this.held = isHeldBy(this);
+    if (this.held || this.parked) { this.vx = this.vy = 0; return; }
+    if (this.pause > 0) { this.pause -= dt; this.vx = this.vy = 0; return; }
+    const lim = this.limit(this.dir), pos = this.axis === 'h' ? this.x : this.y, step = this.dir * 48 * dt;
+    let np = pos + step, arrived = this.dir > 0 ? np >= lim : np <= lim;
+    if (arrived) np = lim;
+    const v = (np - pos) / dt;
+    if (this.axis === 'h') { this.x = np; this.vx = v; this.vy = 0; } else { this.y = np; this.vy = v; this.vx = 0; }
+    if (arrived) {
+      if (this.lift) { this.parked = true; const k = World.localKey(this.tx, this.ty); if (k) { Game.save.flags['lift:' + k] = true; Game.writeSave(); } World.shake = Math.max(World.shake, 0.12); AudioSys.sfx('land'); }
+      else { this.pause = 0.5; this.dir *= -1; }
+    }
+  }
+  draw(ctx, t) { if (Art.drawTrackPlatform) Art.drawTrackPlatform(ctx, this, t); else placeholder(ctx, this, this.lift ? '#a08860' : '#6a7a8a'); }
+}
+
+// x: a blade on a rope from a pivot in the ceiling; arm = air rows below the pivot - 1 (3..7 tiles), swings 60
+// degrees either way with a 2.4 s period, the 14x14 head deals 1 and knocks back. Hold freezes it (a platform);
+// Cut drops it straight down from where it is to stick in the first solid as a two-tall rock (flag blade:).
+class Blade {
+  constructor(spec) {
+    this.tx = spec.x; this.ty = spec.y; this.px = spec.x * TILE + TILE / 2; this.py = (spec.y + 1) * TILE;
+    let air = 0; while (spec.y + 1 + air < World.zone.H && World.tile(spec.x, spec.y + 1 + air) === '.') air++;
+    this.len = clamp(air - 1, 3, 7) * TILE;
+    this.t = Math.random() * 2.4; this.ang = 0; this.state = 'swinging'; this.held = false; this.dead = false;
+    this.head = { x: 0, y: 0, w: 14, h: 14 }; this.w = 14; this.h = 14; this.vy = 0; this.vx = 0;
+    this.place();
+  }
+  place() { this.head.x = this.px + Math.sin(this.ang) * this.len - 7; this.head.y = this.py + Math.cos(this.ang) * this.len - 7; this.x = this.head.x; this.y = this.head.y; }
+  rect() { return { x: this.head.x, y: this.head.y, w: 14, h: 14 }; }
+  platformRect() { return this.held ? { x: this.head.x, y: this.head.y, w: 14, h: 14, vx: 0, vy: 0, owner: this } : null; }
+  cutThread() {
+    if (this.state === 'fallen') return;
+    if (isHeldBy(this)) Game.release();
+    this.state = 'fallen'; this.vy = 0; this.held = false;
+    Game.burst(this.px, this.py + 4, '#ff3355', 8, 40); AudioSys.sfx('cut');
+  }
+  update(dt) {
+    this.held = isHeldBy(this);
+    if (this.state !== 'fallen') this.state = this.held ? 'held' : 'swinging';
+    if (this.held) return;
+    const pl = Game.player;
+    if (this.state === 'swinging') {
+      this.t += dt; this.ang = Math.sin(this.t / 2.4 * Math.PI * 2) * Math.PI / 3; this.place();
+      if (!pl.dead && pl.invuln <= 0 && rectsOverlap(this.head, pl)) pl.hurt(1, this.head.x + 7);
+      return;
+    }
+    // fallen: straight down from the current position until the head meets rock, then it is rock itself
+    this.vy = Math.min(900, this.vy + 2400 * dt);
+    const col = Math.floor((this.head.x + 7) / TILE), ny = this.head.y + this.vy * dt;
+    let row = Math.floor((this.head.y + 14) / TILE); while (row < World.zone.H && !World.isSolidAt(col, row) && World.tile(col, row) !== '=') row++;
+    if (ny + 14 >= row * TILE) {
+      const top = Math.max(0, row - 2);
+      World.setTile(col, top, '#'); if (row - 1 >= 0) World.setTile(col, row - 1, '#');
+      const sc = World.screenAt(this.tx * TILE, this.ty * TILE); if (sc) { Game.save.flags['blade:' + sc.id + ':' + (this.tx - sc.ox) + ':' + (this.ty - sc.oy)] = (col - sc.ox) + ',' + (top - sc.oy); Game.writeSave(); }
+      if (!pl.dead && pl.x + pl.w > col * TILE && pl.x < (col + 1) * TILE && pl.y + pl.h > top * TILE && pl.y < row * TILE) { pl.hurt(1, pl.x + pl.w / 2 + 1); pl.y = top * TILE - pl.h; }
+      this.dead = true; World.shake = Math.max(World.shake, 0.2); Game.burst(col * TILE + 8, row * TILE, '#9a9aa8', 12, 70); AudioSys.sfx('land');
+      return;
+    }
+    this.head.y = ny; this.x = this.head.x; this.y = this.head.y;
+    if (!pl.dead && pl.invuln <= 0 && rectsOverlap(this.head, pl)) pl.hurt(1, this.head.x + 7);
+  }
+  draw(ctx, t) {
+    if (Art.drawBlade) { Art.drawBlade(ctx, this, t); return; }
+    ctx.strokeStyle = '#a89878'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.px, this.py); ctx.lineTo(this.head.x + 7, this.head.y + 7); ctx.stroke(); placeholder(ctx, this.head, '#c9a24a');
+  }
+}
+
+// O: a 16x16 stone. On a floor it rolls at 90 px/s (leftward first), turning at walls and ledges, dealing 1 with
+// knockback, pressing plates and breaking weak floor after 0.3 s. Over air it hangs on thread until Cut drops it
+// (its paired lift then rises). Held it is a solid shield for 4 s.
+class Boulder {
+  constructor(spec) {
+    this.x = spec.x * TILE; this.y = spec.y * TILE; this.w = 16; this.h = 16; this.screen = spec.screen;
+    this.state = spec.hanging ? 'hanging' : 'rolling'; this.dir = -1; this.rot = 0; this.vx = 0; this.vy = 0; this.held = false; this.dead = false; this.lift = null;
+    let r = spec.y - 1; while (r > 0 && !World.isSolidAt(spec.x, r)) r--;
+    this.threadTop = (r + 1) * TILE; this.onGround = false;
+  }
+  rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  platformRect() { return { x: this.x, y: this.y, w: this.w, h: this.h, vx: this.held || this.state === 'hanging' ? 0 : this.vx, vy: this.held || this.state === 'hanging' ? 0 : this.vy, owner: this }; }
+  solidRect() { return this.held ? { x: this.x, y: this.y, w: this.w, h: this.h, owner: this } : null; }
+  cutThread() { if (this.state === 'hanging') { this.state = 'falling'; this.vy = 0; Game.burst(this.x + 8, this.threadTop + 4, '#ff3355', 8, 40); AudioSys.sfx('cut'); if (this.lift) this.lift.release(); } }
+  update(dt) {
+    this.held = isHeldBy(this);
+    if (this.held) { if (this.state === 'rolling' || this.state === 'falling') this.state = 'held'; this.vx = this.vy = 0; return; }
+    if (this.state === 'held') this.state = 'rolling';
+    if (this.state === 'hanging') return;
+    const pl = Game.player;
+    if (this.state === 'rolling') this.vx = this.dir * 90;
+    this.vy = Math.min(MAX_FALL, this.vy + GRAVITY * dt);
+    const res = World.moveBody(this, dt);
+    this.onGround = res.ground;
+    if (this.state === 'falling' && res.ground) { this.state = 'rolling'; World.shake = Math.max(World.shake, 0.15); Game.burst(this.x + 8, this.y + 16, '#9a9aa8', 10, 60); AudioSys.sfx('land'); }
+    if (this.state === 'rolling') {
+      this.rot += this.vx * dt / 8;
+      if (res.wallL || res.wallR || (res.ground && !World.groundAhead(this, this.dir)) || this.x < 2 || this.x + this.w > World.W - 2) { this.dir *= -1; this.vx = 0; }
+      if (res.ground) World.weighOn(this, dt, 'boulder');
+      if (!pl.dead && pl.invuln <= 0 && rectsOverlap(this, pl) && pl.y + pl.h > this.y + 4) pl.hurt(1, this.x + 8);
+    }
+    if (this.y > World.H + 40) this.dead = true;
+  }
+  draw(ctx, t) { if (Art.drawBoulder) Art.drawBoulder(ctx, this, t); else { if (this.state === 'hanging') { ctx.strokeStyle = '#e6d8ff'; ctx.beginPath(); ctx.moveTo(this.x + 8, this.threadTop); ctx.lineTo(this.x + 8, this.y); ctx.stroke(); } ctx.fillStyle = '#7a7268'; ctx.beginPath(); ctx.arc(this.x + 8, this.y + 8, 8, 0, Math.PI * 2); ctx.fill(); } }
+}
+
+// l: a lever thrown by a melee strike, an echo's strike or a deflected shot; latched. Listed in the screen's
+// broken: ['x,y'] it only clanks until Restore fixes it (flag fixed:). ON opens everything on its screen (World.leverOn).
+class Lever {
+  constructor(spec) { this.x = spec.x * TILE; this.y = spec.y * TILE; this.w = 16; this.h = 16; this.screen = spec.screen; this.tx = spec.x; this.ty = spec.y; this.state = spec.on ? 'on' : spec.broken ? 'broken' : 'off'; this.kick = 0; this.dead = false; }
+  strike() {
+    this.kick = 1;
+    if (this.state === 'off') { this.state = 'on'; Game.burst(this.x + 8, this.y + 4, '#ffd27a', 12, 60); AudioSys.sfx('save'); UI.showToast('Something heavy moves.'); World.leverOn(this.screen); }
+    else if (this.state === 'broken') { Game.spark(this.x + 8, this.y + 6, 1, false); AudioSys.sfx('gate'); }
+    else AudioSys.sfx('hit');
+  }
+  restore() { if (this.state === 'broken') { this.state = 'off'; this.kick = 1; const k = World.localKey(this.tx, this.ty); if (k) { Game.save.flags['fixed:' + k] = true; Game.writeSave(); } Game.burst(this.x + 8, this.y + 8, '#7af0d0', 10, 40); } }
+  update(dt) { if (this.kick > 0) this.kick = Math.max(0, this.kick - dt * 3); }
+  draw(ctx, t) { if (Art.drawLever) Art.drawLever(ctx, this, t); else { placeholder(ctx, { x: this.x + 4, y: this.y + 10, w: 8, h: 6 }, '#5a5660'); ctx.strokeStyle = this.state === 'broken' ? '#ff3355' : this.state === 'on' ? '#ffd27a' : '#c8bc9e'; ctx.beginPath(); ctx.moveTo(this.x + 8, this.y + 12); ctx.lineTo(this.x + 8 + (this.state === 'on' ? 6 : -6), this.y + 2); ctx.stroke(); } }
+}
+
+// q: the sluice's socket. The tile itself is the Age target while sealed; this entity is the Restore target once
+// it has rotted open, and tells the art how far the hall has drained.
+class SluiceSite {
+  constructor(spec) { this.x = spec.x * TILE; this.y = spec.y * TILE; this.w = 16; this.h = 16; this.tx = spec.x; this.ty = spec.y; this.screen = spec.screen; this.open = !!spec.open; this.drain = this.open ? 1 : 0; this.dead = false; }
+  rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+  restore() { if (this.open) { World.closeSluice(this.screen); this.open = false; } }
+  update() { this.open = World.tile(this.tx, this.ty) !== 'q'; this.drain = 1 - World.floodLevel(this.screen); }
+  draw(ctx, t) { if (Art.drawSluice) Art.drawSluice(ctx, this, t); else if (this.open) { ctx.strokeStyle = '#7af0d0'; ctx.strokeRect(this.x + 2.5, this.y + 2.5, 11, 11); } }
 }
 
 // ---------------------------------------------------------------------------
@@ -647,6 +888,8 @@ class Enemy {
     if (this.withered > 0) this.withered -= dt;
     if (this.shieldCut > 0) this.shieldCut -= dt;
     if (this.isHeld()) { this.vx = 0; this.vy = 0; this.decoy = null; this.animTick(dt0, 0); return; } // pinned: no movement, no contact
+    // a rider moves with its dynamic platform while still over it
+    if (this.riding && this.x + this.w > this.riding.x && this.x < this.riding.x + this.riding.w) { this.x += (this.riding.vx || 0) * dt0; this.y += (this.riding.vy || 0) * dt0; }
     this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 120) this.trail.shift();
     // the strike lands on the frame the telegraph runs out (a single edge, so a fixed step can never skip it);
     // a short cooldown floor keeps an enemy from re-telling on the very next frame
@@ -826,8 +1069,10 @@ class Projectile {
     if (this.life <= 0 || this.x < -20 || this.x > World.W + 20 || this.y < -20 || this.y > World.H + 20) this.dead = true;
     const tx = Math.floor(this.x / TILE), ty = Math.floor(this.y / TILE);
     if (this.kind !== 'wave' && this.kind !== 'gear') {
-      if (World.isSolidAt(tx, ty)) { this.dead = true; Game.burst(this.x, this.y, this.hostile ? '#ff8080' : '#d8f0c0', 4); }
+      if (World.isSolidAt(tx, ty) || World.solids.some((s) => s.owner !== this.owner && this.x >= s.x && this.x <= s.x + s.w && this.y >= s.y && this.y <= s.y + s.h)) { this.dead = true; Game.burst(this.x, this.y, this.hostile ? '#ff8080' : '#d8f0c0', 4); }
     }
+    // a deflected shot throws a lever
+    if (!this.hostile && !this.dead) for (const e of Game.entities) if (e instanceof Lever && !this.hit.has(e) && rectsOverlap(this.rect(), e)) { this.hit.add(e); e.strike(); if (!this.pierce) { this.dead = true; break; } }
     const pl = Game.player;
     const box = { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
     if (this.hostile) {

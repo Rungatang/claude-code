@@ -7,8 +7,12 @@
 // Model, per stage (one stage per set of abilities held):
 //   locks need age, rubble needs restore, crushers kill without hold, relic seals open at their
 //   gateNeeds count or once the hall's boss has been reached, timed doors and weight gates are walls until
-//   the plate on their screen has been reached and latched open for good after (weight gates also need
-//   the echo), the scripted loss drops the player into the Archive, and the tower gate opens with cut.
+//   the plate (or lever) on their screen has been reached and latched open for good after (weight gates also
+//   need the echo), the scripted loss drops the player into the Archive, and the tower gate opens with cut.
+//   The interactable tiles of docs/POWERS.md section 3 are modelled statically in prepZone, in the order
+//   lever flags, Age, Restore, Hold, Echo, Cut, crushers (section 4 of the spec has the per-power rules); a
+//   sluice screen is explored once per water state when Age and Restore are both held (variant bitmask) and
+//   the results are unioned; a lever reached sets lever:<screen> and triggers another pass like relics do.
 // After every pass the RETURN CHECK walks the explored position graph backwards: every landing position
 // the pass reached must be able to get back to a lantern that pass reached and to the start zone A1 with
 // the same abilities. Zones only entered through the scripted loss are allowed to be one-way until the
@@ -24,15 +28,21 @@ const SOLVER = () => {
   let relicsKnown = 0; // shards + hearts + spools reached so far; opens the relic-sealed boss gates
   const platesKnown = new Set(); // screens whose plate was reached: their door is latched open from then on
   const bossesKnown = new Set(); // bosses reached (and so beaten): their halls stay open
+  const leversKnown = new Set(); // screens whose lever was reached (struck): their doors, locks and lever gates are open
   const opposite = { left: 'right', right: 'left', up: 'down', down: 'up' };
   const vkOf = (zone, entry) => zone + ':' + JSON.stringify(entry);
-  const modelKey = () => (surfacedKnown ? 'S' : '') + (lossKnown ? 'L' : '') + relicsKnown + '|' + [...platesKnown].sort().join(',') + '|' + [...bossesKnown].sort().join(',');
+  const modelKey = () => (surfacedKnown ? 'S' : '') + (lossKnown ? 'L' : '') + relicsKnown + '|' + [...platesKnown].sort().join(',') + '|' + [...bossesKnown].sort().join(',') + '|' + [...leversKnown].sort().join(',');
   const setInput = (held, taps) => { Input.down = {}; Input.pressed = {}; for (const k of held) Input.down[k] = true; for (const k of taps || []) { Input.down[k] = true; Input.pressed[k] = true; } };
-  const prepZone = (zoneId, abilities) => {
+  // the sluice screens of a zone, in id order: bit i of a variant means sluice i is drained
+  const sluicesOf = (zoneId) => Object.keys(ZONES[zoneId].screens).filter((id) => ROOMS[id].grid.join('').includes('q')).sort();
+  const variantsFor = (zoneId, abilities) => abilities.includes('age') && abilities.includes('restore') ? 1 << Math.min(2, sluicesOf(zoneId).length) : 1;
+  const prepZone = (zoneId, abilities, variant) => {
+    variant = variant || 0;
     Game.manual = true;
     Game.save = Game.defaultSave();
     for (const a of abilities) Game.save.abilities[a] = true;
     for (const b of bossesKnown) Game.save.flags['boss:' + b] = true;
+    for (const l of leversKnown) Game.save.flags['lever:' + l] = true;
     if (lossKnown) Game.save.flags.regent1 = true; if (surfacedKnown) Game.save.flags.surfaced = true; Game.save.flags.sefConfront = true;
     if (abilities.includes('cut')) Game.save.flags.cut = true;
     Game.player = new Player();
@@ -41,18 +51,73 @@ const SOLVER = () => {
     Game.particle = () => {}; Game.burst = () => {};
     Game.state = 'play'; Cutscene.active = false; Game.pendingDialogue = null;
     World.bossActive = false;
-    for (let y = 0; y < World.zone.H; y++) for (let x = 0; x < World.zone.W; x++) {
-      const ch = World.tiles[y][x];
-      if (ch === 'L' && abilities.includes('age')) World.tiles[y][x] = '.';
-      if (ch === 'R' && abilities.includes('restore')) World.tiles[y][x] = '#';
-      if (ch === 'd' || ch === 'e') { const sc = World.screenAt(x * TILE, y * TILE); const open = !!(sc && platesKnown.has(sc.id) && (ch === 'd' || abilities.includes('echo'))); World.tiles[y][x] = open ? '.' : '#'; }
-      if (ch === 'G') { const sc = World.screenAt(x * TILE, y * TILE); const def = sc && sc.def; const open = def && ((def.gateNeeds && relicsKnown >= def.gateNeeds) || (def.boss && bossesKnown.has(def.boss)) || (!def.gateNeeds && (!def.gateFlag || Game.save.flags[def.gateFlag]))); if (open) World.tiles[y][x] = '.'; }
+    const has = (a) => abilities.includes(a), T = World.tiles, ZH = World.zone.H, ZW = World.zone.W;
+    const sluices = sluicesOf(zoneId);
+    const drained = (screenId) => has('age') && (!has('restore') || !!((variant >> sluices.indexOf(screenId)) & 1));
+    const screenOf = (x, y) => World.screenAt(x * TILE, y * TILE);
+    const set = (x, y, ch) => { if (y >= 0 && y < ZH && x >= 0 && x < ZW) T[y][x] = ch; };
+    const air = (x, y) => y >= 0 && y < ZH && x >= 0 && x < ZW && T[y][x] === '.';
+    const firstSolidRow = (tx0, tx1, ty) => { for (let r = ty; r < ZH; r++) for (let tx = tx0; tx <= tx1; tx++) { const c = World.tile(tx, r); if (World.isSolid(c) || c === '=' || c === '^') return r; } return ZH; };
+    // ---- tiles: lever flags (World.load applied them), Age, Restore, Echo, Cut ----
+    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
+      const ch = T[y][x];
+      if ((ch === 'L' || ch === 'C') && has('age')) T[y][x] = '.';
+      if (ch === 'f' || ch === 'y') T[y][x] = has('age') ? '.' : '#';
+      if (ch === 'q' || ch === '~') { const sc = screenOf(x, y); T[y][x] = sc && drained(sc.id) ? '.' : '#'; }
+      if (ch === 'R' && has('restore')) T[y][x] = '#';
+      if (ch === 's' && has('restore')) World.growVine(x, y, true);
+      if (ch === 'b') { const curtain = World.curtainAt(x, y); T[y][x] = has('cut') ? (curtain ? '.' : '=') : '#'; }
+      if (ch === 'd' || ch === 'e') { const sc = screenOf(x, y); const open = !!(sc && (leversKnown.has(sc.id) || (platesKnown.has(sc.id) && (ch === 'd' || has('echo'))))); T[y][x] = open ? '.' : '#'; }
+      if (ch === 'G') { const sc = screenOf(x, y); const def = sc && sc.def; const open = def && ((def.gateNeeds && relicsKnown >= def.gateNeeds) || (def.boss && bossesKnown.has(def.boss)) || (!def.gateNeeds && (!def.gateFlag || Game.save.flags[def.gateFlag]))); if (open) T[y][x] = '.'; }
     }
-    if (!abilities.includes('hold')) for (const s of specs) if (s.cls === 'crusher') {
-      let ty = s.y + 1; while (ty < World.zone.H && !World.isSolid(World.tile(s.x, ty)) && World.tile(s.x, ty) !== '=') ty++;
-      for (let yy = s.y; yy < ty; yy++) for (let xx = s.x; xx < s.x + s.w; xx++) if (World.tiles[yy][xx] === '.') World.tiles[yy][xx] = '^';
+    // ---- the entities, approximated statically (section 4) ----
+    const lifts = new Map(); // screen -> { boulder spec, track spec }
+    for (const sp of specs) { if (sp.cls === 'boulder' && sp.hanging && !lifts.has(sp.screen)) lifts.set(sp.screen, { o: sp }); }
+    for (const sp of specs) { if (sp.cls === 'track' && lifts.has(sp.screen) && !lifts.get(sp.screen).m) lifts.get(sp.screen).m = sp; }
+    for (const sp of specs) {
+      if (sp.cls === 'hanging') {
+        // hung: a ledge where it hangs; dropped (age or cut): a ledge on the row above the first floor under any cell; with
+        // restore both positions; a run that reaches the zone bottom is gone
+        const dropped = has('age') || has('cut');
+        if (!dropped || has('restore')) for (let i = 0; i < sp.w; i++) if (air(sp.x + i, sp.y)) set(sp.x + i, sp.y, '=');
+        if (dropped) { const r = firstSolidRow(sp.x, sp.x + sp.w - 1, sp.y + 1); if (r < ZH && r - 1 !== sp.y) for (let i = 0; i < sp.w; i++) if (air(sp.x + i, r - 1)) set(sp.x + i, r - 1, '='); }
+      } else if (sp.cls === 'blade') {
+        // the arc (every cell within the arm of the pivot and below it) is deadly without hold, air with it, and its two
+        // apexes are ledges; cut: the arc is air and a two-tall rock stands under the pivot
+        let airRows = 0; while (sp.y + 1 + airRows < ZH && T[sp.y + 1 + airRows][sp.x] === '.') airRows++;
+        const len = clamp(airRows - 1, 3, 7) * TILE, px = sp.x * TILE + 8, py = (sp.y + 1) * TILE;
+        for (let cy = sp.y + 1; cy < ZH; cy++) for (let cx = sp.x - 8; cx <= sp.x + 8; cx++) { if (!air(cx, cy)) continue; const dx = cx * TILE + 8 - px, dy = cy * TILE + 8 - py; if (dy > 0 && Math.hypot(dx, dy) <= len + 8 && Math.abs(Math.atan2(dx, dy)) <= Math.PI / 3 + 0.1) set(cx, cy, has('hold') || has('cut') ? '.' : '^'); }
+        if (has('hold')) for (const sgn of [-1, 1]) { const ax = Math.floor((px + sgn * Math.sin(Math.PI / 3) * len) / TILE), ay = Math.floor((py + Math.cos(Math.PI / 3) * len) / TILE); if (air(ax, ay)) set(ax, ay, '='); }
+        if (has('cut')) { const r = firstSolidRow(sp.x, sp.x, sp.y + 1); set(sp.x, r - 1, '#'); set(sp.x, r - 2, '#'); }
+      } else if (sp.cls === 'boulder') {
+        if (sp.hanging) {
+          // rock where it hangs; cut: rock where it lands and the paired lift parked at its far end
+          const r = has('cut') ? firstSolidRow(sp.x, sp.x, sp.y + 1) - 1 : sp.y; set(sp.x, r, '#');
+        } else {
+          // its lane (the air of its row either way from it) is deadly without hold; held it is a step at either lane end
+          let x0 = sp.x, x1 = sp.x; while (air(x0 - 1, sp.y)) x0--; while (air(x1 + 1, sp.y)) x1++;
+          for (let x = x0; x <= x1; x++) if (air(x, sp.y)) set(x, sp.y, has('hold') ? '.' : '^');
+          if (has('hold')) { if (air(x0, sp.y - 1)) set(x0, sp.y - 1, '='); if (air(x1, sp.y - 1)) set(x1, sp.y - 1, '='); }
+        }
+      } else if (sp.cls === 'track') {
+        const lift = lifts.get(sp.screen), isLift = lift && lift.m === sp;
+        const cellsAir = (x, y) => { for (let i = 0; i < sp.w; i++) if (!air(x + i, y)) return false; return true; };
+        const axis = air(sp.x - 1, sp.y) || air(sp.x + sp.w, sp.y) ? 'h' : 'v';
+        const dir = axis === 'h' ? (air(sp.x + sp.w, sp.y) ? 1 : -1) : (air(sp.x, sp.y - 1) ? -1 : 1);
+        const far = () => { let x = sp.x, y = sp.y; for (let n = 0; n < 60; n++) { const nx = axis === 'h' ? x + dir : x, ny = axis === 'v' ? y + dir : y; if (!(axis === 'h' ? air(dir > 0 ? nx + sp.w - 1 : nx, ny) : cellsAir(nx, ny))) break; x = nx; y = ny; } return [x, y]; };
+        if (isLift) { const [fx, fy] = has('cut') ? far() : [sp.x, sp.y]; for (let i = 0; i < sp.w; i++) if (air(fx + i, fy)) set(fx + i, fy, '='); }
+        else {
+          // the whole track is a ledge: the player can always ride it
+          for (const d of [-1, 1]) { let x = sp.x, y = sp.y; for (let n = 0; n < 60; n++) { for (let i = 0; i < sp.w; i++) if (air(x + i, y)) set(x + i, y, '='); const nx = axis === 'h' ? x + d : x, ny = axis === 'v' ? y + d : y; if (!(axis === 'h' ? air(d > 0 ? nx + sp.w - 1 : nx, ny) : cellsAir(nx, ny))) break; x = nx; y = ny; } }
+        }
+      }
     }
-    curKey = zoneId + '|' + abilities.join(',') + '|' + modelKey();
+    if (!has('hold')) for (const sp of specs) if (sp.cls === 'crusher') {
+      let ty = sp.y + 1; while (ty < ZH && !World.isSolid(World.tile(sp.x, ty)) && World.tile(sp.x, ty) !== '=') ty++;
+      for (let yy = sp.y; yy < ty; yy++) for (let xx = sp.x; xx < sp.x + sp.w; xx++) if (T[yy][xx] === '.') T[yy][xx] = '^';
+    }
+    World.tileVersion++;
+    curKey = zoneId + '|' + abilities.join(',') + '|' + variant + '|' + modelKey();
     if (!macroCache[curKey]) macroCache[curKey] = {};
     return specs;
   };
@@ -60,7 +125,7 @@ const SOLVER = () => {
     const out = [];
     for (const sc of Object.values(World.zone.screens)) for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) {
       const ch = sc.def.grid[y][x];
-      if ('AMHTSNBpi'.includes(ch)) { const gx = sc.ox + x, gy = sc.oy + y; out.push({ ch, x: gx, y: gy, screen: sc.id, rect: ch === 'S' || ch === 'N' ? { x: gx * TILE - 8, y: (gy - 1) * TILE, w: 32, h: 32 } : ch === 'B' ? { x: gx * TILE - 60, y: (gy - 2) * TILE, w: 136, h: 48 } : ch === 'p' ? { x: gx * TILE - 2, y: gy * TILE - 6, w: 20, h: 22 } : { x: gx * TILE, y: gy * TILE, w: 16, h: 16 } }); }
+      if ('AMHTSNBpil'.includes(ch)) { const gx = sc.ox + x, gy = sc.oy + y; out.push({ ch, x: gx, y: gy, screen: sc.id, broken: ch === 'l' && (sc.def.broken || []).includes(x + ',' + y), rect: ch === 'S' || ch === 'N' ? { x: gx * TILE - 8, y: (gy - 1) * TILE, w: 32, h: 32 } : ch === 'B' ? { x: gx * TILE - 60, y: (gy - 2) * TILE, w: 136, h: 48 } : ch === 'p' ? { x: gx * TILE - 2, y: gy * TILE - 6, w: 20, h: 22 } : ch === 'l' ? { x: gx * TILE - 14, y: gy * TILE - 8, w: 44, h: 32 } : { x: gx * TILE, y: gy * TILE, w: 16, h: 16 } }); }
     }
     return out;
   };
@@ -72,13 +137,15 @@ const SOLVER = () => {
     const p = Game.player;
     restore(p, start);
     const res = { landings: [], exit: null, touched: new Set(), spiked: false };
-    let left = false;
+    let left = false, dir = macro.dir;
     for (let f = 0; f < macro.frames; f++) {
       const held = [], taps = [];
-      if (macro.dir > 0) held.push('ArrowRight'); if (macro.dir < 0) held.push('ArrowLeft');
-      if (macro.holdJump) held.push('KeyZ');
+      if (dir > 0) held.push('ArrowRight'); if (dir < 0) held.push('ArrowLeft');
+      if (macro.holdJump || (macro.kick && p.vy < 0)) held.push('KeyZ');
       if (macro.down) held.push('ArrowDown');
       if (f === 0 && macro.jump) taps.push('KeyZ');
+      if (macro.jump2 === f) taps.push('KeyZ'); // the second jump (wings)
+      if (macro.kick && p.clinging && f > 0) { taps.push('KeyZ'); if (macro.alt) dir = -dir; } // kick off the wall as soon as it is clung to (cling)
       if (macro.dash === f) taps.push('KeyC');
       setInput(held, taps);
       const hp = p.hp;
@@ -106,7 +173,11 @@ const SOLVER = () => {
       m.push({ name: 'jump' + dir, dir, frames: 150, jump: true, holdJump: true });
       m.push({ name: 'hop' + dir, dir, frames: 150, jump: true, holdJump: false });
       if (abilities.includes('dash') && dir !== 0) { for (const dd of [0, 8, 18]) m.push({ name: 'jumpdash' + dir + '@' + dd, dir, frames: 150, jump: true, holdJump: true, dash: dd }); m.push({ name: 'dash' + dir, dir, frames: 60, dash: 0 }); }
+      if (abilities.includes('wings')) for (const k of [10, 20, 30]) m.push({ name: 'djump' + dir + '@' + k, dir, frames: 180, jump: true, holdJump: true, jump2: k });
     }
+    // cling: jump at a wall and kick off it each time it is clung to, holding toward the same wall (climbs it) or
+    // the opposite one after each kick (zigzags up a shaft)
+    if (abilities.includes('cling')) for (const dir of [-1, 1]) { m.push({ name: 'wallkick' + dir, dir, frames: 300, jump: true, kick: true }); m.push({ name: 'wallkickalt' + dir, dir, frames: 300, jump: true, kick: true, alt: true }); }
     return m;
   };
   // Resolve a zone exit to the (zone, entry) it leads to, as the stage loop keys them.
@@ -120,8 +191,8 @@ const SOLVER = () => {
   // Explore a zone from the seed positions. Every expanded landing position becomes a node of the pass's
   // position graph (zg.nodes): where it can land next within the zone, which zone entries its exits lead
   // to, and whether a lantern can be touched from it. The return check reads this graph backwards.
-  const explore = (zoneId, abilities, seeds, zg) => {
-    prepZone(zoneId, abilities);
+  const explore = (zoneId, abilities, seeds, zg, variant) => {
+    prepZone(zoneId, abilities, variant);
     const sp = specials(zoneId);
     const macros = macrosFor(abilities);
     const seen = new Map(); const queue = [];
@@ -148,8 +219,8 @@ const SOLVER = () => {
     return { out, sp };
   };
   // Entering a zone through a screen edge or at a lantern/arrival point.
-  const entrySeeds = (zoneId, abilities, entry) => {
-    prepZone(zoneId, abilities);
+  const entrySeeds = (zoneId, abilities, entry, variant) => {
+    prepZone(zoneId, abilities, variant);
     const sp = specials(zoneId);
     const p = Game.player; const seeds = []; const starts = [];
     const z = World.zone;
@@ -158,7 +229,7 @@ const SOLVER = () => {
     else if (entry.kind === 'save') { for (const s of sp) if (s.ch === 'S') starts.push({ x: s.x * TILE + 3, y: (s.y + 1) * TILE - p.h, vy: 0 }); }
     else {
       const sc = z.screens[entry.screen]; const g = sc.def.grid;
-      const passable = (ch) => ch !== '#' && ch !== 'L';
+      const passable = (ch) => !'#LfyqbO'.includes(ch);
       if (entry.dir === 'left' || entry.dir === 'right') for (let y = 0; y < ROOM_H; y++) { if (passable(g[y][entry.dir === 'left' ? 0 : ROOM_W - 1])) starts.push({ x: sc.ox * TILE + (entry.dir === 'left' ? 2 : VIEW_W - p.w - 2), y: sc.oy * TILE + y * TILE, vy: 0 }); }
       if (entry.dir === 'up') for (let x = 0; x < ROOM_W; x++) if (passable(g[0][x])) starts.push({ x: sc.ox * TILE + x * TILE + 3, y: sc.oy * TILE + 2, vy: 60 });
       if (entry.dir === 'down') for (let x = 0; x < ROOM_W; x++) if (passable(g[ROOM_H - 1][x])) starts.push({ x: sc.ox * TILE + x * TILE + 3, y: sc.oy * TILE + VIEW_H - p.h - 2, vy: -JUMP_V, boost: true });
@@ -226,7 +297,7 @@ const SOLVER = () => {
         for (const sid of screens.keys()) {
           const def = ROOMS[sid]; if (!def) continue; const flat = def.grid.join('');
           if (flat.includes('G') && !((def.gateNeeds && relicsKnown >= def.gateNeeds) || (def.boss && bossesKnown.has(def.boss)) || (!def.gateNeeds && (!def.gateFlag || abilities.includes(def.gateFlag))))) reasons.push('sealed gate on ' + sid + (def.gateNeeds ? ' (needs ' + def.gateNeeds + ' relics, ' + relicsKnown + ' held)' : ''));
-          if ((flat.includes('d') || flat.includes('e')) && !(platesKnown.has(sid) && (flat.includes('d') || abilities.includes('echo')))) reasons.push('shut door on ' + sid);
+          if ((flat.includes('d') || flat.includes('e')) && !leversKnown.has(sid) && !(platesKnown.has(sid) && (flat.includes('d') || abilities.includes('echo')))) reasons.push('shut door on ' + sid);
         }
         if (!reasons.length) reasons.push('dead end');
         const where = [...screens.entries()].map(([sid, cells]) => sid + ' at ' + cells.slice(0, 3).join(' ') + (cells.length > 3 ? ' +' + (cells.length - 3) : '')).join('; ');
@@ -240,12 +311,12 @@ const SOLVER = () => {
 
   const abilities = [];
   const report = { stages: [], returnFails: [], capped: [] };
-  for (let stage = 0; stage < 8; stage++) {
+  for (let stage = 0; stage < 12; stage++) {
     let info;
     for (let pass = 0; pass < 8; pass++) {
       const visited = new Set();
       const queue = [['A1', { kind: 'start' }]];
-      const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, spools: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set() };
+      const reached = { zones: new Set(), screens: new Set(), abilities: new Set(), shards: 0, hearts: 0, spools: 0, saves: new Set(), bosses: new Set(), npcs: new Set(), plates: new Set(), levers: new Set() };
       const found = new Set();
       const graph = { zones: {} };
       while (queue.length) {
@@ -254,12 +325,18 @@ const SOLVER = () => {
         if (visited.has(vk)) continue; visited.add(vk);
         reached.zones.add(zone);
         const zg = graph.zones[zone] || (graph.zones[zone] = { nodes: {}, entries: {} });
-        const es = entrySeeds(zone, abilities, entry);
-        zg.entries[vk] = es.seeds.map(stateKey);
-        if (window.__trace === zone) console.log('TRACE', JSON.stringify({ stage: abilities.join(','), entry, seeds: es.seeds.length, seedPos: es.seeds.slice(0, 3).map((s) => [Math.round(s.x), Math.round(s.y)]) }));
-        const { out, sp } = explore(zone, abilities, es.seeds, zg);
+        // a zone with sluices the player can flip both ways is explored once per water state and the results unioned
+        const nv = variantsFor(zone, abilities);
+        const out = { exits: [], touched: new Set(), positions: 0, capped: false }; let sp = null; const seedKeys = new Set();
+        for (let v = 0; v < nv; v++) {
+          const es = entrySeeds(zone, abilities, entry, v);
+          for (const k of es.seeds.map(stateKey)) seedKeys.add(k);
+          if (window.__trace === zone) console.log('TRACE', JSON.stringify({ stage: abilities.join(','), entry, variant: v, seeds: es.seeds.length, seedPos: es.seeds.slice(0, 3).map((s) => [Math.round(s.x), Math.round(s.y)]) }));
+          const r = explore(zone, abilities, es.seeds, zg, v); sp = r.sp;
+          out.exits.push(...r.out.exits); for (const t of r.out.touched) out.touched.add(t); for (const t of es.touched) out.touched.add(t); out.positions += r.out.positions; out.capped = out.capped || r.out.capped;
+        }
+        zg.entries[vk] = [...seedKeys];
         if (out.capped) report.capped.push(zone + ' [' + abilities.join(',') + ']');
-        for (const t of es.touched) out.touched.add(t);
         for (const i of out.touched) {
           const s = sp[i]; reached.screens.add(s.screen);
           const k = zone + ':' + s.x + ':' + s.y; if (found.has(k)) continue; found.add(k);
@@ -272,6 +349,7 @@ const SOLVER = () => {
           if (s.ch === 'B') reached.bosses.add(def.boss);
           if (s.ch === 'N') reached.npcs.add(def.npc);
           if (s.ch === 'p') reached.plates.add(s.screen);
+          if (s.ch === 'l' && (!s.broken || abilities.includes('restore'))) reached.levers.add(s.screen); // a broken lever needs restore before it can be struck
         }
         // the scripted loss: reaching the Regent's hall without cut drops you into the Archive
         if (reached.bosses.has('regent1') && !abilities.includes('cut')) queue.push(['D1', { kind: 'arrival' }]);
@@ -279,7 +357,7 @@ const SOLVER = () => {
         if (window.__trace === zone) console.log('TRACE', JSON.stringify({ zone, exits: out.exits.map((e) => [e[0], Math.round(e[1]), Math.round(e[2])]), positions: out.positions, touched: [...out.touched].length }));
         for (const ex of out.exits) { const tg = exitTarget(ex); if (tg) queue.push([tg.zone, tg.entry]); }
       }
-      info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, spools: reached.spools, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates], passes: pass + 1 };
+      info = { abilities: abilities.slice(), zones: [...reached.zones].sort(), newAbilities: [...reached.abilities].filter((a) => !abilities.includes(a)), shards: reached.shards, hearts: reached.hearts, spools: reached.spools, saves: [...reached.saves], bosses: [...reached.bosses], npcs: [...reached.npcs], plates: [...reached.plates], levers: [...reached.levers], passes: pass + 1 };
       const label = '[' + abilities.join(',') + '] pass ' + pass + ' (' + modelKey().replace(/\|/g, ' / ') + ')';
       for (const f of returnCheck(graph, abilities, label)) report.returnFails.push(f);
       // grow the model: relics open seals, plates latch doors, reached bosses are beaten
@@ -287,6 +365,7 @@ const SOLVER = () => {
       const relics = info.shards + info.hearts + info.spools;
       if (relics > relicsKnown) { relicsKnown = relics; grew = true; }
       for (const p of info.plates) if (!platesKnown.has(p)) { platesKnown.add(p); grew = true; }
+      for (const l of info.levers) if (!leversKnown.has(l)) { leversKnown.add(l); grew = true; }
       for (const b of info.bosses) if (b !== 'regent1' && !bossesKnown.has(b)) { bossesKnown.add(b); grew = true; }
       if (info.bosses.includes('regent1') && !lossKnown) { lossKnown = true; grew = true; }
       if (reached.screens.has('U6') && !surfacedKnown) { surfacedKnown = true; grew = true; }
@@ -310,7 +389,7 @@ const SOLVER = () => {
   if (process.env.SOLVE_TRACE) { page.on('console', (m) => { if (m.text().startsWith('TRACE')) console.log(m.text()); }); await page.evaluate((z) => { window.__trace = z; }, process.env.SOLVE_TRACE); }
   if (process.env.SOLVE_TRACE_ROW) { page.on('console', (m) => { if (m.text().startsWith('TRACE macro')) console.log(m.text()); }); await page.evaluate((r) => { window.__traceRow = r; }, Number(process.env.SOLVE_TRACE_ROW)); }
   const report = await page.evaluate(SOLVER);
-  for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts, 'spools', st.spools, '| passes', st.passes);
+  for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts, 'spools', st.spools, (st.levers && st.levers.length ? '| levers ' + st.levers.join(',') : ''), '| passes', st.passes);
   const last = report.stages[report.stages.length - 1];
   const defs = require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';({ ZONES, ROOMS })');
   const all = Object.keys(defs.ZONES);

@@ -178,7 +178,7 @@ const UI = {
     ctx.restore();
     // hints beneath: thin pale text, no plate
     let hy = 77;
-    if (pl.anchor) { uiText(ctx, '⚓ anchor set  (F returns, ' + RECALL_COST + ' thread)', 16, hy, { font: '10px Georgia, serif', color: '#f0d9a4' }); hy += 13; }
+    if (pl.anchor) { uiText(ctx, '⚓ anchor ' + (pl.anchor.ride ? 'riding' : 'set') + '  (F returns, ' + RECALL_COST + ' thread)', 16, hy, { font: '10px Georgia, serif', color: '#f0d9a4' }); hy += 13; }
     else if (Game.save.flags['scene:A2'] && UI.hintLive('anchor', 60)) { uiText(ctx, 'F: set anchor', 16, hy, { font: '10px Georgia, serif', color: '#9d9686' }); hy += 13; }
     if (pl.hp < pl.maxHp && pl.thread >= HEAL_COST && (pl.focusing || UI.hintLive('focus', 45))) uiText(ctx, pl.focusing ? 'focusing...' : 'Hold H: focus (' + HEAL_COST + ' thread = 1 hour)', 16, hy, { font: '10px Georgia, serif', color: pl.focusing ? '#ffd27a' : '#c8bc9e', glow: pl.focusing ? 'rgba(255,210,122,0.8)' : null });
     // powers: soft round seals along the top right, the chosen one lifted and glowing
