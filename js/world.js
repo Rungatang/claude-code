@@ -93,6 +93,12 @@ const World = {
           case 'R': if (flags['mend:' + local(gx, gy)]) ch = '#'; break;
           case 'p': ents.push({ cls: 'plate', x: gx, y: gy, screen: def.id }); ch = '.'; break;
           case 'X': if (at(gx - 1, gy) !== 'X') { let w = 1; while (at(gx + w, gy) === 'X') w++; ents.push({ cls: 'crusher', x: gx, y: gy, w }); } ch = '.'; break; // one bank per run (this.tiles is already cleared to the left)
+          case 'a': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'husk', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'w': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'hourfly', x: gx, y: gy, key }); ch = '.'; break; }
+          case 't': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'archer', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'k': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'knight', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'r': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'wraith', x: gx, y: gy, key }); ch = '.'; break; }
+          case 'h': { const key = local(gx, gy); if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'hound', x: gx, y: gy, key }); ch = '.'; break; }
           // ---- the interactable tiles of docs/POWERS.md ----
           case 'f': if (flags['crumble:' + local(gx, gy)]) ch = '.'; break;
           case 'y': if (flags['wilt:' + local(gx, gy)]) ch = '.'; break;
