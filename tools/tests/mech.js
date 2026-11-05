@@ -31,27 +31,39 @@ const { chromium } = require('playwright');
     setup('A1', 42, 21); { const plate = Game.entities.find((e) => e instanceof Plate); Game.player.x = plate.x; Game.player.y = plate.y - 22 - 2; Game.player.vy = 0; run(30, []); const openWhileOn = World.doors.A2.open; const doorSolidBefore = World.isSolidAt(40 + 36, 18); Game.player.x += 60; run(5, []); const openAfter = World.doors.A2.open; run(150, []); out.door = { openWhileOn, doorSolidWhileOpen: doorSolidBefore, openJustAfter: openAfter, closedLater: !World.doors.A2.open }; }
     // 6. dash through cracked wall in R1 (zone R1), x of C at cols 34-35 rows 17-20
     setup('R1', 30, 21, ['dash']); { run(1, ['ArrowRight'], { 0: ['KeyC'] }); run(30, ['ArrowRight']); out.crackBroken = World.tile(34, 18) === '.' && World.tile(35, 18) === '.'; }
-    // 7. wither dissolves lock in R5 (zone R3: R5 at ox=40, oy=0): L at local cols 18-21 rows 1-2 -> global x 58-61, y 1-2. Stand on platform row 3 (local) cols 18-21 and cast upward? Wither bolt is horizontal; put player at row 2 level beside the lock: local row 2 col 10 is air? row 2: '#.................LLLL.................#' -> col 10 air. Stand at local (10, 2) with feet at row 3? row 3 is '#.................====.' only platform at 18-21. Use a floating position & gravity off by placing on platform (col 19,row 3) then jump and cast? Simpler: place player mid-air at local col 15 row 2 and cast immediately.
-    setup('R3', 40 + 19, 3, ['wither']); { Game.player.thread = 9; run(1, ['ArrowUp'], { 0: ['KeyV'] }); run(40, ['ArrowUp']); out.lockDissolved = World.tile(58, 1) === '.' && World.tile(61, 2) === '.'; }
-    // 8. mend restores rubble in D4 (zone D3: D4 ox=40). R at local row 9 cols 17-21 -> global 57-61,9. Stand under at row 12? place player at (59, 11) mid-air and cast.
-    setup('D3', 40 + 19, 12, ['mend']); { Game.player.y = 10 * TILE; Game.player.vy = 0; Game.player.thread = 9; Game.player.hp = 2; Game.player.recentDamage = [{ n: 3, t: Game.t }]; run(1, [], { 0: ['KeyV'] }); run(40, []); out.mend = { rubbleSolid: World.tile(59, 9) === '#', healed: Game.player.hp }; }
-    // 9. stall slows enemies
-    setup('A1', 20, 22, ['stall']); { const e = new Enemy('husk', 30, 20); Game.entities.push(e); Game.player.thread = 9; const x0 = e.x; run(1, [], { 0: ['KeyV'] }); run(60, []); const d1 = Math.abs(e.x - x0); out.stall = { timeScale: Game.timeScale, enemyMoved: Math.round(d1) }; }
+    // 7. age dissolves the lock in R5 (zone R3: R5 at ox=40, oy=0): LLLL at local row 1 cols 18-21 -> global x 58-61, y 1.
+    //    The player hangs in the air at local (19, 2) and casts upward (Up + V): the hatch is the only target in the box.
+    setup('R3', 40 + 19, 3, ['age']); { Game.player.thread = 9; run(1, ['ArrowUp'], { 0: ['KeyV'] }); run(40, ['ArrowUp']); out.lock = { dissolved: World.tile(58, 1) === '.' && World.tile(61, 1) === '.', thread: Game.player.thread }; }
+    //    and forward: a 2-tall hinge door, cast from beside it (R5 LL at local cols 27-28 rows 13-15 -> global 67-68, 13-15; stand at local col 25, feet row 16)
+    setup('R3', 40 + 25, 16, ['age']); { Game.player.thread = 9; run(2, ['ArrowRight']); run(1, [], { 0: ['KeyV'] }); run(40, []); out.lock.forward = World.tile(67, 14) === '.' && World.tile(68, 15) === '.'; }
+    // 8. restore rebuilds the rubble in D4 (zone D3: D4 ox=40). RRRR at local row 9 cols 31-34 -> global 71-74,9. Stand on the shelf to its right (local col 36, feet row 12) facing left: the tile wins over the self-heal.
+    setup('D3', 40 + 36, 12, ['restore']); { Game.player.facing = -1; Game.player.thread = 9; Game.player.hp = 2; Game.player.recentDamage = [{ n: 3, t: Game.t }]; run(1, [], { 0: ['KeyV'] }); run(40, []); out.restore = { rubbleSolid: World.tile(73, 9) === '#' && World.tile(71, 9) === '#', hpWithTile: Game.player.hp }; }
+    //    with nothing in reach it falls back to self: wounds of the last 5 s close, at most 2
+    setup('A1', 20, 22, ['restore']); { Game.player.thread = 9; Game.player.hp = 2; Game.player.recentDamage = [{ n: 3, t: Game.t }]; run(1, [], { 0: ['KeyV'] }); run(40, []); out.restore.selfHealed = Game.player.hp; }
+    // 9. hold stops a crusher and the player can stand on it (zone H4: H4 at oy=23; the bank at local row 11 cols 16-19 rests at local row 14; floor row 15)
+    setup('H4', 20, 38, ['hold']); { Game.player.thread = 9; Game.player.invuln = 99; const c = Game.entities.find((e) => e instanceof Crusher && e.x === 16 * TILE && e.top === 34 * TILE); let held = false, still = false, stood = false, hy = 0;
+      if (c) { c.state = 'fall'; c.timer = 0; run(2, ['ArrowLeft']); for (let i = 0; i < 120 && c.state !== 'rest'; i++) run(1, []); run(1, [], { 0: ['KeyV'] }); run(12, []); held = !!(Game.held && Game.held.obj === c); hy = c.y; run(60, []); still = c.y === hy && c.state === 'rest' && !!Game.held;
+        Game.player.x = c.x + 10; Game.player.y = c.y - Game.player.h - 3; Game.player.vy = 0; run(20, []); stood = Game.player.onGround && Math.abs(Game.player.y + Game.player.h - c.y) < 0.6 && Game.player.standingOnPlatform; }
+      out.hold = { crusherFound: !!c, held, still, stood, cost: 9 - Game.player.thread }; run(200, []); out.hold.released = !Game.held && c.y !== hy; }
     // 10. echo presses plate in M2 (zone M1: M2 ox=40). plate at local col 12 row 19 -> global 52. gate 'e' at local col 34.
     setup('M1', 52, 21, ['echo']); { Game.player.thread = 9; run(120, []); run(1, [], { 0: ['KeyV'] }); run(5, []); Game.player.x += 80; run(10, []); out.echo = { echoExists: Game.entities.some((e) => e instanceof Echo), doorOpen: World.doors.M2.open }; run(400, []); out.echo.closedAfter = !World.doors.M2.open; }
-    // 11. sever stops time
-    setup('A1', 20, 22, ['sever']); { const e = new Enemy('husk', 30, 20); Game.entities.push(e); Game.player.thread = 9; const x0 = e.x; run(1, [], { 0: ['KeyV'] }); run(40, []); out.sever = { timeScale: Game.timeScale, enemyMoved: Math.round(Math.abs(e.x - x0)) }; run(120, []); out.sever.restored = Game.timeScale; }
+    // 11. a fizzle costs nothing: age with nothing in the box; then cut on a knight takes its block away
+    setup('A1', 20, 22, ['age', 'cut']); { Game.player.thread = 9; run(1, [], { 0: ['KeyV'] }); out.fizzle = { shown: !!Game.fizzle, thread: Game.player.thread, cooldown: Game.player.cds.age || 0, casting: Game.player.castT > 0 }; run(5, []); }
+    //     (on the A1 ledge at local row 19 cols 15-19: the knight faces the player, so a frontal slash is blocked until the strap is cut)
+    setup('A1', 15, 19, ['age', 'cut']); { Game.entities = Game.entities.filter((e) => !(e instanceof Enemy)); const e = new Enemy('knight', 17, 18); e.cool = 9; Game.entities.push(e); Game.player.thread = 9; Game.player.invuln = 99; Game.player.facing = 1; Game.powerIndex = 1;
+      run(1, [], { 0: ['KeyX'] }); run(14, []); const blockedBefore = e.hp === 8; run(20, []); Game.player.x = 15 * TILE + 3; Game.player.vx = 0;
+      run(1, [], { 0: ['KeyV'] }); run(12, []); const cutOn = e.shieldCut > 0; run(1, [], { 0: ['KeyX'] }); run(14, []); out.cut = { blockedBefore, cutOn, knightHp: e.hp, thread: Game.player.thread }; }
     // 12. crusher hurts
     setup('H4', 22, 38); { Game.player.hp = 5; let hurt = false; for (let i = 0; i < 400; i++) { run(1, []); if (Game.player.hp < 5) { hurt = true; break; } } out.crusherHurts = hurt; }
-    // 13. bosses: fight each with a simple bot (dash, combo, pogo); report kill time or hp left
+    // 13. bosses: fight each with a simple bot (dash, combo, pogo, age and cut); report kill time or hp left
     out.bosses = {};
     for (const [zone, boss, tx] of [['A4', 'shallows', 5], ['R3', 'ferrous', 5], ['G4', 'annealer', 84], ['H1', 'escapement', 45], ['D3', 'index', 5], ['M3', 'grinder', 5], ['T1', 'regent', 45], ['T1', 'sef', 5]]) {
-      const flags = {}; if (boss === 'regent') { flags.regent1 = true; flags.sever = true; } if (boss === 'sef') { flags.regent1 = true; flags['boss:regent'] = true; flags.sefConfront = true; }
-      setup(zone, tx, boss === 'ferrous' ? 44 : 21, ['dash', 'wither', 'stall', 'mend', 'echo', 'sever'], flags);
+      const flags = {}; if (boss === 'regent') { flags.regent1 = true; flags.cut = true; } if (boss === 'sef') { flags.regent1 = true; flags['boss:regent'] = true; flags.sefConfront = true; }
+      setup(zone, tx, boss === 'ferrous' ? 44 : 21, ['dash', 'age', 'hold', 'restore', 'echo', 'cut'], flags);
       Game.player.maxHp = Game.player.hp = 500;
       let b = Game.entities.find((e) => e instanceof Boss && e.type === boss);
       if (!b && boss === 'sef') { const s = Game.sefSpawn; b = new Boss('sef', s.x, s.y, s.arena); Game.entities.push(b); b.active = true; World.bossActive = true; }
-      let started = false, killed = false, steps = 0, dmgTaken = 0;
+      let started = false, killed = false, steps = 0, dmgTaken = 0, stopSeen = false;
       for (let i = 0; i < 60 * 150; i++) {
         steps++;
         if (Game.state === 'cutscene') { Cutscene.finish(); continue; }
@@ -65,25 +77,26 @@ const { chromium } = require('playwright');
           if (i % 9 === 0) tap.push('KeyX');
           if (b.state === 'tele' && i % 7 === 0) tap.push('KeyC');
           if (i % 40 === 0 && b.y + b.h < pl.y) tap.push('KeyZ');
-          if (i % 90 === 0 && pl.thread >= 3) { Game.powerIndex = 0; tap.push('KeyV'); }
+          if (i % 90 === 0 && pl.thread >= 3) { Game.powerIndex = (i / 90) % 2 ? 4 : 0; pl.facing = d > 0 ? 1 : -1; tap.push('KeyV'); } // age (withered: double harm) and cut (opens an armour thread) in turn, both aimed at the boss
+          if (Game.severT > 0) stopSeen = true; // Sef's rewind fires the one scripted stop
         } else if (!started) keys.push(tx < 40 ? 'ArrowRight' : 'ArrowRight');
         run(1, keys, tap.length ? { 0: tap } : null);
         if (pl.hp < hpBefore) dmgTaken += hpBefore - pl.hp;
         if (b.dead) { killed = true; break; }
       }
       run(70, []); const defeatScene = Game.state === 'cutscene'; flush(); run(5, []);
-      out.bosses[boss] = { started, killed, seconds: Math.round(steps / 60), hpLeft: Math.round(b.hp), dmgTaken, defeatScene, flag: !!Game.save.flags['boss:' + boss] };
+      out.bosses[boss] = { started, killed, seconds: Math.round(steps / 60), hpLeft: Math.round(b.hp), dmgTaken, defeatScene, flag: !!Game.save.flags['boss:' + boss] }; if (boss === 'sef') out.bosses.sef.scriptedStop = stopSeen;
     }
     // 14. scripted loss: enter T1 fresh and wait
-    setup('H4', 55, 44, ['dash', 'wither', 'stall']); { // H5 bottom area; walk up? simpler: load T1 zone directly with player at T1 entry
-      setup('T1', 112, 21, ['dash', 'wither', 'stall']); let lost = false; for (let i = 0; i < 60 * 30; i++) { if (Game.state === 'cutscene') { if (Cutscene.steps === Story.loss) { lost = true; Cutscene.finish(); run(2, []); break; } Cutscene.finish(); continue; } run(1, ['ArrowLeft'], i % 10 === 0 ? { 0: ['KeyX'] } : null); }
+    setup('H4', 55, 44, ['dash', 'age', 'hold']); { // H5 bottom area; walk up? simpler: load T1 zone directly with player at T1 entry
+      setup('T1', 112, 21, ['dash', 'age', 'hold']); let lost = false; for (let i = 0; i < 60 * 30; i++) { if (Game.state === 'cutscene') { if (Cutscene.steps === Story.loss) { lost = true; Cutscene.finish(); run(2, []); break; } Cutscene.finish(); continue; } run(1, ['ArrowLeft'], i % 10 === 0 ? { 0: ['KeyX'] } : null); }
       out.loss = { lost, zone: World.zoneId, regent1: !!Game.save.flags.regent1, state: Game.state, saveZone: Game.save.zone }; flush(); }
     // 15. zone transitions: walk from A1 right end to A4 zone
     setup('A1', 115, 21); { let rooms = [World.zoneId]; for (let i = 0; i < 400; i++) { run(1, ['ArrowRight'], i % 30 === 0 ? { 0: ['KeyZ'] } : null); if (Game.state === 'transition') run(40, []); if (Game.state === 'cutscene') Cutscene.finish(); if (rooms[rooms.length - 1] !== World.zoneId) rooms.push(World.zoneId); if (World.zoneId === 'A4') break; } out.walkZones = rooms; }
     // 16. up transition A5 -> R1 via boost
     setup('A4', 40 + 19, 3); { run(1, [], { 0: ['KeyZ'] }); for (let i = 0; i < 200; i++) { run(1, ['KeyZ']); if (Game.state === 'transition') { run(40, []); break; } } out.upZone = World.zoneId; run(120, ['ArrowLeft']); out.upLanded = Game.player.onGround; }
     // 17. sef2 npc conversation starts the final fight
-    setup('T1', 20, 21, ['dash', 'wither', 'stall', 'mend', 'echo', 'sever'], { regent1: true, 'boss:regent': true }); { const n = Game.entities.find((e) => e instanceof Npc && e.id === 'sef2'); out.sef2Present = !!n; if (n) { Game.player.x = n.x; run(5, []); run(1, [], { 0: ['ArrowUp'] }); const talking = Game.state === 'cutscene'; Cutscene.finish(); run(2, []); out.sefFightStarted = talking && Game.entities.some((e) => e instanceof Boss && e.type === 'sef' && e.active); } }
+    setup('T1', 20, 21, ['dash', 'age', 'hold', 'restore', 'echo', 'cut'], { regent1: true, 'boss:regent': true }); { const n = Game.entities.find((e) => e instanceof Npc && e.id === 'sef2'); out.sef2Present = !!n; if (n) { Game.player.x = n.x; run(5, []); run(1, [], { 0: ['ArrowUp'] }); const talking = Game.state === 'cutscene'; Cutscene.finish(); run(2, []); out.sefFightStarted = talking && Game.entities.some((e) => e instanceof Boss && e.type === 'sef' && e.active); } }
     return out;
   });
   console.log(JSON.stringify(results, null, 1));

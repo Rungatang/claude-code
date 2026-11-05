@@ -6,7 +6,7 @@
 //   R2 Chain Street : chain-hung planks to a plate gantry (anchor + recall opens the timed door), furnace block, heart shelf.
 //   R3 Foundry Floor: boss arena, flat floor, crucibles overhead.
 //   R4 Rust Altar   : lantern plinth, altar pedestal, chimney climb to R5; a dead-end tunnel off the chimney hides a spool.
-//   R5 Locked Stair : lower hall with knights, a locked corridor (wither), shaft climb, locked hatch under the exit to the Hours.
+//   R5 Locked Stair : lower hall with knights, a locked corridor (age), shaft climb, locked hatch under the exit to the Hours.
 //   R6 Crane Deck   : optional; stepped deck with two knights guarding a spool in the crane cab.
 Object.assign(ROOMS, {
   R1: { name: 'Scrapyard Gate', region: 'rust', mx: 4, my: 5, links: { down: 'A5', right: 'R2', up: 'R6' }, grid: [
@@ -84,7 +84,7 @@ Object.assign(ROOMS, {
     '########################################',
     '########################################',
   ] },
-  R4: { name: 'Rust Altar', region: 'rust', mx: 7, my: 5, links: { left: 'R3', up: 'R5', down: 'G1' }, ability: 'wither', grid: [
+  R4: { name: 'Rust Altar', region: 'rust', mx: 7, my: 5, links: { left: 'R3', up: 'R5', down: 'G1' }, ability: 'age', grid: [
     '##################....##################',
     '#################........|...###########',
     '#################M.......|...###########',

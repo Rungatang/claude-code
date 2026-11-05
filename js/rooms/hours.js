@@ -51,7 +51,7 @@ Object.assign(ROOMS, {
     '########################################',
     '########################################',
   ] },
-  H3: { name: 'Stall Altar', region: 'hours', mx: 5, my: 3, ability: 'stall', links: { right: 'H2', up: 'H4' }, grid: [
+  H3: { name: 'Stall Altar', region: 'hours', mx: 5, my: 3, ability: 'hold', links: { right: 'H2', up: 'H4' }, grid: [
     '##################....##################',
     '##################......################',
     '#################.....w....#############',

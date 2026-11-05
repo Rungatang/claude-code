@@ -2,7 +2,14 @@
 // ---------------------------------------------------------------------------
 // Game state machine, camera, time powers, zone transitions, save system.
 // ---------------------------------------------------------------------------
-const SAVE_KEY = 'hollow-hours-save-v3';
+const SAVE_KEY = 'hollow-hours-save-v4';
+const OLD_SAVE_KEY = 'hollow-hours-save-v3'; // read once and migrated (power ids renamed, see readSave)
+
+// A thin clock ring that empties over a hold (k = time left / duration), drawn around held things and beside the Hold seal.
+function drawHeldRing(ctx, x, y, r, k) {
+  ctx.save(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(143,179,255,0.45)'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#dfe9ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(k, 0, 1)); ctx.stroke(); ctx.restore();
+}
 
 const Game = {
   canvas: null, ctx: null,
@@ -14,7 +21,8 @@ const Game = {
   hitStop: 0, flashWhite: 0, hurtFlash: 0, floaters: [],
   killed: new Set(), restGlow: 0, lanterns: [],
   rite: null, riteT: 0, overlayT: 0, zoomK: 1, focus: null,
-  timeScale: 1, stallT: 0, severT: 0, stopFx: 0,
+  timeScale: 1, severT: 0, stopFx: 0,
+  held: null, fizzle: null, streak: null, // the one held thing { obj, t, dur }, the last fizzled cast, the recall afterimage
   transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
   deathT: 0, overlay: null, debug: false, manual: false,
   shardStarts: {}, powerIndex: 0, curScreen: null,
@@ -45,7 +53,23 @@ const Game = {
   defaultSave() { return { zone: 'A1', x: 0, y: 0, maxHp: 5, maxThread: 9, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
   hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
   writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* unavailable */ } },
-  readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? Object.assign(this.defaultSave(), JSON.parse(s)) : null; } catch (e) { return null; } },
+  readSave() {
+    try {
+      const s = localStorage.getItem(SAVE_KEY);
+      if (s) return Object.assign(this.defaultSave(), JSON.parse(s));
+      const old = localStorage.getItem(OLD_SAVE_KEY); if (!old) return null;
+      const m = this.migrateSave(Object.assign(this.defaultSave(), JSON.parse(old)));
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(m)); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { /* unavailable */ }
+      return m;
+    } catch (e) { return null; }
+  },
+  // v3 -> v4: the powers were renamed (wither age, stall hold, mend restore, sever cut); the tower gate flag with them
+  migrateSave(s) {
+    const ren = { wither: 'age', stall: 'hold', mend: 'restore', sever: 'cut' };
+    const ab = {}; for (const k in s.abilities) if (s.abilities[k]) ab[ren[k] || k] = true; s.abilities = ab;
+    if (s.flags.sever) { delete s.flags.sever; s.flags.cut = true; }
+    return s;
+  },
   has(ab) { return !!this.save.abilities[ab]; },
   powerList() { return POWER_ORDER.filter((p) => this.has(p)); },
   shardIndexFor(id) { return this.shardStarts[id] || 0; },
@@ -92,9 +116,9 @@ const Game = {
     const specs = World.load(id);
     this.entities = []; this.projectiles = []; this.particles = []; this.floaters = [];
     this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0;
-    this.timeScale = 1; this.stallT = 0; this.severT = 0;
+    this.timeScale = 1; this.severT = 0; this.held = null; this.fizzle = null; this.streak = null; World.platforms = [];
     const pl = this.player;
-    pl.anchor = null; pl.history = []; pl.frozen = 0;
+    pl.anchor = null; pl.history = []; pl.frozen = 0; pl.riding = null;
     const f = this.save.flags;
     for (const s of specs) {
       switch (s.cls) {
@@ -173,8 +197,23 @@ const Game = {
   },
 
   // ---- time powers ------------------------------------------------------
-  stall(d) { this.stallT = d; this.timeScale = 0.3; AudioSys.sfx('shadow'); this.flashWhite = 0.08; },
+  // The whole-screen stop survives only as the scripted beat in the Sef fight (and the bosses' own timestop move).
   sever(d) { this.severT = d; this.timeScale = 0; AudioSys.sfx('bossdie'); this.flashWhite = 0.15; World.shake = 0.2; },
+  // Hold: one object out of time at a time; a new hold releases the last
+  hold(obj, dur) {
+    if (this.held) this.release();
+    this.held = { obj, t: dur, dur };
+    if (obj instanceof Boss) obj.holdCd = 10;
+    const r = obj.rect ? obj.rect() : obj;
+    this.burst(r.x + r.w / 2, r.y + r.h / 2, '#dfe9ff', 12, 60); AudioSys.sfx('hold');
+  },
+  release() { if (!this.held) return; const r = this.held.obj.rect ? this.held.obj.rect() : this.held.obj; this.burst(r.x + r.w / 2, r.y + r.h / 2, '#8fb3ff', 8, 40); this.held = null; AudioSys.sfx('release'); },
+  // The thing an enemy fights: the nearest live echo within 160 px of it, else the player.
+  decoyTarget(e) {
+    const cx = e.x + e.w / 2, cy = e.y + e.h / 2; let best = null, bd = 160;
+    for (const o of this.entities) if (o instanceof Echo && !o.dead) { const d = dist(cx, cy, o.x + o.w / 2, o.y + o.h / 2); if (d < bd) { bd = d; best = o; } }
+    return best || this.player;
+  },
 
   // ---- events -------------------------------------------------------------
   // Resting at a lantern: heal, refill thread, save, and bring the zone's slain enemies back (bosses stay dead).
@@ -216,7 +255,7 @@ const Game = {
       this.save.abilities[p.ability] = true;
       AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
       const ab = Story.abilities[p.ability];
-      this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'sever') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
+      this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'cut') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
       this.startRite('ability', p, this.overlay); this.overlay = null;
       const idx = POWER_ORDER.indexOf(p.ability); if (idx >= 0) this.powerIndex = this.powerList().indexOf(p.ability);
     }
@@ -405,10 +444,16 @@ const Game = {
     }
     this.save.time += dt;
     // time powers
-    if (this.stallT > 0) { this.stallT -= dt; if (this.stallT <= 0) this.timeScale = 1; }
-    if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) { this.timeScale = this.stallT > 0 ? 0.3 : 1; } }
+    if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) this.timeScale = 1; }
+    if (this.held) { this.held.t -= dt; if (this.held.t <= 0 || this.held.obj.dead) this.release(); }
+    if (this.fizzle) { this.fizzle.t -= dt; if (this.fizzle.t <= 0) this.fizzle = null; }
+    if (this.streak) { this.streak.t -= dt; if (this.streak.t <= 0) this.streak = null; }
     // hit-stop: the sim holds its breath, but particles keep flying and the player's squash keeps springing
     if (this.hitStop > 0) { this.stepParticles(dt); if (this.player.animTick) this.player.animTick(dt, 0); if (this.player.bufferInputs) this.player.bufferInputs(); return; }
+    // dynamic platforms: whatever exposes a platformRect this frame (held things, pinned foes)
+    World.platforms = [];
+    for (const e of this.entities) if (e.platformRect && !e.dead) { const r = e.platformRect(); if (r) World.platforms.push(r); }
+    for (const p of this.projectiles) if (p.platformRect && !p.dead) { const r = p.platformRect(); if (r) World.platforms.push(r); }
     const pl = this.player;
     pl.update(dt);
     for (const e of this.entities) e.update(dt);
@@ -494,7 +539,7 @@ const Game = {
   },
   debugKeys() {
     const ids = Object.keys(ZONES);
-    if (Input.pressed['Digit9']) { for (const a of ['dash', 'wither', 'stall', 'mend', 'echo', 'sever']) this.save.abilities[a] = true; this.player.thread = 9; }
+    if (Input.pressed['Digit9']) { for (const a of ['dash', 'age', 'hold', 'restore', 'echo', 'cut']) this.save.abilities[a] = true; this.player.thread = 9; }
     if (Input.pressed['Digit0']) { this.player.hp = this.player.maxHp = 12; this.player.thread = 9; }
     if (Input.pressed['BracketRight'] || Input.pressed['BracketLeft']) {
       const i = (ids.indexOf(World.zoneId) + (Input.pressed['BracketRight'] ? 1 : ids.length - 1)) % ids.length;
@@ -503,6 +548,31 @@ const Game = {
   },
 
   // ---- drawing ------------------------------------------------------------
+  // Targeting and power states, in world space after the entities: the pulsing outline on every valid target
+  // of the selected power, the fizzle arc, the held thing's blue-white bloom and clock ring, the violet
+  // threads from an echo to the foes it decoys, the gold afterimage of a recall.
+  drawPowerFx(ctx, t) {
+    const pl = this.player;
+    if (this.held && !this.held.obj.dead) {
+      const o = this.held.obj, r = o.rect ? o.rect() : o, hx = r.x + r.w / 2, hy = r.y + r.h / 2;
+      Paint.glow(ctx, hx, hy, Math.max(r.w, r.h) * 0.9 + 6, '#dfe9ff', 0.22 + 0.06 * Math.sin(t * 5));
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = '#dfe9ff'; ctx.lineWidth = 1; ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1); ctx.restore();
+      drawHeldRing(ctx, hx, r.y - 7, 4, this.held.t / this.held.dur);
+    }
+    for (const e of this.entities) if (e.decoy && !e.dead && e.visible !== false && !e.decoy.dead) { ctx.save(); ctx.globalAlpha = 0.25 + 0.1 * Math.sin(t * 7); ctx.strokeStyle = '#c9a8ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.x + e.w / 2, e.y + e.h / 2); ctx.lineTo(e.decoy.x + e.decoy.w / 2, e.decoy.y + e.decoy.h / 2); ctx.stroke(); ctx.restore(); }
+    if (this.streak) { const s = this.streak, k = s.t / 0.4; ctx.save(); ctx.globalAlpha = 0.55 * k; ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 6 * k + 1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(s.x0, s.y0); ctx.lineTo(s.x1, s.y1); ctx.stroke(); ctx.globalAlpha = 0.9 * k; ctx.strokeStyle = '#fff6d0'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore(); }
+    if (this.fizzle) { const f = this.fizzle, b = f.box, k = f.t / 0.3; ctx.save(); ctx.globalAlpha = 0.35 * k; ctx.strokeStyle = POWERS[f.id].color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.ox, b.oy, b.R * (1.05 - 0.1 * k), b.ang - 0.45, b.ang + 0.45); ctx.stroke(); ctx.restore(); }
+    if (pl.dead || this.state !== 'play') return;
+    const sel = this.powerList()[this.powerIndex];
+    if (!sel || sel === 'echo' || pl.cds[sel] > 0) return;
+    const targets = pl.castTargets(sel); if (!targets.length) return;
+    ctx.save(); ctx.globalAlpha = 0.3 + 0.12 * Math.sin(t * 6); ctx.strokeStyle = POWERS[sel].color; ctx.lineWidth = 1;
+    for (const g of targets) {
+      const r = g.kind === 'tile' ? { x: g.tx * TILE, y: g.ty * TILE, w: TILE, h: TILE } : g.kind === 'entity' ? (g.e.rect ? g.e.rect() : g.e) : null;
+      if (r) ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
+    }
+    ctx.restore();
+  },
   draw() {
     const ctx = this.ctx, t = this.t;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -532,6 +602,7 @@ const Game = {
     for (const e of this.entities) if (!(e instanceof Boss)) e.draw(ctx, t);
     for (const e of this.entities) if (e instanceof Boss) e.draw(ctx, t);
     for (const p of this.projectiles) p.draw(ctx, t);
+    this.drawPowerFx(ctx, t);
     pl.draw(ctx, t);
     for (const p of this.particles) p.draw(ctx);
     if (this.rite && this.focus) {

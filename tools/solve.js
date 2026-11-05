@@ -5,10 +5,10 @@
 // in the intended order. Usage: node tools/solve.js
 //
 // Model, per stage (one stage per set of abilities held):
-//   locks need wither, rubble needs mend, crushers kill without stall, relic seals open at their
+//   locks need age, rubble needs restore, crushers kill without hold, relic seals open at their
 //   gateNeeds count or once the hall's boss has been reached, timed doors and weight gates are walls until
 //   the plate on their screen has been reached and latched open for good after (weight gates also need
-//   the echo), the scripted loss drops the player into the Archive, and the tower gate opens with sever.
+//   the echo), the scripted loss drops the player into the Archive, and the tower gate opens with cut.
 // After every pass the RETURN CHECK walks the explored position graph backwards: every landing position
 // the pass reached must be able to get back to a lantern that pass reached and to the start zone A1 with
 // the same abilities. Zones only entered through the scripted loss are allowed to be one-way until the
@@ -34,7 +34,7 @@ const SOLVER = () => {
     for (const a of abilities) Game.save.abilities[a] = true;
     for (const b of bossesKnown) Game.save.flags['boss:' + b] = true;
     if (lossKnown) Game.save.flags.regent1 = true; if (surfacedKnown) Game.save.flags.surfaced = true; Game.save.flags.sefConfront = true;
-    if (abilities.includes('sever')) Game.save.flags.sever = true;
+    if (abilities.includes('cut')) Game.save.flags.cut = true;
     Game.player = new Player();
     const specs = World.load(zoneId);
     Game.entities = []; Game.projectiles = []; Game.particles = [];
@@ -43,12 +43,12 @@ const SOLVER = () => {
     World.bossActive = false;
     for (let y = 0; y < World.zone.H; y++) for (let x = 0; x < World.zone.W; x++) {
       const ch = World.tiles[y][x];
-      if (ch === 'L' && abilities.includes('wither')) World.tiles[y][x] = '.';
-      if (ch === 'R' && abilities.includes('mend')) World.tiles[y][x] = '#';
+      if (ch === 'L' && abilities.includes('age')) World.tiles[y][x] = '.';
+      if (ch === 'R' && abilities.includes('restore')) World.tiles[y][x] = '#';
       if (ch === 'd' || ch === 'e') { const sc = World.screenAt(x * TILE, y * TILE); const open = !!(sc && platesKnown.has(sc.id) && (ch === 'd' || abilities.includes('echo'))); World.tiles[y][x] = open ? '.' : '#'; }
       if (ch === 'G') { const sc = World.screenAt(x * TILE, y * TILE); const def = sc && sc.def; const open = def && ((def.gateNeeds && relicsKnown >= def.gateNeeds) || (def.boss && bossesKnown.has(def.boss)) || (!def.gateNeeds && (!def.gateFlag || Game.save.flags[def.gateFlag]))); if (open) World.tiles[y][x] = '.'; }
     }
-    if (!abilities.includes('stall')) for (const s of specs) if (s.cls === 'crusher') {
+    if (!abilities.includes('hold')) for (const s of specs) if (s.cls === 'crusher') {
       let ty = s.y + 1; while (ty < World.zone.H && !World.isSolid(World.tile(s.x, ty)) && World.tile(s.x, ty) !== '=') ty++;
       for (let yy = s.y; yy < ty; yy++) for (let xx = s.x; xx < s.x + s.w; xx++) if (World.tiles[yy][xx] === '.') World.tiles[yy][xx] = '^';
     }
@@ -273,8 +273,8 @@ const SOLVER = () => {
           if (s.ch === 'N') reached.npcs.add(def.npc);
           if (s.ch === 'p') reached.plates.add(s.screen);
         }
-        // the scripted loss: reaching the Regent's hall without sever drops you into the Archive
-        if (reached.bosses.has('regent1') && !abilities.includes('sever')) queue.push(['D1', { kind: 'arrival' }]);
+        // the scripted loss: reaching the Regent's hall without cut drops you into the Archive
+        if (reached.bosses.has('regent1') && !abilities.includes('cut')) queue.push(['D1', { kind: 'arrival' }]);
         if (window.__trace === zone) { const cols = new Set(); for (const k of Object.keys(zg.nodes)) { const n = zg.nodes[k]; if (n) cols.add(Math.floor((n.x + 5) / 16) + ',' + (Math.floor((n.y + 22) / 16) - 23)); } console.log('TRACE cells ' + [...cols].sort((a, b) => parseInt(a) - parseInt(b)).join(' ')); }
         if (window.__trace === zone) console.log('TRACE', JSON.stringify({ zone, exits: out.exits.map((e) => [e[0], Math.round(e[1]), Math.round(e[2])]), positions: out.positions, touched: [...out.touched].length }));
         for (const ex of out.exits) { const tg = exitTarget(ex); if (tg) queue.push([tg.zone, tg.entry]); }
@@ -338,9 +338,13 @@ const SOLVER = () => {
   console.log('return check:', hardFails ? hardFails + ' failing zone/stage pairs' : 'OK' + (notes ? ' (' + notes + ' one-way notes from the scripted loss)' : ''));
   console.log('time', ((Date.now() - t0) / 1000).toFixed(1) + 's');
   await browser.close();
-  const finalOk = last.abilities.length === 6 && last.bosses.includes('regent') && last.bosses.includes('sef');
-  const earlyTower = report.stages.some((st) => !st.abilities.includes('sever') && (st.bosses.includes('regent') || st.bosses.includes('sef')));
-  if (earlyTower) console.log('WARNING: tower bosses reachable before sever');
+  // every altar in ROOMS must have been reached (the set of abilities, not a literal count)
+  const altars = [...new Set(Object.values(defs.ROOMS).map((r) => r.ability).filter(Boolean))];
+  const missingAltars = altars.filter((a) => !last.abilities.includes(a));
+  if (missingAltars.length) console.log('unreached altars:', missingAltars.join(','));
+  const finalOk = !missingAltars.length && last.abilities.length === altars.length && last.bosses.includes('regent') && last.bosses.includes('sef');
+  const earlyTower = report.stages.some((st) => !st.abilities.includes('cut') && (st.bosses.includes('regent') || st.bosses.includes('sef')));
+  if (earlyTower) console.log('WARNING: tower bosses reachable before cut');
   const ok = finalOk && maxShards === total.shards && maxHearts === total.hearts && maxSpools === total.spools && !missing.length && !earlyTower && !missingPlates.length && !blocked.length; // the return check (hardFails) is advisory until it is finished: it still prints every failing pair
   if (hardFails) console.log('NOTE: the return check is advisory for now; ' + hardFails + ' zone/stage pairs still report no way back');
   console.log(ok ? 'SOLVER OK' : 'SOLVER FAILED');

@@ -1,7 +1,7 @@
 'use strict';
 // TOWER screens. Legend and conventions: see js/rooms.js. Zones for this region are declared at the bottom.
 Object.assign(ROOMS, {
-  T1: { name: "Regent's Hall", region: 'tower', mx: 5, my: 0, links: { down: 'H5', left: 'T2' }, boss: 'regent1', gateFlag: 'sever', grid: [
+  T1: { name: "Regent's Hall", region: 'tower', mx: 5, my: 0, links: { down: 'H5', left: 'T2' }, boss: 'regent1', gateFlag: 'cut', grid: [
     '########################################',
     '#......................................#',
     '#......................................#',

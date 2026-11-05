@@ -15,6 +15,7 @@ const World = {
   arena: null,       // pixel rect of the boss screen, if any
   shake: 0,
   tileVersion: 0,
+  platforms: [],     // dynamic platforms, rebuilt by Game each frame from entities' platformRect()
 
   load(zoneId) {
     const zone = ZONES[zoneId];
@@ -58,7 +59,7 @@ const World = {
           case 'L': if (flags['lock:' + def.id + ':' + x + ':' + y]) ch = '.'; break;
           case 'R': if (flags['mend:' + def.id + ':' + x + ':' + y]) ch = '#'; break;
           case 'p': ents.push({ cls: 'plate', x: gx, y: gy, screen: def.id }); ch = '.'; break;
-          case 'X': if (this.tiles[gy][gx - 1] !== 'X') { let w = 1; while (this.tiles[gy][gx + w] === 'X') w++; ents.push({ cls: 'crusher', x: gx, y: gy, w }); } ch = '.'; break;
+          case 'X': if (zone.grid[gy][gx - 1] !== 'X') { let w = 1; while (zone.grid[gy][gx + w] === 'X') w++; ents.push({ cls: 'crusher', x: gx, y: gy, w }); } ch = '.'; break; // one bank per run (this.tiles is already cleared to the left)
           case 'a': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'husk', x: gx, y: gy, key }); ch = '.'; break; }
           case 'w': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'hourfly', x: gx, y: gy, key }); ch = '.'; break; }
           case 't': { const key = def.id + ':' + x + ':' + y; if (!Game.killed || !Game.killed.has(key)) ents.push({ cls: 'enemy', type: 'archer', x: gx, y: gy, key }); ch = '.'; break; }
@@ -104,7 +105,9 @@ const World = {
     for (const id in this.doors) {
       const d = this.doors[id];
       if (d.latched) { d.open = true; continue; }
-      const pressed = plates.some((p) => p.screen === id && p.pressed);
+      // a screen with several plates wants them all pressed at once (an echo holds the other)
+      const mine = plates.filter((p) => p.screen === id);
+      const pressed = mine.length > 0 && mine.every((p) => p.pressed);
       const def = ROOMS[id]; const flat = def.grid.join('');
       const weight = flat.includes('e');
       if (pressed) { d.timer = d.hold; if (!d.open) { d.open = true; AudioSys.sfx('gate'); } }
@@ -121,12 +124,13 @@ const World = {
       }
     }
   },
+  // Age on a rust lock: the connected run rusts away, capped at 12 tiles (a bigger wall is too much time to pour)
   dissolveLock(tx, ty) {
-    const stack = [[tx, ty]];
-    while (stack.length) {
+    const stack = [[tx, ty]]; let n = 0;
+    while (stack.length && n < 12) {
       const [x, y] = stack.pop();
       if (this.tile(x, y) !== 'L') continue;
-      this.tiles[y][x] = '.'; this.tileVersion++;
+      this.tiles[y][x] = '.'; this.tileVersion++; n++;
       const sc = this.screenAt(x * TILE, y * TILE);
       if (sc) Game.save.flags['lock:' + sc.id + ':' + (x - sc.ox) + ':' + (y - sc.oy)] = true;
       Game.burst(x * TILE + 8, y * TILE + 8, '#9fc59a', 8);
@@ -134,22 +138,18 @@ const World = {
     }
     AudioSys.sfx('crack'); this.shake = 0.25; Game.writeSave();
   },
-  mendRubble(px, py, radius) {
+  // Restore on rubble: the whole connected run becomes stone again (flag mend:)
+  mendRubble(tx, ty) {
     let n = 0;
-    for (let y = 0; y < this.zone.H; y++) for (let x = 0; x < this.zone.W; x++) {
-      if (this.tiles[y][x] !== 'R') continue;
-      if (dist(px, py, x * TILE + 8, y * TILE + 8) > radius) continue;
-      // restore the whole connected run
-      const stack = [[x, y]];
-      while (stack.length) {
-        const [ax, ay] = stack.pop();
-        if (this.tile(ax, ay) !== 'R') continue;
-        this.tiles[ay][ax] = '#'; this.tileVersion++; n++;
-        const sc = this.screenAt(ax * TILE, ay * TILE);
-        if (sc) Game.save.flags['mend:' + sc.id + ':' + (ax - sc.ox) + ':' + (ay - sc.oy)] = true;
-        Game.burst(ax * TILE + 8, ay * TILE + 8, '#7af0d0', 8);
-        stack.push([ax + 1, ay], [ax - 1, ay], [ax, ay + 1], [ax, ay - 1]);
-      }
+    const stack = [[tx, ty]];
+    while (stack.length) {
+      const [ax, ay] = stack.pop();
+      if (this.tile(ax, ay) !== 'R') continue;
+      this.tiles[ay][ax] = '#'; this.tileVersion++; n++;
+      const sc = this.screenAt(ax * TILE, ay * TILE);
+      if (sc) Game.save.flags['mend:' + sc.id + ':' + (ax - sc.ox) + ':' + (ay - sc.oy)] = true;
+      Game.burst(ax * TILE + 8, ay * TILE + 8, '#7af0d0', 8);
+      stack.push([ax + 1, ay], [ax - 1, ay], [ax, ay + 1], [ax, ay - 1]);
     }
     if (n) Game.writeSave();
     return n;
@@ -194,7 +194,8 @@ const World = {
 
   moveBody(b, dt, opts) {
     opts = opts || {};
-    const res = { ground: false, ceiling: false, wallL: false, wallR: false, spikes: false, platform: false };
+    const res = { ground: false, ceiling: false, wallL: false, wallR: false, spikes: false, platform: false, plat: null };
+    b.riding = null;
     let nx = b.x + b.vx * dt;
     if (b.vx !== 0) {
       const dirX = sign(b.vx);
@@ -231,6 +232,15 @@ const World = {
     } else {
       const ty = Math.floor(ny / TILE);
       for (let tx = tx0; tx <= tx1; tx++) if (this.solidAt(tx, ty)) { ny = (ty + 1) * TILE + 0.01; b.vy = 0; res.ceiling = true; break; }
+    }
+    // dynamic platforms (held things, pinned foes): land on one whose top the old bottom was above and the
+    // new bottom is below, with horizontal overlap; the highest landing wins; Down + jump drops through like '='
+    if (dirY > 0 && !opts.dropThrough && this.platforms.length) {
+      const oldBottom = b.y + b.h, newBottom = ny + b.h;
+      for (const p of this.platforms) {
+        if (b.x + b.w <= p.x || b.x >= p.x + p.w) continue;
+        if (oldBottom <= p.y + 0.5 + Math.max(0, (p.vy || 0) * dt) && newBottom >= p.y && (!res.ground || p.y - b.h < ny)) { ny = p.y - b.h; b.vy = 0; res.ground = true; res.platform = true; res.plat = p; b.riding = p; }
+      }
     }
     b.y = ny;
     const sx0 = Math.floor(b.x / TILE), sx1 = Math.floor((b.x + b.w - 1) / TILE);

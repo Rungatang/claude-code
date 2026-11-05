@@ -32,8 +32,8 @@ const { chromium } = require('playwright');
     for (let i = 0; i < 300; i++) { run(1, ['ArrowRight'], i % 30 === 0 ? { 0: ['KeyZ'] } : null); clear(); if (Game.has('dash')) break; }
     clear();
     out.push(['sef present', !!sef, 'jetty talk', talking, 'dash', Game.has('dash'), 'sef left', !Game.entities.some((e) => e instanceof Npc && e.id === 'sef'), 'flag', !!Game.save.flags.sefLeftJetty]);
-    // Root: Sef gives sever after the loss
-    setup('U1', 13, 4 * 23 - 2, ['dash', 'wither', 'stall', 'mend', 'echo'], { regent1: true });
+    // Root: Sef gives cut (Sever) after the loss
+    setup('U1', 13, 4 * 23 - 2, ['dash', 'age', 'hold', 'restore', 'echo'], { regent1: true });
     const sefR = Game.entities.find((e) => e instanceof Npc && e.id === 'sef');
     out.push(['sef in root', !!sefR, 'screen', Game.curScreen]);
     // Archivist / Miller dialogue progression
@@ -41,7 +41,7 @@ const { chromium } = require('playwright');
     run(1, [], { 0: ['ArrowUp'] }); const arch2 = Game.state === 'cutscene' && Cutscene.steps === Story.archivist.again; clear();
     out.push(['archivist intro', arch, 'again', arch2]);
     // regent defeat -> sef2 appears in T3 and the ending plays after sef
-    setup('T1', 5, 21, ['dash', 'wither', 'stall', 'mend', 'echo', 'sever'], { regent1: true, 'boss:regent': true });
+    setup('T1', 5, 21, ['dash', 'age', 'hold', 'restore', 'echo', 'cut'], { regent1: true, 'boss:regent': true });
     const n = Game.entities.find((e) => e instanceof Npc && e.id === 'sef2'); Game.player.x = n.x; run(3, []); clear();
     run(1, [], { 0: ['ArrowUp'] }); clear(); run(2, []);
     const b = Game.entities.find((e) => e instanceof Boss && e.type === 'sef');

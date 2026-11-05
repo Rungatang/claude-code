@@ -5,9 +5,9 @@
 //
 // Legend:
 //   #  solid      .  air       =  one-way platform   ^  spikes
-//   C  cracked wall (dash)     L  rust lock (wither)  R  rubble (mend restores to solid)
+//   C  cracked wall (dash, or age)   L  rust lock (age)   R  rubble (restore makes it solid)
 //   d  timed door (open 2s after its plate is released)   e  weight gate (open only while held)
-//   p  pressure plate          X  crusher (slow it with stall)
+//   p  pressure plate          X  crusher (hold stops one, and it bears you)
 //   D  boss gate (shuts during a fight)   G  sealed gate (opens when the screen's gateFlag is set)
 //   |  pillar   ~  water   :  rubble   (decor)
 //   P  player start   Q  underground arrival   S  lantern   N  npc   A  power altar   B  boss

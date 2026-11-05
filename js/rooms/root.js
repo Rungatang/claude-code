@@ -76,7 +76,7 @@ Object.assign(ROOMS, {
     '##################....##################',
     '##################....##################',
   ] },
-  U4: { name: 'The Mouth', region: 'root', mx: 8, my: 4, links: { down: 'U3', up: 'U5' }, npc: 'sef', ability: 'sever', grid: [
+  U4: { name: 'The Mouth', region: 'root', mx: 8, my: 4, links: { down: 'U3', up: 'U5' }, npc: 'sef', ability: 'cut', grid: [
     '##################....##################',
     '#.####..###.##................##########',
     '#.####..###.##................##########',

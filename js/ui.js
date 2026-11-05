@@ -198,6 +198,8 @@ const UI = {
       const is = sel ? 11 : 9; Art.drawPowerIcon(ctx, id, x - is / 2, y - is / 2, is);
       if (cd) { ctx.fillStyle = 'rgba(4,3,8,0.6)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r - 0.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (pl.cds[id] / p.cd)); ctx.closePath(); ctx.fill(); }
       ctx.restore();
+      // while something is held, a small ring timer beside the Hold seal empties over the hold
+      if (id === 'hold' && Game.held) drawHeldRing(ctx, x - r - 5, y + r - 2, 3.5, Game.held.t / Game.held.dur);
       if (sel) uiText(ctx, p.name + '  (' + p.cost + ')', VIEW_W - 14, 48, { font: '11px Georgia, serif', color: '#efe7d6', align: 'right' });
     });
     if (list.length) uiText(ctx, 'Q / E select   V cast', VIEW_W - 14, 61, { font: '9px Georgia, serif', color: '#8e8778', align: 'right' });

@@ -124,7 +124,7 @@ Object.assign(ROOMS, {
   // The broken stair. A low flooded corridor opens into a dim antechamber and then the altar hall; the
   // stair to the Mills switchbacks up the east wall, but one landing has fallen (rubble) and has to be
   // mended before the last flights can be climbed to the gallery under the chimney.
-  D4: { name: 'Mend Altar', region: 'archive', mx: 5, my: 9, links: { left: 'D3', up: 'M1' }, ability: 'mend', grid: [
+  D4: { name: 'Mend Altar', region: 'archive', mx: 5, my: 9, links: { left: 'D3', up: 'M1' }, ability: 'restore', grid: [
     '##################....##################',
     '##################.............#########',
     '##################.............#########',

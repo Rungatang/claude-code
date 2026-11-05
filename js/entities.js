@@ -10,18 +10,22 @@ const JUMP_V = 430;
 const DASH_SPEED = 580;
 const DASH_TIME = 0.17;
 
-// Time powers (cast with V after selecting with Q/E). Anchor/Recall is on F.
+// Time powers (cast with V after selecting with Q/E). Anchor/Recall is on F. Every power is targeted:
+// it acts on the nearest valid thing inside its cast box (Player.castBox: `range` px forward, 48 tall at
+// the chest; Up aims it above the head, Down while airborne below the feet). Nothing in the box: a fizzle,
+// which costs nothing. Display names stay the old words where the rooms and tablets use them (docs/POWERS.md).
 const POWERS = {
-  wither: { name: 'Wither', cost: 2, cd: 0.8, windup: 0.18, color: '#9fc59a', hint: 'Age a thing a hundred years in a breath. Rusts locks; the withered take double harm and slow.' },
-  stall:  { name: 'Stall', cost: 3, cd: 4.0, windup: 0.1, color: '#8fb3ff', hint: 'Thicken time around you for a few seconds. Everything else moves as if through tar.' },
-  mend:   { name: 'Mend', cost: 3, cd: 1.0, windup: 0.3, color: '#7af0d0', hint: 'Turn a thing back toward what it was. Restores ruins, and undoes wounds you took a moment ago.' },
-  echo:   { name: 'Echo', cost: 3, cd: 1.5, windup: 0.1, color: '#e6d8ff', hint: 'Leave behind the last three seconds of yourself. The echo walks, strikes and weighs what you did.' },
-  sever:  { name: 'Sever', cost: 5, cd: 6.0, windup: 0.2, color: '#ff3355', hint: 'Cut the thread. Time stops for everything but you, briefly.' },
+  age:     { name: 'Wither', cost: 2, cd: 0.8, windup: 0.18, range: 56, color: '#9fc59a', hint: 'Pour a hundred years into one thing in reach. Rust locks and cracked walls crumble; a withered foe takes double harm and its armour rots.' },
+  hold:    { name: 'Hold', cost: 3, cd: 4.0, windup: 0.1, range: 72, color: '#8fb3ff', hint: 'Hold one thing out of time for four seconds. A held crusher, arrow or foe is still, harmless, and a step you can stand on.' },
+  restore: { name: 'Mend', cost: 3, cd: 1.0, windup: 0.3, range: 56, color: '#7af0d0', hint: 'Ask a thing what it was. Rubble becomes stone; a foe is put back where it stood two seconds ago; with nothing in reach, wounds you took a moment ago close.' },
+  echo:    { name: 'Echo', cost: 3, cd: 1.5, windup: 0.1, range: 0, color: '#e6d8ff', hint: 'Leave behind the last five seconds of yourself. The echo walks, strikes and weighs what you did, and the dead chase it instead of you.' },
+  cut:     { name: 'Sever', cost: 2, cd: 1.2, windup: 0.14, range: 40, color: '#ff3355', hint: 'A short stroke that cuts a thread. A shield strap or a guard falls open; a guardian\'s armour thread, cut, leaves it bare for a while.' },
 };
 // Controller quick-cast slots (LB and LT): the power each fires. RB casts the power picked with the d-pad.
-const QUICK_POWERS = { castA: 'wither', castB: 'stall' };
-const POWER_ORDER = ['wither', 'stall', 'mend', 'echo', 'sever'];
+const QUICK_POWERS = { castA: 'age', castB: 'hold' };
+const POWER_ORDER = ['age', 'hold', 'restore', 'echo', 'cut'];
 const RECALL_COST = 2;
+const HOLD_DUR = 4.0;
 
 // ---------------------------------------------------------------------------
 // Feel helpers shared by the player, enemies and bosses: eased velocity
@@ -105,6 +109,10 @@ class Player {
     for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT']) if (this[k] > 0) this[k] -= dt;
     for (const k in this.cds) if (this.cds[k] > 0) this.cds[k] -= dt;
     this.recentDamage = this.recentDamage.filter((d) => Game.t - d.t < 5);
+    // the floor: outside a fight three grains always run back, one every 2.5 s
+    if (!World.bossActive && this.thread < 3) { this.regrowT = (this.regrowT || 0) + dt; if (this.regrowT >= 2.5) { this.regrowT = 0; this.thread = Math.min(3, this.thread + 1); } } else this.regrowT = 0;
+    // a rider moves with its dynamic platform while still over it
+    if (this.riding && this.x + this.w > this.riding.x && this.x < this.riding.x + this.riding.w) { this.x += (this.riding.vx || 0) * dt; this.y += (this.riding.vy || 0) * dt; }
     this.attackStarted = false;
     if (this.frozen > 0) { this.animTick(dt, 0); this.record(); return; }
     const wasGround = this.onGround, prevFacing = this.facing;
@@ -300,7 +308,7 @@ class Player {
   }
   record() {
     this.history.push({ x: this.x, y: this.y, f: this.facing, atk: this.attackStarted ? this.attackKind + ':' + this.step : null, dead: this.dead, a: this.anim, ln: this.lean, sx: this.sqX, sy: this.sqY, g: this.onGround, vx: this.vx, vy: this.vy });
-    if (this.history.length > 180) this.history.shift();
+    if (this.history.length > 300) this.history.shift();
   }
   // ---- melee helpers ----
   attackTiming() {
@@ -375,6 +383,7 @@ class Player {
       if (this.thread < RECALL_COST) { UI.showToast('Not enough thread to return.'); AudioSys.sfx('menu'); return; }
       this.thread -= RECALL_COST;
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffd27a', 16, 120);
+      this.recallStreak(this.anchor.x, this.anchor.y);
       this.x = this.anchor.x; this.y = this.anchor.y; this.vx = 0; this.vy = 0; this.dashT = 0; this.attackT = 0;
       this.invuln = Math.max(this.invuln, 0.5); this.lastSafe = { x: this.x, y: this.y };
       Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#fff', 16, 120);
@@ -384,34 +393,88 @@ class Player {
       Game.save.recalls = (Game.save.recalls || 0) + 1;
     }
   }
+  // Recall sweeps a 12x22 box along the line to the anchor: every foe it crosses takes 1 (thread +1 each),
+  // enemies are stunned a beat, bosses take the poise; a gold afterimage lingers along the streak.
+  recallStreak(ax, ay) {
+    const x0 = this.x + this.w / 2, y0 = this.y + this.h / 2, x1 = ax + this.w / 2, y1 = ay + this.h / 2;
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8)), hit = new Set();
+    for (let i = 0; i <= n; i++) {
+      const sx = x0 + (x1 - x0) * i / n, sy = y0 + (y1 - y0) * i / n, box = { x: sx - 6, y: sy - 11, w: 12, h: 22 };
+      for (const e of Game.entities) if ((e instanceof Enemy || e instanceof Boss) && !e.dead && !hit.has(e) && rectsOverlap(box, e)) { hit.add(e); const r = e.hurt(1, sx, { kind: 'recall', from: 'recall', stun: 0.3 }); if (r === 'hit') { this.gainThread(1); Game.spark(e.x + e.w / 2, e.y + e.h * 0.45, sign(x1 - x0) || 1, false); } }
+      if (i % 2 === 0) Game.particle(sx + (Math.random() - 0.5) * 6, sy + (Math.random() - 0.5) * 14, 0, -4, 0.4, '#ffd27a', 2);
+    }
+    Game.streak = { x0, y0, x1, y1, t: 0.4 };
+  }
+  // The cast box every power aims with: `range` px forward of the chest, 48 tall; Up: 32 wide above the
+  // head; Down in the air: 32 wide below the feet. dir and the origin are kept for the fizzle arc.
+  castBox(id) {
+    const R = POWERS[id].range || 0, cx = this.x + this.w / 2, hy = this.y + 8;
+    if (Input.held('up')) return { x: cx - 16, y: this.y - R, w: 32, h: R, ox: cx, oy: this.y, ang: -Math.PI / 2, R };
+    if (Input.held('downDir') && !this.onGround) return { x: cx - 16, y: this.y + this.h, w: 32, h: R, ox: cx, oy: this.y + this.h, ang: Math.PI / 2, R };
+    return { x: this.facing > 0 ? cx : cx - R, y: hy - 24, w: R, h: 48, ox: cx, oy: hy, ang: this.facing > 0 ? 0 : Math.PI, R };
+  }
+  // Every valid target of a power inside its cast box, nearest first (tiles before entities when equal):
+  // { kind: 'tile', tx, ty, ch } or { kind: 'entity', e }. Echo targets yourself; Restore falls back to
+  // self-healing when the box holds nothing, so neither ever fizzles.
+  castTargets(id) {
+    if (id === 'echo') return [{ kind: 'self' }];
+    const box = this.castBox(id), out = [], cx = box.ox, cy = box.oy;
+    const tileOk = id === 'age' ? (ch) => ch === 'L' || ch === 'C' : id === 'restore' ? (ch) => ch === 'R' : null;
+    if (tileOk) {
+      const tx0 = Math.floor(box.x / TILE), tx1 = Math.floor((box.x + box.w - 1) / TILE), ty0 = Math.floor(box.y / TILE), ty1 = Math.floor((box.y + box.h - 1) / TILE);
+      for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { const ch = World.tile(tx, ty); if (tileOk(ch)) out.push({ kind: 'tile', tx, ty, ch, d: dist(cx, cy, tx * TILE + 8, ty * TILE + 8), pri: 0 }); }
+    }
+    const held = Game.held && Game.held.obj;
+    const add = (e, r) => out.push({ kind: 'entity', e, d: dist(cx, cy, r.x + r.w / 2, r.y + r.h / 2), pri: 1 });
+    for (const e of Game.entities) {
+      if (e.dead || !rectsOverlap(box, e)) continue;
+      const foe = (e instanceof Enemy || e instanceof Boss) && e.visible !== false && !(e instanceof Boss && !e.active);
+      if (id === 'age' && foe) add(e, e);
+      else if (id === 'hold' && (e === held || e instanceof Crusher || e instanceof Echo || (foe && !(e instanceof Boss && e.holdCd > 0)))) add(e, e);
+      else if (id === 'restore' && foe && !(e instanceof Boss && e.rewindCd > 0)) add(e, e);
+      else if (id === 'cut' && foe && (e instanceof Boss || e.type === 'knight')) add(e, e);
+    }
+    if (id === 'hold') for (const p of Game.projectiles) if (p.hostile && !p.dead && p.kind !== 'wave' && rectsOverlap(box, p.rect())) add(p, p.rect());
+    out.sort((a, b) => a.d - b.d || a.pri - b.pri);
+    if (id === 'restore' && !out.length) out.push({ kind: 'self' });
+    return out;
+  }
   beginCast(id) {
     const p = POWERS[id]; if (!p) return;
     if ((this.cds[id] || 0) > 0) { AudioSys.sfx('menu'); return; }
+    const targets = this.castTargets(id);
+    // nothing in the box: the cast fizzles, costs nothing and starts no cooldown
+    if (!targets.length) { Game.fizzle = { id, box: this.castBox(id), t: 0.3 }; AudioSys.sfx('fizzle'); return; }
+    // holding the thing you already hold lets it go early, for free
+    if (id === 'hold' && Game.held && targets[0].e === Game.held.obj) { Game.release(); return; }
     if (this.thread < p.cost) { UI.showToast('Not enough thread. Strike something.'); AudioSys.sfx('menu'); return; }
     this.thread -= p.cost; this.cds[id] = p.cd;
     this.castPower = id; this.castDur = p.windup + 0.2; this.castT = this.castDur; this.castFired = false;
     Game.burst(this.x + this.w / 2 + this.facing * 10, this.y + 8, p.color, 6, 30);
   }
+  // Acts on the first target only: one thing per cast.
   firePower(id) {
-    const cx = this.x + this.w / 2, hy = this.y + 8, f = this.facing;
+    const cx = this.x + this.w / 2, hy = this.y + 8;
+    if (id === 'echo') { Game.entities.push(new Echo(this.history.slice())); AudioSys.sfx('ability'); return; }
+    const tg = this.castTargets(id)[0]; if (!tg) return;
+    if (tg.kind === 'tile') {
+      if (id === 'age') { if (tg.ch === 'L') World.dissolveLock(tg.tx, tg.ty); else World.breakCrack(tg.tx, tg.ty); AudioSys.sfx('rust'); }
+      else if (id === 'restore') { if (World.mendRubble(tg.tx, tg.ty)) { AudioSys.sfx('weave'); World.shake = 0.2; } }
+      return;
+    }
+    if (tg.kind === 'self') {
+      // close the wounds of the last five seconds, at most two hours
+      const lost = this.recentDamage.reduce((s, d) => s + d.n, 0);
+      const heal = Math.min(2, lost, this.maxHp - this.hp);
+      if (heal > 0) { this.hp += heal; this.recentDamage = []; Game.burst(cx, hy, '#7af0d0', 14, 80); UI.showToast('Mended ' + heal + (heal === 1 ? ' hour.' : ' hours.')); }
+      AudioSys.sfx('save'); return;
+    }
+    const e = tg.e, r = e.rect ? e.rect() : e;
     switch (id) {
-      case 'wither': {
-        const up = Input.held('up'), down = Input.held('downDir') && !this.onGround;
-        const vx = up || down ? 0 : f * 340, vy = up ? -340 : down ? 340 : 0;
-        Game.projectiles.push(new Projectile(cx + (up || down ? 0 : f * 10), hy + (up ? -8 : down ? 8 : 0), vx, vy, 5, false, 'wither', { dmg: 1, life: 1.2, wither: 5 }));
-        AudioSys.sfx('shoot'); break;
-      }
-      case 'stall': Game.stall(2.6); break;
-      case 'mend': {
-        const lost = this.recentDamage.reduce((s, d) => s + d.n, 0);
-        const heal = Math.min(3, lost, this.maxHp - this.hp);
-        if (heal > 0) { this.hp += heal; this.recentDamage = []; Game.burst(cx, hy, '#7af0d0', 14, 80); UI.showToast('Mended ' + heal + (heal === 1 ? ' hour.' : ' hours.')); }
-        const n = World.mendRubble(cx, hy, 110);
-        if (n) { AudioSys.sfx('crack'); World.shake = 0.2; }
-        AudioSys.sfx('save'); break;
-      }
-      case 'echo': Game.entities.push(new Echo(this.history.slice())); AudioSys.sfx('ability'); break;
-      case 'sever': Game.sever(1.9); break;
+      case 'age': e.withered = 5; Game.burst(r.x + r.w / 2, r.y, '#9fc59a', 12, 50); AudioSys.sfx('rust'); break;
+      case 'hold': Game.hold(e, e instanceof Boss ? 0.8 : e instanceof Enemy ? 2.5 : HOLD_DUR); break;
+      case 'restore': e.rewind(); AudioSys.sfx('weave'); break;
+      case 'cut': e.cutThread(cx); break;
     }
   }
 
@@ -460,8 +523,10 @@ class Echo {
     this.attackT = 0; this.attackDur = 0.3; this.attackKind = 'slash'; this.step = 0; this.hitSet = null; this.anim = 'idle';
     if (!this.frames.length) this.dead = true;
   }
+  isHeld() { return !!(Game.held && Game.held.obj === this); }
+  platformRect() { return this.isHeld() ? { x: this.x, y: this.y, w: this.w, h: 6, vx: 0, vy: 0, owner: this } : null; }
   update(dt) {
-    if (this.dead) return;
+    if (this.dead || this.isHeld()) return; // held: the frame index freezes (it still weighs on its plate)
     const f = this.frames[this.i];
     this.x = f.x; this.y = f.y; this.facing = f.f; Echo.pose(this, f);
     if (f.atk) { const [k, s] = f.atk.split(':'); this.attackKind = k; this.step = +s; this.attackT = 0.3; this.hitSet = new Set(); }
@@ -500,7 +565,10 @@ class Crusher {
     this.bottom = ty * TILE - this.h;
     this.state = 'wait'; this.timer = Math.random() * 0.8; this.dead = false; this.vy = 0;
   }
+  isHeld() { return !!(Game.held && Game.held.obj === this); }
+  platformRect() { return this.isHeld() ? { x: this.x, y: this.y, w: this.w, h: this.h, vx: 0, vy: 0, owner: this } : null; }
   update(dt) {
+    if (this.isHeld()) return; // held out of time: inert, and a platform
     this.timer -= dt;
     if (this.state === 'wait') { if (this.timer <= 0) { this.state = 'fall'; this.vy = 0; } }
     else if (this.state === 'fall') { this.vy = Math.min(900, this.vy + 2400 * dt); this.y += this.vy * dt; if (this.y >= this.bottom) { this.y = this.bottom; this.state = 'rest'; this.timer = 0.5; World.shake = Math.max(World.shake, 0.12); Game.burst(this.x + this.w / 2, this.y + this.h, '#9a9aa8', 8, 60); AudioSys.sfx('land'); } }
@@ -523,7 +591,7 @@ class Enemy {
     this.homeX = this.x; this.homeY = this.y;
     this.vx = 0; this.vy = 0; this.dir = -1;
     this.hp = { husk: 4, hourfly: 3, archer: 4, knight: 8, wraith: 4, hound: 5 }[type];
-    this.flash = 0; this.dead = false; this.stun = 0; this.withered = 0; this.poise = 0;
+    this.flash = 0; this.dead = false; this.stun = 0; this.withered = 0; this.poise = 0; this.shieldCut = 0; this.trail = []; this.decoy = null;
     this.timer = Math.random() * 1.5; this.tele = 0; this.state = 'idle'; this.cool = 0; this.aim = 0; this.phase = Math.random() * 6;
     // animation contract (read by js/art/enemies.js) and movement smoothing state
     Feel.initAnim(this); this.walkPhase = Math.random() * 6; this.onGround = false; this.wasGround = false;
@@ -532,7 +600,7 @@ class Enemy {
   hurt(dmg, fromX, o) {
     o = o || {};
     // rust knights block frontal strikes unless staggered, withered or hit from behind/above
-    if (this.type === 'knight' && this.stun <= 0 && this.withered <= 0 && o.kind !== 'pogo' && o.kind !== 'up') {
+    if (this.type === 'knight' && this.stun <= 0 && this.withered <= 0 && this.shieldCut <= 0 && !this.isHeld() && o.kind !== 'pogo' && o.kind !== 'up') {
       const fromFront = sign(fromX - (this.x + this.w / 2)) === this.dir;
       if (fromFront) { this.poise += 1; this.flash = 0.08; this.hitKick = 0.5; Feel.kick(this, 1.06, 0.96); Game.burst(this.x + this.dir * 10 + this.w / 2, this.y + 10, '#c9a24a', 5, 50); if (this.poise >= 3) { this.poise = 0; this.stun = 1.6; Feel.kick(this, 1.2, 0.84); } return 'blocked'; }
     }
@@ -561,20 +629,34 @@ class Enemy {
     }
     return 'hit';
   }
+  isHeld() { return !!(Game.held && Game.held.obj === this); }
+  // pinned by Hold: its top is a one-way step
+  platformRect() { return this.isHeld() ? { x: this.x, y: this.y, w: this.w, h: 6, vx: 0, vy: 0, owner: this } : null; }
+  // Restore: put back where it stood two seconds ago (the trail keeps the last 120 positions), the move cancelled
+  rewind() {
+    const t = this.trail[0]; if (t) { this.x = t.x; this.y = t.y; }
+    this.state = 'idle'; this.tele = 0; this.cool = 0.9; this.vx = 0; this.vy = 0; this.fadeT = 0; this.visible = true; this.trail = [];
+    Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#7af0d0', 12, 60); Feel.kick(this, 0.8, 1.2);
+  }
+  // Cut: the shield strap goes; nothing blocks for six seconds
+  cutThread(fromX) { this.shieldCut = 6; this.flash = 0.1; Game.burst(this.x + this.w / 2, this.y + 10, '#ff3355', 10, 70); Game.spark(this.x + this.w / 2, this.y + 10, sign(this.x + this.w / 2 - fromX) || 1, true); AudioSys.sfx('cut'); }
   update(dt0) {
     const dt = dt0 * Game.timeScale * TEMPO;
     if (this.flash > 0) this.flash -= dt0;
     if (this.stun > 0) this.stun -= dt;
     if (this.withered > 0) this.withered -= dt;
+    if (this.shieldCut > 0) this.shieldCut -= dt;
+    if (this.isHeld()) { this.vx = 0; this.vy = 0; this.decoy = null; this.animTick(dt0, 0); return; } // pinned: no movement, no contact
+    this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 120) this.trail.shift();
     // the strike lands on the frame the telegraph runs out (a single edge, so a fixed step can never skip it);
     // a short cooldown floor keeps an enemy from re-telling on the very next frame
     const strike = this.tele > 0 && this.tele - dt <= 0;
     this.tele = Math.max(0, this.tele - dt);
     if (strike) this.cool = Math.max(this.cool, 0.6);
-    const pl = Game.player;
-    const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
+    const pl = Game.player, tg = Game.decoyTarget(this); this.decoy = tg === pl ? null : tg;
+    const pcx = tg.x + tg.w / 2, pcy = tg.y + tg.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
-    const stunned = this.stun > 0, spd = this.withered > 0 ? 0.6 : 1;
+    const stunned = this.stun > 0, spd = 1;
     // Lanterns are safe ground: inside a lantern's radius an enemy never telegraphs, and walkers turn
     // back while flyers drift off. (The layout lint keeps spawns out of the radius; this keeps patrols out.)
     this.nearLantern = null;
@@ -657,7 +739,7 @@ class Enemy {
       case 'wraith': {
         // paper wraith: sways where it hangs, blinks beside you, pauses, slashes; its paper lifts before it goes
         this.cool -= dt;
-        if (this.state === 'gone') { this.timer -= dt; if (this.timer <= 0) { this.state = 'idle'; this.visible = true; const side = Math.random() < 0.5 ? -1 : 1; this.x = clamp(pcx + side * 40 - this.w / 2, 8, World.W - this.w - 8); this.y = pl.y - 2; this.dir = -side; this.tell(0.7); this.vx = 0; this.fadeT = 0; Feel.kick(this, 0.55, 1.45); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 10, 60); } }
+        if (this.state === 'gone') { this.timer -= dt; if (this.timer <= 0) { this.state = 'idle'; this.visible = true; const side = Math.random() < 0.5 ? -1 : 1; this.x = clamp(pcx + side * 40 - this.w / 2, 8, World.W - this.w - 8); this.y = tg.y - 2; this.dir = -side; this.tell(0.7); this.vx = 0; this.fadeT = 0; Feel.kick(this, 0.55, 1.45); Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#e8e0d0', 10, 60); } }
         else if (this.tele > 0 || strike) { if (strike) { this.cool = 1.6; const hb = { x: this.x + (this.dir > 0 ? this.w : -26), y: this.y, w: 26, h: this.h }; if (!pl.dead && pl.invuln <= 0 && rectsOverlap(hb, pl)) pl.hurt(1, cx); this.slashT = 0.2; Feel.kick(this, 1.18, 0.9); AudioSys.sfx('swing'); } }
         else if (this.fadeT > 0) { this.fadeT -= dt; if (this.fadeT <= 0) { this.state = 'gone'; this.visible = false; this.timer = 0.36; Game.burst(cx, cy, '#e8e0d0', 10, 60); } }
         else if (!stunned && this.cool <= 0 && d < 200) { this.fadeT = 0.22; }
@@ -730,7 +812,12 @@ class Projectile {
     this.dmg = o.dmg || 1; this.pierce = !!o.pierce; this.wither = o.wither || 0; this.hit = new Set(); this.age = 0;
     this.owner = o.owner || null; this.returning = false; this.gravity = kind === 'ember' || kind === 'page' || kind === 'shard';
   }
+  rect() { return { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 }; }
+  isHeld() { return !!(Game.held && Game.held.obj === this); }
+  // held in the air: a 16x6 step; on release it flies on
+  platformRect() { return this.isHeld() ? { x: this.x - 8, y: this.y - 3, w: 16, h: 6, vx: 0, vy: 0, owner: this } : null; }
   update(dt0) {
+    if (this.isHeld()) return;
     const dt = this.hostile ? dt0 * Game.timeScale * TEMPO : dt0;
     this.life -= dt; this.age += dt;
     if (this.gravity) this.vy += 700 * dt;
@@ -739,9 +826,7 @@ class Projectile {
     if (this.life <= 0 || this.x < -20 || this.x > World.W + 20 || this.y < -20 || this.y > World.H + 20) this.dead = true;
     const tx = Math.floor(this.x / TILE), ty = Math.floor(this.y / TILE);
     if (this.kind !== 'wave' && this.kind !== 'gear') {
-      const ch = World.tile(tx, ty);
-      if (this.kind === 'wither' && ch === 'L') { World.dissolveLock(tx, ty); this.dead = true; }
-      else if (World.isSolidAt(tx, ty)) { this.dead = true; Game.burst(this.x, this.y, this.hostile ? '#ff8080' : '#d8f0c0', 4); }
+      if (World.isSolidAt(tx, ty)) { this.dead = true; Game.burst(this.x, this.y, this.hostile ? '#ff8080' : '#d8f0c0', 4); }
     }
     const pl = Game.player;
     const box = { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
@@ -887,14 +972,14 @@ const BOSS_DEFS = {
       { id: 'sweep', type: 'dash', tele: 0.3, speed: 520, dur: 0.45, w: 1.5 },
       { id: 'spears', type: 'volley', tele: 0.35, n: 4, speed: 300, spread: 0.5, kind: 'page', far: true, w: 1.5 },
     ] },
-  grinder: { name: 'The Grinder', hp: 78, poise: 18, w: 56, h: 44, phase2: 0.5, ground: true,
+  grinder: { name: 'The Grinder', hp: 78, poise: 18, w: 56, h: 44, phase2: 0.5, ground: true, thread: true,
     moves: [
       { id: 'roll', type: 'dash', tele: 0.3, speed: 520, dur: 0.9, bounce: true, w: 2 },
       { id: 'spin', type: 'spin', tele: 0.35, dur: 1.1, speed: 150, shards: 8, w: 2 },
       { id: 'leap', type: 'leap', tele: 0.25, vy: -600, shock: true, w: 1.5 },
       { id: 'bite', type: 'combo', hits: 2, tele: 0.25, step: 0.3, range: 60, dmg: 1, advance: 40, near: true, w: 2 },
     ] },
-  regent: { name: 'The Regent of Hours', hp: 115, poise: 14, w: 30, h: 60, phase2: 0.5, ground: true,
+  regent: { name: 'The Regent of Hours', hp: 115, poise: 14, w: 30, h: 60, phase2: 0.5, ground: true, thread: true,
     moves: [
       { id: 'cuts', type: 'combo', hits: 3, tele: 0.22, step: 0.2, range: 60, dmg: 1, advance: 28, near: true, w: 2 },
       { id: 'hands', type: 'volley', tele: 0.3, n: 5, speed: 260, spread: 0.6, kind: 'timebolt', far: true, w: 1.5 },
@@ -903,7 +988,7 @@ const BOSS_DEFS = {
       { id: 'leap', type: 'leap', tele: 0.25, vy: -560, shock: true, w: 1 },
       { id: 'echoes', type: 'summon', tele: 0.5, what: 'hourfly', n: 2, phase: 2, w: 1 },
     ] },
-  sef: { name: 'Sef, the Hourwright', hp: 120, poise: 14, w: 26, h: 50, phase2: 0.5, ground: true, rewind: true,
+  sef: { name: 'Sef, the Hourwright', hp: 120, poise: 14, w: 26, h: 50, phase2: 0.5, ground: true, rewind: true, thread: true, threadPhase: 1,
     moves: [
       { id: 'cuts', type: 'combo', hits: 3, tele: 0.22, step: 0.2, range: 58, dmg: 1, advance: 30, near: true, w: 2.5 },
       { id: 'wither', type: 'volley', tele: 0.3, n: 3, speed: 300, spread: 0.3, kind: 'wither', far: true, w: 1.2 },
@@ -915,6 +1000,9 @@ const BOSS_DEFS = {
     ] },
 };
 
+// `thread: true`: the boss is armoured on a thread and takes half damage until Cut opens a 6 s window
+// (`threadPhase` limits that to its early phases). `rewind`: Sef heals once at half health, which also
+// fires the one scripted time stop.
 // Bosses are long fights, not short ones: more health to work through, with the poise bar unchanged.
 for (const k in BOSS_DEFS) if (!BOSS_DEFS[k].scripted) BOSS_DEFS[k].hp = Math.round(BOSS_DEFS[k].hp * 1.5);
 
@@ -929,23 +1017,30 @@ class Boss {
     this.flash = 0; this.dead = false; this.active = false; this.visible = true;
     this.state = 'idle'; this.timer = 0.6; this.phase = 1; this.move = null; this.lastMove = null; this.hitboxes = [];
     this.name = def.name; this.fightT = 0; this.rewound = false; this.guarding = false; this.hitsLeft = 0; this.floatY = this.y;
-    this.withered = 0;
+    this.withered = 0; this.shieldCut = 0; this.threadOpen = 0; this.holdCd = 0; this.rewindCd = 0; this.trail = []; this.decoy = null;
     // animation contract (read by js/art/bosses.js)
     Feel.initAnim(this); this.stateT = 0; this.prevState = this.state; this.onGround = false; this.wasGround = false; this.swingKick = 0; this.walkPhase = 0; this.pinT = 0; this.leapVx = 0;
   }
   hurt(dmg, fromX, o) {
     if (!this.active || this.dead || !this.visible) return 'none';
     if (this.def.scripted) { this.flash = 0.1; this.hitKick = 0.4; Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ff3355', 4); return 'hit'; }
-    if (this.guarding) { this.flash = 0.08; this.hitKick = 0.5; Feel.kick(this, 1.05, 0.97); this.guarding = false; this.state = 'tele'; this.move = this.def.moves.find((m) => m.id === 'dash') || this.def.moves[0]; this.timer = 0.1; Game.burst(this.x + this.w / 2, this.y + 20, '#c9a24a', 8, 60); AudioSys.sfx('gate'); return 'blocked'; }
-    if (this.withered > 0) dmg *= 2;
+    // a guard blocks unless the thread was cut, the guard withered, or the boss is pinned
+    if (this.guarding && this.shieldCut <= 0 && this.withered <= 0 && !this.isHeld()) { this.flash = 0.08; this.hitKick = 0.5; Feel.kick(this, 1.05, 0.97); this.guarding = false; this.state = 'tele'; this.move = this.def.moves.find((m) => m.id === 'dash') || this.def.moves[0]; this.timer = 0.1; Game.burst(this.x + this.w / 2, this.y + 20, '#c9a24a', 8, 60); AudioSys.sfx('gate'); return 'blocked'; }
+    // withered, or struck inside the scripted stop: double; armoured on an uncut thread: half
+    if (this.withered > 0 || (Game.severT > 0 && this.def.rewind)) dmg *= 2;
+    if (this.threaded() && this.threadOpen <= 0) dmg *= 0.5;
     if (this.state === 'stagger') dmg *= 1.5;
     this.hp -= dmg; this.flash = 0.12; this.hitKick = 1;
     this.kbv = (this.x + this.w / 2 < fromX ? -1 : 1) * (o && o.heavy ? 90 : 50);
     Feel.kick(this, 0.93, 1.06);
     AudioSys.sfx('hit');
     Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ffe08a', 6);
-    if (this.state !== 'stagger') { this.poise += dmg; if (this.poise >= this.def.poise) { this.poise = 0; this.state = 'stagger'; this.timer = 1.8; this.hitboxes = []; this.vx = 0; Feel.kick(this, 1.18, 0.84); Game.burst(this.x + this.w / 2, this.y, '#fff', 20, 100); UI.showToast(this.name + ' staggers!'); AudioSys.sfx('roar'); } }
-    if (this.def.rewind && !this.rewound && this.hp <= this.maxHp * 0.5) { this.rewound = true; this.hp = this.maxHp * 0.72; this.phase = 2; this.state = 'idle'; this.timer = 1.2; this.hitboxes = []; Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ff3355', 40, 160); Game.playCutscene(Story.bosses.sef.rewind, null, true); }
+    this.addPoise(dmg);
+    if (this.def.rewind && !this.rewound && this.hp <= this.maxHp * 0.5) {
+      this.rewound = true; this.hp = this.maxHp * 0.72; this.phase = 2; this.state = 'idle'; this.timer = 1.2; this.hitboxes = []; Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#ff3355', 40, 160); Game.playCutscene(Story.bosses.sef.rewind, null, true);
+      // the one scripted stop: the glass in Tam's chest answers her rewind; three seconds in which every hit on her is doubled
+      Game.sever(3.0); UI.showToast('Everything stops. Everything but you.');
+    }
     else if (this.phase === 1 && this.hp <= this.maxHp * this.def.phase2) { this.phase = 2; this.state = 'idle'; this.timer = 0.8; this.hitboxes = []; if (Story.bosses[this.type] && Story.bosses[this.type].phase2) Game.playCutscene(Story.bosses[this.type].phase2, null, true); }
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true;
@@ -957,10 +1052,38 @@ class Boss {
     }
     return 'hit';
   }
-  facePlayer() { const pl = Game.player; this.dir = pl.x + pl.w / 2 < this.x + this.w / 2 ? -1 : 1; }
+  // the boss faces and measures its target: the player, or an echo decoying it
+  target() { return Game.decoyTarget(this); }
+  facePlayer() { const pl = this.target(); this.dir = pl.x + pl.w / 2 < this.x + this.w / 2 ? -1 : 1; }
   keepInside() { const a = this.arena; this.x = clamp(this.x, a.x + TILE * 2, a.x + a.w - TILE * 2 - this.w); }
+  isHeld() { return !!(Game.held && Game.held.obj === this); }
+  platformRect() { return this.isHeld() ? { x: this.x, y: this.y, w: this.w, h: 6, vx: 0, vy: 0, owner: this } : null; }
+  threaded() { return !!this.def.thread && (!this.def.threadPhase || this.phase <= this.def.threadPhase); }
+  // poise fills toward a stagger (never while already staggering)
+  addPoise(n) {
+    if (this.state === 'stagger') return;
+    this.poise += n;
+    if (this.poise >= this.def.poise) { this.poise = 0; this.state = 'stagger'; this.timer = 1.8; this.hitboxes = []; this.vx = 0; this.guarding = false; Feel.kick(this, 1.18, 0.84); Game.burst(this.x + this.w / 2, this.y, '#fff', 20, 100); UI.showToast(this.name + ' staggers!'); AudioSys.sfx('roar'); }
+  }
+  // Restore: back where it stood two seconds ago, the move undone, poise +2; once per six seconds
+  rewind() {
+    if (!this.active || this.dead) return;
+    const t = this.trail[0]; if (t) { this.x = t.x; this.y = t.y; this.keepInside(); }
+    if (this.state !== 'stagger') { this.state = 'idle'; this.timer = 0.9; this.hitboxes = []; this.guarding = false; this.vx = 0; this.vy = 0; this.visible = true; }
+    this.rewindCd = 6; this.trail = [];
+    Game.burst(this.x + this.w / 2, this.y + this.h / 2, '#7af0d0', 16, 80); Feel.kick(this, 0.85, 1.15);
+    this.addPoise(2);
+  }
+  // Cut: a guard is cut open for six seconds; an armour thread opens a six-second full-damage window; a boss
+  // with no thread simply takes the stroke
+  cutThread(fromX) {
+    this.shieldCut = 6; this.guarding = false;
+    Game.spark(this.x + this.w / 2, this.y + this.h * 0.4, sign(this.x + this.w / 2 - fromX) || 1, true); AudioSys.sfx('cut');
+    if (this.threaded()) { this.threadOpen = 6; this.flash = 0.12; this.hitKick = 1; Feel.kick(this, 1.1, 0.9); Game.burst(this.x + this.w / 2, this.y + this.h * 0.4, '#ff3355', 18, 90); UI.showToast(this.name + '\'s armour thread snaps.'); }
+    else { if (this.hurt(1, fromX, { kind: 'cut', from: 'player' }) === 'hit') Game.player.gainThread(1); }
+  }
   pickMove() {
-    const pl = Game.player; const d = Math.abs(pl.x + pl.w / 2 - (this.x + this.w / 2));
+    const pl = this.target(); const d = Math.abs(pl.x + pl.w / 2 - (this.x + this.w / 2));
     const near = d < 90;
     const cands = this.def.moves.filter((m) => (!m.phase || m.phase <= this.phase) && m.id !== (this.lastMove && this.lastMove.id) && m.type !== 'guard' || (m.type === 'guard' && Math.random() < 0.3));
     let total = 0; const weighted = cands.map((m) => { let w = m.w || 1; if (m.near && near) w *= 2.2; if (m.near && !near) w *= 0.4; if (m.far && !near) w *= 2; if (m.far && near) w *= 0.5; total += w; return [m, w]; });
@@ -972,13 +1095,19 @@ class Boss {
     const dt = dt0 * Game.timeScale * TEMPO;
     if (this.flash > 0) this.flash -= dt0;
     if (this.withered > 0) this.withered -= dt;
+    if (this.shieldCut > 0) this.shieldCut -= dt;
+    if (this.threadOpen > 0) { this.threadOpen -= dt; if (this.threadOpen <= 0) UI.showToast(this.name + '\'s thread reknits.'); }
+    if (this.holdCd > 0) this.holdCd -= dt0;
+    if (this.rewindCd > 0) this.rewindCd -= dt0;
     if (!this.active || this.dead) return;
+    if (this.isHeld()) { this.hitboxes = []; this.vx = 0; this.decoy = null; this.animTick(dt0, 0); return; } // pinned
+    this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 120) this.trail.shift();
     if (this.kbv) { this.x += this.kbv * dt0; this.kbv *= Math.exp(-9 * dt0); if (Math.abs(this.kbv) < 8) this.kbv = 0; this.keepInside(); }
     this.fightT += dt; this.stateT += dt;
-    const pl = Game.player, a = this.arena, def = this.def;
+    const pl = this.target(), a = this.arena, def = this.def; this.decoy = pl === Game.player ? null : pl;
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
-    const spd = (this.phase === 2 ? 1.2 : 1) * (this.withered > 0 ? 0.7 : 1);
+    const spd = this.phase === 2 ? 1.2 : 1;
     this.timer -= dt * (this.state === 'tele' ? (this.phase === 2 ? 1.2 : 1) : 1);
     this.hitboxes = [];
     const wasGround = this.onGround;
@@ -1026,10 +1155,11 @@ class Boss {
     this.keepInside();
     this.escapePin(dt);
     this.animTick(dt0, dt);
-    // contact and move hitboxes
-    if (this.visible && !pl.dead && pl.invuln <= 0) {
-      if (rectsOverlap(this, pl)) pl.hurt(1, cx);
-      for (const hb of this.hitboxes) if (rectsOverlap(hb, pl)) { pl.hurt(hb.dmg || 1, cx); break; }
+    // contact and move hitboxes (always the player: an echo cannot be hurt)
+    const me = Game.player;
+    if (this.visible && !me.dead && me.invuln <= 0) {
+      if (rectsOverlap(this, me)) me.hurt(1, cx);
+      for (const hb of this.hitboxes) if (rectsOverlap(hb, me)) { me.hurt(hb.dmg || 1, cx); break; }
     }
   }
   // A boss standing at its arena clamp with the player trapped in the pocket between it and the wall
@@ -1083,11 +1213,11 @@ class Boss {
   }
   beginAct() {
     const m = this.move; this.state = 'act'; this.actT = 0; this.hitsLeft = m.hits || 0; this.stepT = 0; this.landed = undefined; this.fired = false;
-    const pl = Game.player, a = this.arena;
+    const pl = Game.player, a = this.arena, tg = this.target();
     switch (m.type) {
       case 'combo': this.stepT = 0; break;
       case 'dash': this.facePlayer(); this.timer = m.dur; Feel.kick(this, 1.25, 0.82); if (this.onGround) Feel.dust(this, 5, 1, -this.dir); AudioSys.sfx('dash'); break;
-      case 'leap': this.facePlayer(); this.vy = m.vy; this.leapVx = clamp((pl.x - this.x) / 0.7, -320, 320); this.vx *= 0.3; this.landed = false; Feel.kick(this, 0.8, 1.26); Feel.dust(this, 5, 1, 0); AudioSys.sfx('jump'); break;
+      case 'leap': this.facePlayer(); this.vy = m.vy; this.leapVx = clamp((tg.x - this.x) / 0.7, -320, 320); this.vx *= 0.3; this.landed = false; Feel.kick(this, 0.8, 1.26); Feel.dust(this, 5, 1, 0); AudioSys.sfx('jump'); break;
       case 'volley': this.timer = 0.25; break;
       case 'rain': this.timer = 0.3; break;
       case 'hook': this.timer = 0.6; break;
@@ -1113,7 +1243,7 @@ class Boss {
     }
   }
   act(dt, spd) {
-    const m = this.move, pl = Game.player, a = this.arena;
+    const m = this.move, pl = this.target(), a = this.arena;
     const cx = this.x + this.w / 2;
     this.actT += dt;
     switch (m.type) {
@@ -1185,7 +1315,7 @@ class Boss {
         if (!this.fired && this.timer <= 0) {
           this.fired = true;
           for (let i = 0; i < m.n; i++) {
-            if (m.what === 'echo') { const hist = pl.history.slice(-120); if (hist.length) Game.entities.push(new HostileEcho(hist)); }
+            if (m.what === 'echo') { const hist = Game.player.history.slice(-120); if (hist.length) Game.entities.push(new HostileEcho(hist)); }
             else { const tx = Math.floor((a.x + 60 + i * (a.w - 120)) / TILE), ty = Math.floor((a.y + 60) / TILE); const e = new Enemy(m.what, tx, ty); Game.entities.push(e); Game.burst(e.x, e.y, '#ff7a30', 8); }
           }
           this.timer = 0.4;
