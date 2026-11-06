@@ -4,10 +4,10 @@
 // The Drowned Archive is the first underground region: the bottom of the oubliette, a flooded library
 // whose toppled stacks are the stairs, paper wraiths, and the broken stair up to the Mills.
 //
-//   D5 Flooded Vault (optional, heart)  <-  D1 The Oubliette  ->  D2 The Stacks  ->  D3 Reading Room  ->  D4 Mend Altar  ^ M1
+//   D5 Flooded Vault (optional: lever, cling altar, heart, spool)  <-  D1 The Oubliette  ->  D2 The Stacks  ->  D3 Reading Room  ->  D4 Mend Altar  ^ M1
 //
 // Secrets: D5 is reached from the drowned gallery high on D1's left wall; D2 hides a spool behind a cracked
-// pier face at the end of a dead-end shelf in the middle bay.
+// pier face at the end of a dead-end shelf in the middle bay. A lever past D2's door reopens it from the east.
 Object.assign(ROOMS, {
   // The bottom of the well the Regent drops people into. A narrow throat of light comes down through
   // the rock into a flooded basin; the archivist waits at the foot of the toppled stacks that climb out
@@ -37,10 +37,12 @@ Object.assign(ROOMS, {
     '########################################',
     '########################################',
   ] },
-  // A drowned cistern under the oubliette's west wall. The gallery from D1 runs out over a long stone
-  // balcony and simply ends: below is black water. Drop in, wade west under the buttress to the heart,
-  // then climb the toppled shelves on the east side back up through the plank hatch.
-  D5: { name: 'Flooded Vault', region: 'archive', mx: 1, my: 9, links: { right: 'D1' }, grid: [
+  // A drowned cistern under the oubliette's west wall. The gallery from D1 ends over a flooded vault whose
+  // water bears you: walk its skin west to the balcony, throw the chain lever there (it draws the Reading
+  // Room's bolts, D3 gateFlag lever:D5), then age the sluice in the balcony floor. The vault drains: the
+  // spool, the cling altar and the heart wait on its floor, and the ledge stair on the east climbs back to
+  // the shelf (shard) and the plank hatch. Restore on the empty socket refloods it.
+  D5: { name: 'Flooded Vault', region: 'archive', mx: 1, my: 9, links: { right: 'D1' }, optional: true, ability: 'cling', grid: [
     '########################################',
     '########################################',
     '########################################',
@@ -51,17 +53,17 @@ Object.assign(ROOMS, {
     '########...#############################',
     '#######.................................',
     '#######.................................',
+    '#######.............w...................',
     '#######.................................',
-    '#######.................................',
-    '#######.....######################==####',
-    '#######........|.#####...|.#####....####',
-    '#######........|..###....|..###..Mi.####',
-    '#######........|.........|.......#######',
-    '#######........|....w....|.......#######',
-    '#######........|.........|.......#######',
-    '##.............|........r|....##########',
-    '##.H...........|..###....|.#############',
-    '##~~~~~~~~~~~~~|~:###~~~~|~~~~##########',
+    '#.....#.....######################==####',
+    '#.l.i..|.........|.........|........####',
+    '#q###.............................M.####',
+    '#~~~~~~~~~~~~~~~~~~~~~~~~~~~===~~#######',
+    '#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#######',
+    '#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#######',
+    '#~~~~~~~~~~~~~~~~~~~~~~~===~~~~~~#######',
+    '#~~~~~~~~~~~~~~~~~~A~~~~~~~~~~~~~#######',
+    '#H~~~~~~~~T~~~~~~~###~~~~~~~~~~~~#######',
     '########################################',
     '########################################',
   ] },
@@ -86,17 +88,17 @@ Object.assign(ROOMS, {
     '........###########....C.T.#..M...####.#',
     '............##::.....:.C...#...........#',
     '#####.......####....############.......#',
-    '#####.......####....############......d#',
-    '#####.......####.......#####..........d.',
-    '#.....###.........................###.d.',
-    '#.....###.....r...................###.d.',
-    '#~~~~~###~~~~~~~~~~~~~~~~~~~~~~~~~###~d.',
+    '#####.......####....############.....d##',
+    '#####.......####.......#####.........d..',
+    '#.....###.........................###d..',
+    '#.....###.....r...................###d..',
+    '#~~~~~###~~~~~~~~~~~~~~~~~~~~~~~~~###dl.',
     '########################################',
     '########################################',
   ] },
   // The ledger hall: a flat flooded floor under a stepped stone dome, broken columns, dark reading
   // cells high in the thick side walls. Nothing to stand on but the floor: the Index owns the air.
-  D3: { name: 'Reading Room', region: 'archive', mx: 4, my: 9, links: { left: 'D2', right: 'D4' }, gateNeeds: 20, boss: 'index', grid: [
+  D3: { name: 'Reading Room', region: 'archive', mx: 4, my: 9, links: { left: 'D2', right: 'D4' }, gateFlag: 'lever:D5', boss: 'index', grid: [
     '########################################',
     '########################################',
     '##########....................##########',

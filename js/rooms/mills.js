@@ -3,7 +3,8 @@
 //
 // The Bone Mills are dry, dusty and low. M1 is the wheelhouse (hub: miller + lantern, a loft with a
 // secret), M2 is three strata of grinding tunnels around a weight gate, M3 the Grinder's vault,
-// M4 the echo altar under a chimney to the Root, and M5 an optional ossuary under M2.
+// M4 the echo altar under a chimney to the Root (a vine seed at its foot: Restore grows the rungs), and M5 an optional
+// ossuary under M2 whose perch holds the wings altar and the Grinder's broken lever (M3 gateFlag lever:M5, Restore fixes it).
 Object.assign(ROOMS, {
   // Wheelhouse: the great wheel's pit on the left, the Miller's dais under it, a zig-zag climb up the
   // pit to a loft; the loft dead-ends in a cracked wall (spool behind it). The roof steps down to the
@@ -36,7 +37,8 @@ Object.assign(ROOMS, {
   // Grindstones: a stair hall on the left joins three strata. Bottom: a hound tunnel that dead-ends
   // at the weight gate (col 29) and the open bone chute down to the ossuary (cols 24-27). Middle: a mezzanine that crosses
   // the gate through a low transom and drops into the plate chamber. Top: an attic with the shard,
-  // covered by an archer. The plate is on the far side of the gate: Echo opens the way back.
+  // covered by an archer. The plate is on the far side of the gate: Echo opens the way back, or Hold the
+  // millstone boulder that rolls the plate chamber while it sits on the plate.
   M2: { name: 'Grindstones', region: 'mills', mx: 6, my: 8, links: { left: 'M1', right: 'M3', down: 'M5' }, grid: [
     '########################################',
     '########################################',
@@ -58,13 +60,13 @@ Object.assign(ROOMS, {
     '.........####................e..........',
     '.............................e..........',
     '.....##.......i.##.h.....:...e..........',
-    '.....##...:..#######:.h#....#e..p...:...',
+    '.....##...:..#######:.h#....#e.p..O.:...',
     '########################::::############',
     '########################....############',
   ] },
   // The Grinder: a vaulted millstone hall. The floor is flat from wall to wall (38 tiles) with 11
   // tiles of headroom; the arch, its hanging teeth and the two background pillars are the dressing.
-  M3: { name: 'The Grinder', region: 'mills', mx: 7, my: 8, links: { left: 'M2', right: 'M4' }, gateNeeds: 27, boss: 'grinder', grid: [
+  M3: { name: 'The Grinder', region: 'mills', mx: 7, my: 8, links: { left: 'M2', right: 'M4' }, gateFlag: 'lever:M5', boss: 'grinder', grid: [
     '########################################',
     '########################################',
     '########################################',
@@ -94,18 +96,18 @@ Object.assign(ROOMS, {
   // chimney holds an archer that covers the climb; a bone pocket with two husks sits under it.
   M4: { name: 'Echo Altar', region: 'mills', mx: 8, my: 8, links: { left: 'M3', up: 'U1' }, ability: 'echo', grid: [
     '##################....##################',
-    '#################......#################',
-    '#################......#################',
-    '#################......#################',
-    '#################....###################',
-    '#################......#################',
-    '#################......#################',
-    '###################....#################',
-    '#################......#################',
-    '#################......#################',
-    '#################....###################',
-    '#################......#################',
-    '#######...#######......#################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '##################....##################',
+    '#######...#######.s....#################',
     '#######...#########......t..############',
     '#####.....##................############',
     '#####.....##..............:.############',
@@ -118,9 +120,9 @@ Object.assign(ROOMS, {
     '########################################',
   ] },
   // Ossuary (optional, under M2): drop down the well, then a rib-vaulted bone tunnel that steps up
-  // toward the spool: two hounds in separate lanes, the spool on a perch at the far end. Slabs climb
-  // the well back up to the trapdoor.
-  M5: { name: 'Ossuary', region: 'mills', mx: 6, my: 9, links: { up: 'M2' }, grid: [
+  // toward the perch: two hounds in separate lanes, the wings altar and the snapped kennel lever on the
+  // perch at the far end (its spool moved to H6). Slabs climb the well back up to the trapdoor.
+  M5: { name: 'Ossuary', region: 'mills', mx: 6, my: 9, links: { up: 'M2' }, optional: true, ability: 'wings', broken: ['3,17'], grid: [
     '########################....############',
     '########################........########',
     '########################........########',
@@ -138,7 +140,7 @@ Object.assign(ROOMS, {
     '########################........########',
     '###########################.....########',
     '#.....#.....##.#########........########',
-    '#T.......h.....#########.......M########',
+    '#A.l.....h.....#########.......M########',
     '####....###.......#..........###########',
     '#############...................########',
     '#############..:.h...:i###....:.########',

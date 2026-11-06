@@ -23,7 +23,10 @@
 //   m  tracked platform, run 1..3 (travels along its air track; with a counterweight it is a lift that rises once)
 //   b  thread: a horizontal run is a bridge (standable, passable from below, never dropped through; cut: gone 4 s),
 //      a vertical run of 2+ is a curtain (a wall that stops arrows; cut: falls for good)
-//   Screen def tags: optional: true (lint may use a power's tile before its altar), needs: 'wings' (5-row chain lint)
+//   Screen def tags: optional: true (lint may use a power's tile before its altar), needs: 'cut' or a list (a gate guarantees
+//   those powers: the story-order lint counts them as held, and 'wings' allows 5-row jumps in the chain lint), uses: 'cling' /
+//   'wings' (an optional pocket on the screen relies on them: the chain lint allows wall kicks / 5-row jumps, the story lint
+//   does not count them as held), broken: ['x,y'] (levers Restore must fix), gateFlag: 'lever:<screen>' (a G opened by that lever)
 //   P  player start   Q  underground arrival   S  lantern   N  npc   A  power altar   B  boss
 //   M  memory shard   H  hour (max health)   T  spool (max thread)   i  inscribed tablet (Story.tablets)
 //   a  husk   w  hourfly   t  archer   k  rust knight   r  wraith   h  mill hound

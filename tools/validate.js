@@ -177,18 +177,54 @@ const warnings = [...radiusWarnings];
 (function lint() {
   const solid = (g, x, y) => (y < 0 || y >= H || x < 0 || x >= W) ? false : '#C'.includes(g[y][x]);
   const stand = (g, x, y) => y + 1 < H && !solid(g, x, y) && !solid(g, x, y - 1) && (solid(g, x, y + 1) || g[y + 1][x] === '=' || g[y + 1][x] === 'R');
+  const powersOf = (r) => { const out = []; for (const k of ['needs', 'uses']) { const n = r[k]; if (n) out.push(...(Array.isArray(n) ? n : [n])); } return out; };
   for (const [id, r] of Object.entries(ROOMS)) {
-    const g = r.grid.map((row) => row.split(''));
-    const sluice = r.grid.join('').includes('q'), up = (Array.isArray(r.needs) ? r.needs : [r.needs]).includes('wings') ? 5 : 3;
-    // f u b m are standable (a weak floor is rock you can stand on, the others one-way tops); y q O and flood water are solid; l s x are air
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = g[y][x]; if ('deplsx'.includes(c)) g[y][x] = '.'; else if ('yqO'.includes(c) || c === 'f' || (c === '~' && sluice)) g[y][x] = '#'; else if ('ubm'.includes(c)) g[y][x] = '='; }
+    const sluice = r.grid.join('').includes('q'), powers = powersOf(r), up = powers.includes('wings') ? 5 : 3, cling = powers.includes('cling');
+    // f u b m are standable (a weak floor is rock you can stand on, the others one-way tops), and so is a crusher bank at its rest
+    // (held, it is a step); y q O and flood water are solid; l s x are air.
+    // A sluice screen is linted flooded (the water's skin is a floor) and drained (the floor under it), a screen with a thread
+    // bridge with the bridge whole and cut away (the pocket under it is reached by cutting it underfoot); a spot counts if any
+    // pass reaches it. A vine seed's column is rungs (Restore grows it); a lift (an m with a hanging O on the screen) is also a
+    // ledge at the far end of its track (Cut sends it there).
+    const grid0 = r.grid.map((row) => row.split(''));
+    const isAir0 = (x, y) => y >= 0 && y < H && x >= 0 && x < W && !'#CL?DGfyqbOx'.includes(grid0[y][x]) && !(grid0[y][x] === '~' && sluice);
+    const hangingO = grid0.some((row, y) => row.some((c, x) => c === 'O' && y + 1 < H && grid0[y + 1][x] === '.'));
+    const bridged = grid0.some((row, y) => row.some((c, x) => c === 'b' && (grid0[y][x - 1] === 'b' || grid0[y][x + 1] === 'b' || !(y > 0 && grid0[y - 1][x] === 'b') && !(y + 1 < H && grid0[y + 1][x] === 'b'))));
+    const rides = []; // [from 'x,y', to 'x,y']: standing on a parked lift puts the rider at its far end
+    const build = (drained, cut) => {
+      const g = grid0.map((row) => row.slice()); rides.length = 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const c = g[y][x];
+        const bridge = c === 'b' && (grid0[y][x - 1] === 'b' || grid0[y][x + 1] === 'b' || !(y > 0 && grid0[y - 1][x] === 'b') && !(y + 1 < H && grid0[y + 1][x] === 'b'));
+        if ('deplsx'.includes(c) || (drained && (c === 'q' || c === '~')) || (cut && bridge)) g[y][x] = '.';
+        else if (c === 'O' && y + 1 < H && grid0[y + 1][x] === '.') g[y][x] = '.'; // a hanging boulder is thread and air until cut
+        else if ('yqO'.includes(c) || c === 'f' || (c === '~' && sluice) || (c === 'b' && !bridge)) g[y][x] = '#';
+        else if ('ubmX'.includes(c) || c === 'b') g[y][x] = '=';
+      }
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (grid0[y][x] === 's') for (let k = 1; k <= 12 && y - k >= 0 && g[y - k][x] === '.'; k++) g[y - k][x] = '=';
+        if (grid0[y][x] === 'm' && hangingO && grid0[y][x - 1] !== 'm') {
+          let w = 1; while (grid0[y][x + w] === 'm') w++;
+          const dot = (xx, yy) => yy >= 0 && yy < H && xx >= 0 && xx < W && grid0[yy][xx] === '.'; // the engine's track is plain air only
+          const horizontal = dot(x - 1, y) || dot(x + w, y);
+          const dir = horizontal ? (dot(x + w, y) ? 1 : -1) : (dot(x, y - 1) ? -1 : 1);
+          let fx = x, fy = y;
+          for (let n = 0; n < 60; n++) { const nx = horizontal ? fx + dir : fx, ny = horizontal ? fy : fy + dir; let ok = true; for (let i = 0; i < w; i++) if (!dot(nx + i, ny)) ok = false; if (!ok) break; fx = nx; fy = ny; }
+          for (let i = 0; i < w; i++) { if (g[fy][fx + i] === '.') g[fy][fx + i] = '='; rides.push([(x + i) + ',' + (y - 1), (fx + i) + ',' + (fy - 1)]); }
+        }
+      }
+      return g;
+    };
+    const explore = (g) => {
     const cells = new Set();
     for (let y = 1; y < H; y++) for (let x = 0; x < W; x++) if (stand(g, x, y)) cells.add(x + ',' + y);
     // seeds: standable cells on the bottom two rows, plus side-entry rows, plus arrival/start
     const seen = new Set(); const queue = [];
     for (const c of cells) { const [x, y] = c.split(',').map(Number); if (y >= H - 4 || x <= 1 || x >= W - 2 || 'PQ'.includes(g[y][x])) { seen.add(c); queue.push([x, y]); } }
+    const visit = (nx, ny) => { const k = nx + ',' + ny; if (!cells.has(k) || seen.has(k)) return; seen.add(k); queue.push([nx, ny]); };
     while (queue.length) {
       const [x, y] = queue.shift();
+      for (const [from, to] of rides) if (from === x + ',' + y) visit(...to.split(',').map(Number));
       for (let dy = -up; dy <= 12; dy++) for (let dx = -5; dx <= 5; dx++) {
         if (dy < 0 && Math.abs(dx) > 4) continue;
         const nx = x + dx, ny = y + dy; const k = nx + ',' + ny;
@@ -203,9 +239,23 @@ const warnings = [...radiusWarnings];
           for (let cx = x; cx !== nx && clear; cx += step) if (solid(g, cx + step, ny) || solid(g, cx + step, ny - 1)) clear = false;
           if (!clear) continue;
         }
-        seen.add(k); queue.push([nx, ny]);
+        visit(nx, ny);
+      }
+      // cling: a bare rock wall beside the feet can be climbed by repeated kicks as long as it is continuous and the
+      // column in front of it is clear; the last kick clears the wall's top by up to three rows
+      if (cling) for (const s of [-1, 1]) {
+        if (!solid(g, x + s, y)) continue;
+        let ny = y - 1;
+        while (ny >= 0 && solid(g, x + s, ny) && !solid(g, x, ny) && y - ny <= 14) { for (let dx = -4; dx <= 4; dx++) visit(x + dx, ny); ny--; }
+        if (ny >= 0 && !solid(g, x + s, ny) && !solid(g, x, ny)) for (let k = 0; k < 3 && ny - k >= 0; k++) for (let dx = -4; dx <= 4; dx++) visit(x + dx, ny - k);
       }
     }
+    return seen;
+    };
+    const seen = explore(build(false, false));
+    if (sluice) for (const c of explore(build(true, false))) seen.add(c);
+    if (bridged) for (const c of explore(build(false, true))) seen.add(c);
+    if (sluice && bridged) for (const c of explore(build(true, true))) seen.add(c);
     reachable[id] = seen;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const ch = r.grid[y][x];
