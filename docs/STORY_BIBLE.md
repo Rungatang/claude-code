@@ -4,6 +4,26 @@ Status: draft for review with the player (PLAN.md step 5, process item 1). Nothi
 been changed to match it yet. The working title stays HOLLOW HOURS until step 4b picks the one-word title;
 where this document says "the title card", read whichever word wins.
 
+## Voice (binding; supersedes any line below that contradicts it)
+
+1. **Tam is nearly mute.** He speaks four lines in the whole game: "Who." (wake), "Tam." (his name,
+   first given), "Sef." (the confrontation), "No." (the refusal). Everyone else talks TO him; the
+   player fills his silence. No inner narration, no questions, no reactions after bosses.
+2. **No one explains.** NPCs and bosses speak in fragments, habits, trade talk and small grievances.
+   Nobody summarises the plot, names the mechanism or says the central secret aloud. Sef lies by
+   omission and warmth, never by monologue. No aphorisms, no rhetorical threes, no announced feelings.
+3. **Shards are fragments.** 10 to 30 words, impersonal or third person, never "you", never a stated
+   relationship, age or the name Tam. A smell, an object, a sound, one overheard line. Recurring
+   motifs: sugar, sand in a bottle, a bell over a door, a ledger signed S. Out of order and ambiguous;
+   collected, they let a careful player assemble the truth. Six are `key: true` (full ceremony); the
+   rest go quietly to the journal and must stand alone as a line worth re-reading.
+4. **Tablets are found text**: notices, ledgers, graffiti, a worker's note, a child's chalk. They may
+   hint at a power by a picture or a verb; they never describe a mechanic outright, never state the
+   theme. Ability cards keep one functional sentence and no lore.
+5. **Title cards show, they do not say.** Boss subtitles are blank; tutorial hints are bare controls.
+6. **The truth arrives as an object.** The Index's ledger (columns signed S) and the last page of
+   the ledger after Sef falls ("S., one hour. Given.") carry the revelation, not speeches.
+
 The player's rules, all binding, restated so every section below can be checked against them:
 
 1. Not a kids' game. Coercion, debt and death are the subject. No gore for its own sake.
@@ -288,69 +308,40 @@ Act III: the Clock
 
 ## 5. The twenty-four memory shards
 
-Rules: a shard is shown as MEMORY with a title and two or three sentences; it never says whose it is.
-Within a set, later shards complete or contradict earlier ones. Set III and IV contain memories that are
-not Tam's at all; they are hours inside him, and the player works that out from the pronouns. The
-existing eight are kept (marked "existing") and re-sequenced. Each set, when complete, unlocks a short
-scene at a memory door (step 4's shard-gated doors), none of which gates a boss.
+Superseded by the Voice section: shards are impersonal fragments (10 to 30 words), one per memory
+slot, index = `M` order in the rooms. Key shards (K) get the full ceremony. The older second-person
+drafts are retired; what each fragment now points at is listed as its gist.
 
-### Set I: THE KITCHEN (Chain Street, childhood; honest, but a child's reading)
+| # | Room | Title | Gist | Key |
+|---|---|---|---|---|
+| 1 | A2 | Bell | Bell over a door; a child's fist closed on a twist of sugar. Motif opens | K |
+| 2 | A3 | Sugar | Two grains on a sill, "Don't tell her", coins counted in stacks | |
+| 3 | A5 | Bottle | Sand in a green bottle: "Keep it and you keep the day" | |
+| 4 | A6 | Kettle | Tallow, wet wool, someone humming one verse. Home, only a smell | |
+| 5 | R1 | Stair | Forty-one steps, a worn rail, the bell once from below | |
+| 6 | R2 | Pen | A pen at night; every line ends in the same initial | |
+| 7 | R4 | The Well | The line of hats, the cold rim, "Only the one. Give me your hand." | K |
+| 8 | R5 | Bulbs | Two-bulb glass, no neck: "It will do for one." The glassworks hint | |
+| 9 | R6 | Slower | A man called by name walks away slower than he came | |
+| 10 | H3 | Yellow dog | Warm ears, flour, someone watching the dog as one watches a scale | |
+| 11 | H4 | Owing | "Everyone owes someone." "Soft. It can be mended." | |
+| 12 | H6 | Rice | A wedding; a whole life going slack in a pressed hand | |
+| 13 | H7 | Brazier | Names curling in the fire; feet on the stair, a soft "Oh." | |
+| 14 | T2 | Furnace | Old hands, the same glass wide as a ribcage, steady. The vessel | K |
+| 15 | D1 | Straps | New leather, a chair bolted by the well, "I'm sorry. Hold still." | |
+| 16 | D5 | Candle | A girl's eleventh birthday: "Good girls count" | |
+| 17 | D2 | From above | The brazier seen from the stair; a voice gentle only from outside | |
+| 18 | D4 | Ice | A fisherman's winter; "One hour, for the boat." | |
+| 19 | M1 | Pouring | A jug filling with ice, a candle, an old man's nap. None of it his | K |
+| 20 | M2 | Salt | Sand under a cheek; a voice rehearsing "The Regent did this. Say it back." | |
+| 21 | M5 | Matches | A box of matches, a name for each, fewer now | |
+| 22 | U2 | Charter | The signing: a young clockmaster, a hat in two hands, no eye contact | K |
+| 23 | U5 | Again | Footprints up toward the rust; hauled back; the same words. Not the first time | |
+| 24 | U7 | Wrist | The Well at night; a thumb across a wrist: "There. One that was given." | K |
 
-| # | Title | Memory | Contradicts or completes |
-|---|---|---|---|
-| 1 | A kitchen (existing) | A kitchen with a low ceiling. A woman at the table, younger, laughing, counting coins into stacks. She calls you by a name that is not Tam, a child's name, and tells you to stop stealing the sugar. | Opens the set |
-| 2 | The stair | A narrow stair, your sister's hand on your collar, hauling you up past a door with a bell over it. "Do not look at them." Below, a line of people with their hats off. You look. | Completes 1: the house is above the Well's old queue |
-| 3 | Sugar | A paper twist of sugar. You did not steal it. She bought it with something that was not money, and the grocer's hands shook for a week afterward. | Contradicts 1: she lied about the sugar, and she was already paying in hours |
-| 4 | Sand | A beach, the two of you small, her filling a bottle with sand. "If you keep it, you keep the day." You believe her. You still do. | Completes the prologue's hourglass: the idea was hers first |
-| 5 | Fever | You in a bed, grey light. Her sitting with your hand in both of hers, promising to fix it. In the morning you are well and she is a little older. | Contradicts the Archivist's "she only ever asks": the first hour she moved was given, to you |
-| 6 | Glass | The Glassworks door. You are thirteen. She is at the gate. "Make me something that does not run out." | Completes 4; contradicts Act I's assumption that the Regent put the glass in him |
-
-Scene (memory door in the Chain Street house, R2): the kitchen as it is now, dust on the table. Tam sits
-in the chair. A paper twist of sugar is on the table. He picks it up. One line: "...Sugar."
-
-### Set II: THE WELL (adult life; complicity)
-
-| # | Title | Memory | Contradicts or completes |
-|---|---|---|---|
-| 7 | The Well (existing) | A stone well in a courtyard, dry. People in a line. Your sister sits on the rim with a ledger on her knee and takes each of them by the hand, and when she lets go they walk away a little slower than they came. | Opens the set; the Court is this courtyard |
-| 8 | The vessel | Your bench. A glass with two bulbs and no neck, your best work. You hand it to her. She weighs it in her palm and says "It will do for one." | Completes 7 and 6: he supplied the glass |
-| 9 | Given | You on the rim, not her. The ledger reads "T., one hour, given." You wanted to know what it felt like. It felt like nothing, and that was the worst of it. | Contradicts 7: he sat at the Well too. The Archivist's fifth ledger page carries the line |
-| 10 | The dog | A yellow dog at the Mills, you scratching its ears, the Miller laughing, your sister watching the dog and doing arithmetic. | Completes the Grinder; contradicts the Miller's "she asked it too" (he gave her the dog) |
-| 11 | An argument (existing) | "They owe," she says. "Everyone owes someone." You say that no one owes her their years. She says you have always been soft, and that softness is a thing she can fix, if you keep pushing. | Completes 9: he stopped taking her hours and started arguing |
-| 12 | Smoke (existing) | Paper burning in a brazier. Columns of names curling black. Your hands, shaking, feeding them in. Footsteps on the stair behind you and her voice, very gentle: "Oh, Tam." | Closes the set |
-
-Scene (memory door at the Well rim, Debtors' Court): Tam sits on the rim. A ghost of the ledger lies open
-on his knee at one line. He reads it. "T. Given." He closes it.
-
-### Set III: THE CHAIR (the making; two of these are not his)
-
-| # | Title | Memory | Contradicts or completes |
-|---|---|---|---|
-| 13 | The chair (existing) | Straps. A chair bolted to the floor beside the Well. She is apologising while she does it, and she means it, which is worse. "I need something that can pass his wards. I need it to be empty. I am so sorry it has to be you." | Opens the set |
-| 14 | Smoke, from the stair | The brazier, seen from above. A man feeding pages into the fire, weeping. You are the one on the stair. You are not gentle; you are terrified; your voice comes out gentle anyway. | Contradicts 12 from the other side. The pronoun says it is hers |
-| 15 | A fisherman's winter | Ice in the nets. A last season you were saving. A kind woman on the quay asks for one hour to settle what you owe the boat, and you think, it is only one. | Not his: one of the four hundred. Odile names the owner if sold a fragment |
-| 16 | An eleventh birthday | A cake with one candle. You are the girl. Your mother says the Lady needs an hour and good children count. You count. | Not his: the Ward. Corvin's story from the inside |
-| 17 | Pouring (existing) | The hours going in. You feel every one. A fisherman's last winter. A girl's eleventh birthday. An old man's afternoon nap that he was saving for after the war. Four hundred lives, not one of them yours, poured into the space where you used to be. | Completes 15 and 16: they are in him |
-| 18 | The shore (existing) | Being carried. Salt. Her voice, close to your ear, rehearsing: "The Regent did this to you. The Regent took your name. Say it back to me." You cannot say anything. She lays you down and walks away without looking back. | Closes the set; contradicts everything Act I was told |
-
-Scene (memory door at the Jetty, A5): the sand at the end of the planks. Footprints appear, walk to the
-water, and are washed out. Then again. Then again, all the same stride. Tam counts under his breath and
-stops at four. "...How many."
-
-### Set IV: THE THREAD (what he is; the given hour)
-
-| # | Title | Memory | Contradicts or completes |
-|---|---|---|---|
-| 19 | The thread (existing) | You understand the bar you have been spending. Every recall, every withering, every stopped second: a stranger's hour, burned. You have been paying her debts with their lives since the moment you woke. You stop walking for a while. | Opens the set; lands in the Garden |
-| 20 | The count | Her at the Well at night, alone, the great vessel in her lap. She opens her own wrist and pours in one more. "So there is something in there that was given." She never tells anyone. | Completes 5 and 14; contradicts 17's "not one of them yours": one was hers |
-| 21 | The first morning | Waking on the shore. A woman's footprints leaving. You follow them up into the rust and forget why halfway. Hands under your arms, carrying you back down. Salt. Her voice, rehearsing. | Contradicts the prologue: this is not the first time. Completes the set III scene |
-| 22 | The charter | A table, four Hourwrights, a young clockmaster signing. You are across from him with your hat in your hands and a debt you cannot pay. He does not look up. | Not his: the First Debtor. Contradicts "everyone blames the Regent" by making the Regent guilty of something true |
-| 23 | The ring | Forty years in one breath. A wedding at the Wheelhouse. A woman who asks you for nothing, which is how you know what she is. You give her one anyway. | Not his: the Miller. Contradicts "she asked everyone": she never asked him |
-| 24 | The last vessel | The furnace. You, old, making one more glass, two bulbs, large enough for a chest. You know what it is for. You make it well anyway. | Closes everything; contradicts 8 ("It will do for one") and 13 (he was not only a victim) |
-
-Scene (memory door at the Glassworks furnace): the furnace lights by itself. On the Annealer's bench a
-glass with two bulbs is cooling. Tam puts his hand on his chest. No line. Completing set IV is one of the
-two keys to the third ending (section 8).
+The ladder: 1 to 8 atmosphere and motifs with the first hints of the glassworks and the Well; 9 to 18
+the ledger, the debts, the chair and the other lives, all unattributed; 19 to 24 make the answer
+inferable (the pour, the repeated shore, the signing, the single freely given hour).
 
 ---
 

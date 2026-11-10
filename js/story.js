@@ -7,241 +7,223 @@
 // ---------------------------------------------------------------------------
 const Story = {
   prologue: [
-    { ill: 'dark', text: 'There is a sound before there is anything else. Water, close. Something ticking, closer.', hold: 3 },
-    { ill: 'shoreWake', text: 'Cold stone under one cheek. Salt. A weight in the chest that does not belong to a body, turning, turning, like a thing wound too tight.' },
-    { ill: 'hourglass', text: 'Where a heart should be there is glass, and in the glass, sand. It is running the wrong way.', hold: 4 },
+    { ill: 'dark', text: 'Water, close. Something ticking, closer.', hold: 3 },
+    { ill: 'shoreWake', text: 'Cold stone under one cheek. Salt. A weight where the chest should be, turning.' },
+    { ill: 'hourglass', text: 'Glass where a heart should be. Sand in it, running the wrong way.', hold: 4 },
   ],
   wake: [
-    { who: 'you', name: '???', text: 'Where... No. Smaller. Who.', mood: 'sad' },
+    { who: 'you', name: '???', text: 'Who.', mood: 'sad' },
   ],
 
   screenEnter: {
     A2: [
-      { title: 'ANCHOR', sub: 'F sets an anchor in time. F again returns you to it. Returning costs thread.', hold: 4 },
+      { title: 'ANCHOR', sub: 'F  set    F  return', hold: 4 },
     ],
-    A3: [{ title: 'STRIKE', sub: 'X strikes. Three strikes chain. Up + X cuts upward. Down + X in the air bounces off what you hit. Every hit earns thread.', hold: 4.5 }],
-    U4: [{ who: 'you', name: 'Tam', text: '...Light.', mood: 'sad' }],
+    A3: [{ title: 'STRIKE', sub: 'X  strike    Up + X    Down + X in air', hold: 4.5 }],
+    U4: [],
   },
 
   regionEnter: {
-    tower: [{ who: 'you', name: 'Tam', text: 'It is running faster.', mood: 'stern' }],
+    tower: [],
   },
 
   sef: {
     jetty: [
-      { who: 'sef', name: '???', text: 'Easy. Easy. You are shaking. The Warden had you by the chain and you cut through it like it was thread. Sit a moment.' },
-      { who: 'you', name: '???', text: 'Who.' },
-      { who: 'sef', name: 'Sef', text: 'Sef. Your name is Tam. That much I can give you. The rest is not mine to say yet. Walk a while, and let the city show you.', mood: 'sad' },
-      { who: 'you', name: 'Tam', text: '...Tam.' },
-      { who: 'sef', name: 'Sef', text: 'Take this. A seal I kept from the old guild: a skip in time. Go up through the rust. I will find you on the way.' },
+      { who: 'sef', name: '???', text: 'Easy. You\'re shaking. Sit a minute; there\'s no one on the planks.' },
+      { who: 'sef', name: '???', text: 'Cut a chain like it was thread. The Warden won\'t be pleased.' },
+      { who: 'sef', name: 'Sef', text: 'Sef. And you\'re Tam. Say it.', mood: 'sad' },
+      { who: 'you', name: 'Tam', text: 'Tam.' },
+      { who: 'sef', name: 'Sef', text: 'There. Take this; the old guild called it a skip. Up through the rust. I\'ll be along.' },
     ],
-    jettyAgain: [{ who: 'sef', name: 'Sef', text: 'Up through the Scrapyard, Tam. The seal is on the stone there. I will be behind you.' }],
-    afterDash: [
-      { who: 'you', name: 'Tam', text: 'Gone.' },
-    ],
+    jettyAgain: [{ who: 'sef', name: 'Sef', text: 'Up through the rust. The seal\'s on the stone. I\'m right behind you.' }],
+    afterDash: [],
     root: [
-      { who: 'sef', name: 'Sef', text: 'Tam! Down here, all this time. I searched the whole city for you. I thought he had unmade you.' , mood: 'sad' },
-      { who: 'you', name: 'Tam', text: 'He asked what you told me.' },
-      { who: 'sef', name: 'Sef', text: 'He asks everyone that. He has had a century to learn which questions make people doubt their friends.' },
-      { who: 'sef', name: 'Sef', text: 'Listen. I have kept one last thing for you. Sever. The cut that stops the thread entirely. He cannot move through a stopped moment; nothing can but you.' },
-      { who: 'you', name: 'Tam', text: 'What does it cost.' },
-      { who: 'sef', name: 'Sef', text: 'Hours.' },
-      { who: 'you', name: 'Tam', text: '...Whose.' },
-      { who: 'sef', name: 'Sef', text: 'Go up, Tam. I will be at the Clock.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'There you are. I looked everywhere.', mood: 'sad' },
+      { who: 'sef', name: 'Sef', text: 'Take it. Sever. He can\'t follow a stopped second.' },
+      { who: 'sef', name: 'Sef', text: 'It costs a little. Everything does. Go up. I\'ll be at the Clock.', mood: 'stern' },
     ],
-    rootAgain: [{ who: 'sef', name: 'Sef', text: 'The seal is on the altar. Take it, Tam. He is waiting, and so is everyone below.' }],
-    afterSever: [
-      { who: 'you', name: 'Tam', text: '...Whose.', mood: 'stern' },
-    ],
+    rootAgain: [{ who: 'sef', name: 'Sef', text: 'The seal\'s on the altar. Take it, Tam. Hurry.' }],
+    afterSever: [],
     confront: [
-      { who: 'sef', name: 'Sef', text: 'You did it. You actually did it. Look at him, Tam. A hundred years of keeping the Clock from me and he is just a pile of robes.' },
-      { who: 'you', name: 'Tam', text: 'From you.', mood: 'stern' },
-      { who: 'sef', name: 'Sef', text: '...From us. From everyone. Step aside, I need to open it before the hands settle.' },
-      { who: 'sef', name: 'Sef', text: 'He told you. Of course he told you. The dying say things.' },
-      { who: 'sef', name: 'Sef', text: 'You read the columns. I saw your face in the Archive; I was in the water.', mood: 'stern' },
-      { who: 'sef', name: 'Sef', text: 'Then you know what you are. Good. It saves me explaining. You are my brother, Tam, and you are also four hundred people who owed me, and I am not going to let either of you keep me from that Clock.', mood: 'stern' },
-      { who: 'sef', name: 'Sef', text: 'I scraped you clean so the wards would not smell what I poured into you. It worked. You walked straight through his door. Now be useful one last time and die where I can collect you.' },
+      { who: 'sef', name: 'Sef', text: 'Look at him. A hundred years behind that door, and he\'s robes.' },
+      { who: 'you', name: 'Tam', text: 'Sef.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'He talked. The dying do.' },
+      { who: 'sef', name: 'Sef', text: 'You counted the columns. Good. Then I needn\'t.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'You walked through his wards like a draught. That was the point of you.', mood: 'stern' },
+      { who: 'sef', name: 'Sef', text: 'One more use, love. Die where I can reach you.' },
     ],
   },
 
   archivist: {
     intro: [
-      { who: 'archivist', name: 'The Archivist', text: 'Another one thrown down the oubliette. You are early. Most of them take a day to stop screaming.' },
-      { who: 'you', name: 'Tam', text: 'The Regent.' },
-      { who: 'archivist', name: 'The Archivist', text: 'The Regent? The Regent has not been down here in sixty years. He sends food, when he remembers. No. The one who fills this place is the one who asks.' },
-      { who: 'you', name: 'Tam', text: 'Asks for what?' },
-      { who: 'archivist', name: 'The Archivist', text: 'An hour. Just one. From a mother at a sickbed, a man with a debt, a child who does not know what an hour is worth. Such a kind voice. The ledger is in the Reading Room, if the Index lets you near it. I never could.' },
+      { who: 'archivist', name: 'The Archivist', text: 'Another one down the chute. Early. They usually take a day to stop shouting.' },
+      { who: 'archivist', name: 'The Archivist', text: 'The Regent? Not down here in sixty years. Sends bread, when he remembers.' },
+      { who: 'archivist', name: 'The Archivist', text: 'No. It\'s the kind one who fills this place. Just an hour, she says. Just the one.' },
+      { who: 'archivist', name: 'The Archivist', text: 'Ledger\'s in the Reading Room. East. The Index won\'t let me by.' },
     ],
-    again: [{ who: 'archivist', name: 'The Archivist', text: 'East. The Index guards the ledger and the ledger guards the names. Mind the paper. It cuts.' }],
+    again: [{ who: 'archivist', name: 'The Archivist', text: 'East. Mind the paper. It cuts.' }],
     afterIndex: [
-      { who: 'archivist', name: 'The Archivist', text: 'You read it, then. Four hundred columns. I kept the Archive for the city, and the city used it to file people.' , mood: 'sad' },
-      { who: 'archivist', name: 'The Archivist', text: 'The altar beyond holds a mending. Go up through the Mills. The Miller knew the kind voice better than I did. He married it.' },
+      { who: 'archivist', name: 'The Archivist', text: 'You read it, then. I kept the Archive, and the city filed people in it.', mood: 'sad' },
+      { who: 'archivist', name: 'The Archivist', text: 'Mending\'s on the altar past the Mills. Ask the Miller who the kind one married.' },
     ],
-    end: [{ who: 'archivist', name: 'The Archivist', text: 'The water is draining. I had forgotten the floor had a pattern.' }],
+    end: [{ who: 'archivist', name: 'The Archivist', text: 'Water\'s going. I\'d forgotten the floor had a pattern.' }],
   },
   miller: {
     intro: [
-      { who: 'miller', name: 'The Miller', text: 'Do not mind the dust. It is only people.' },
-      { who: 'you', name: 'Tam', text: 'The Regent.' },
-      { who: 'miller', name: 'The Miller', text: 'You keep saying that name like it means something down here. He sealed the Clock. That is all he ever did. Sealed it and sat on it.' },
-      { who: 'you', name: 'Tam', text: 'Then who.' },
-      { who: 'miller', name: 'The Miller', text: '...My wife ran the Well. She would sit with you by the water and ask so gently. One hour, to settle the account. The ones who gave went grey in a week. The ones who refused came down here.' },
-      { who: 'miller', name: 'The Miller', text: 'The Grinder is east. It was a dog once.' },
+      { who: 'miller', name: 'The Miller', text: 'Don\'t mind the dust.' },
+      { who: 'miller', name: 'The Miller', text: 'He sealed the Clock and sat on it. That is all the Regent ever did.' },
+      { who: 'miller', name: 'The Miller', text: 'My wife ran the Well. Sat you down by the water. Spoke so softly.' },
+      { who: 'miller', name: 'The Miller', text: 'Grinder\'s east. It was a dog.' },
     ],
-    again: [{ who: 'miller', name: 'The Miller', text: 'The Grinder is east. It was a dog once. She asked it for an hour too.' }],
+    again: [{ who: 'miller', name: 'The Miller', text: 'East. It was a dog once.' }],
     afterGrinder: [
-      { who: 'miller', name: 'The Miller', text: 'Quiet, at last. ...You have someone\'s eyes. I did not want to say whose.', mood: 'sad' },
-      { who: 'miller', name: 'The Miller', text: 'The echo altar is beyond. Then the Root, all the way up. If she is waiting at the top for you, boy, do not let her sit you down by the water.' },
+      { who: 'miller', name: 'The Miller', text: 'Quiet, at last. You\'ve someone\'s eyes. I won\'t say whose.', mood: 'sad' },
+      { who: 'miller', name: 'The Miller', text: 'Echo altar\'s beyond. If she\'s waiting at the top, boy, don\'t let her sit you by the water.' },
     ],
-    end: [{ who: 'miller', name: 'The Miller', text: 'The wheel has stopped. I think I will go and see the sky.' }],
+    end: [{ who: 'miller', name: 'The Miller', text: 'Wheel\'s stopped. I\'ll go and see the sky.' }],
   },
 
-  underground: [
-    { who: 'you', name: 'Tam', text: '...Water.', mood: 'sad' },
-  ],
+  underground: [],
   loss: [
-    { who: 'regent', name: 'The Regent', text: 'Stop. Stop, I said. Do you know how long it has been since anything got through my door?', mood: 'calm' },
-    { who: 'you', name: 'Tam', text: 'You did this.' },
-    { who: 'regent', name: 'The Regent', text: 'I have never seen you before in my life. And yet you reek of the Well. Four hundred... no. More. What has she told you?' },
-    { who: 'you', name: 'Tam', text: 'Enough.' },
-    { who: 'regent', name: 'The Regent', text: 'Not nearly. I do not have the hours to spare on you, and I will not let her collect what is in your chest. Go down and think.', mood: 'stern' },
-    { ill: 'fall', text: 'The hands of the Clock stopped. The floor opened like a mouth. There was a long time of nothing at all, and then water.', hold: 5 },
+    { who: 'regent', name: 'The Regent', text: 'Stop. Nothing has come through that door in sixty years.', mood: 'calm' },
+    { who: 'regent', name: 'The Regent', text: 'I have never seen you. And you smell of the Well. What did she tell you?' },
+    { who: 'regent', name: 'The Regent', text: 'Go down. Think.', mood: 'stern' },
+    { ill: 'fall', text: 'The hands stopped. The floor opened. Then water.', hold: 5 },
   ],
 
   bosses: {
     shallows: {
-      intro: [{ title: 'WARDEN OF THE SHALLOWS', sub: 'It has drowned many. It is good at it.', hold: 2.4 }],
-      defeat: [{ who: 'you', name: '???', text: '...It liked that.', mood: 'sad' }],
+      intro: [{ title: 'WARDEN OF THE SHALLOWS', sub: '', hold: 2.4 }],
+      defeat: [],
     },
     ferrous: {
-      intro: [{ title: 'THE FERROUS MOTHER', sub: 'She rusts, and she makes more of herself from the rust.', hold: 2.4 }],
-      defeat: [{ who: 'you', name: 'Tam', text: 'Decay. In the hand.' }],
+      intro: [{ title: 'THE FERROUS MOTHER', sub: '', hold: 2.4 }],
+      defeat: [],
     },
     annealer: {
-      intro: [{ title: 'THE ANNEALER', sub: 'He never left the bench. He is still finishing it.', hold: 2.6 }, { who: 'annealer', name: 'Brannoch', text: 'Hold still. It is nearly cooled. Hold still, boy, you will crack it.', mood: 'calm' }],
-      phase2: [{ who: 'annealer', name: 'Brannoch', text: 'Two bulbs. No neck. Hold more than it should. I taught you that.', mood: 'stern' }],
-      defeat: [{ who: 'annealer', name: 'Brannoch', text: '...There. Cooled. You always made them hold more than they should.', mood: 'sad' }, { who: 'you', name: 'Tam', text: 'I know this bench.', mood: 'sad' }],
+      intro: [{ title: 'THE ANNEALER', sub: '', hold: 2.6 }, { who: 'annealer', name: 'Brannoch', text: 'Hold still. Nearly cooled. You\'ll crack it, boy.', mood: 'calm' }],
+      phase2: [{ who: 'annealer', name: 'Brannoch', text: 'Two bulbs. No neck. Holds more than it should.', mood: 'stern' }],
+      defeat: [{ who: 'annealer', name: 'Brannoch', text: '...There. Cooled.', mood: 'sad' }],
     },
     escapement: {
-      intro: [{ title: 'THE ESCAPEMENT', sub: 'The Regent\'s duelist. It does not miss a beat.', hold: 2.4 }],
-      defeat: [{ who: 'escapement', name: 'The Escapement', text: 'Her.' }, { who: 'you', name: 'Tam', text: '...Who.', mood: 'sad' }],
+      intro: [{ title: 'THE ESCAPEMENT', sub: '', hold: 2.4 }],
+      defeat: [{ who: 'escapement', name: 'The Escapement', text: 'Her.' }],
     },
     regent1: {
-      intro: [{ title: 'THE REGENT OF HOURS', sub: 'He has not stood up in sixty years. He stands up.', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'Who let you up the stairs? Never mind. Hold still. This will go faster if you hold still.', mood: 'calm' }],
+      intro: [{ title: 'THE REGENT OF HOURS', sub: '', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'Who let you up the stairs? Hold still. It goes faster.', mood: 'calm' }],
       defeat: [],
     },
     index: {
-      intro: [{ title: 'THE INDEX', sub: 'Every name the city filed and forgot, in one body.', hold: 2.4 }],
-      defeat: [{ title: 'THE LEDGER OF THE WELL', sub: 'Four hundred columns. Every one signed at the foot in the same hand: S.', hold: 5 }, { who: 'you', name: 'Tam', text: '...Four hundred.', mood: 'sad' }],
+      intro: [{ title: 'THE INDEX', sub: '', hold: 2.4 }],
+      defeat: [{ title: 'THE LEDGER', sub: 'Columns, each signed at the foot. S.', hold: 5 }],
     },
     grinder: {
-      intro: [{ title: 'THE GRINDER', sub: 'It was a dog once.', hold: 2.4 }],
-      defeat: [{ who: 'you', name: 'Tam', text: '...Good dog.', mood: 'sad' }],
+      intro: [{ title: 'THE GRINDER', sub: '', hold: 2.4 }],
+      defeat: [],
     },
     regent: {
-      intro: [{ title: 'THE REGENT OF HOURS', sub: 'Keeper of the Great Clock', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'You climbed out. Good. Then you have met the Archivist, and the Miller, and you still came up here with your blade out. So she has you after all.', mood: 'calm' }, { who: 'regent', name: 'The Regent', text: 'If I open it she empties the city in a night. If I do not, you will take my head and she empties it anyway. I am very old, Tam. Let us see if I am still fast.', mood: 'stern' }],
-      phase2: [{ who: 'regent', name: 'The Regent', text: 'There. There it is. Her Sever, in your hand. She gave you the one thing I could not stop. Clever woman. She was always clever.', mood: 'stern' }],
+      intro: [{ title: 'THE REGENT OF HOURS', sub: '', hold: 2.6 }, { who: 'regent', name: 'The Regent', text: 'You climbed out. Archivist, Miller, and still the blade. So she has you.', mood: 'calm' }, { who: 'regent', name: 'The Regent', text: 'I am very old. Let us see if I am still quick.', mood: 'stern' }],
+      phase2: [{ who: 'regent', name: 'The Regent', text: 'There. Her Sever. The one thing I couldn\'t stop.', mood: 'stern' }],
       defeat: [
-        { who: 'regent', name: 'The Regent', text: 'Enough. Enough. I kept it shut for a hundred years. Let someone else.', mood: 'calm' },
-        { who: 'you', name: 'Tam', text: 'Then who.' },
-        { who: 'regent', name: 'The Regent', text: 'I never laid a hand on you until this room. I did not bring you here. I would not know how to hollow a man and fill him with other men\'s hours. I only ever knew one person who could.', mood: 'sad' },
-        { who: 'regent', name: 'The Regent', text: 'She is behind you, Tam. She has been behind you the whole way up. Ask her how your hours taste.' },
+        { who: 'regent', name: 'The Regent', text: 'Enough. A hundred years I kept it shut.', mood: 'calm' },
+        { who: 'regent', name: 'The Regent', text: 'I never laid a hand on you before this room. I would not know how to hollow a man.', mood: 'sad' },
+        { who: 'regent', name: 'The Regent', text: 'She is behind you. Ask her about the glass.' },
       ],
     },
     sef: {
-      intro: [{ title: 'SEF, THE HOURWRIGHT', sub: 'She asks so kindly.', hold: 2.6 }],
-      rewind: [{ who: 'sef', name: 'Sef', text: 'No. No, I do not think so. I have more hours than you can cut, little brother. I turn mine back.', mood: 'stern' }],
+      intro: [{ title: 'SEF', sub: '', hold: 2.6 }],
+      rewind: [{ who: 'sef', name: 'Sef', text: 'No. I turn mine back, little brother.', mood: 'stern' }],
       defeat: [
-        { who: 'sef', name: 'Sef', text: 'Tam. Tam, listen to me. They were debtors. They owed. I only ever took what was owed.', mood: 'sad' },
-        { who: 'you', name: 'Tam', text: 'You called it arithmetic.' },
-        { who: 'sef', name: 'Sef', text: 'I made you last. I made you the only thing in this city that will not run out. Is that not a kind of love?' },
+        { who: 'sef', name: 'Sef', text: 'Tam. They owed. I only took what was owed.', mood: 'sad' },
+        { who: 'sef', name: 'Sef', text: 'I made you last. Nothing in you will run out.' },
         { who: 'you', name: 'Tam', text: 'No.', mood: 'stern' },
+        { title: 'THE LEDGER, LAST PAGE', sub: 'S., one hour. Given.', hold: 5 },
       ],
     },
   },
 
   ending: [
-    { ill: 'clock', text: 'He opened the Great Clock. The hands had been held at the same minute for a hundred years, and they were cold to the touch.', hold: 6 },
-    { ill: 'giving', text: 'Then he gave the hours back. Four hundred of them, out of the glass and into the gears, each one a stranger\'s unspent afternoon returning to the city it was stolen from. There was nothing in him that was his.', hold: 8 },
-    { ill: 'shoreEnd', text: 'The Regent found the hourglass on the shore where it had all begun, empty and still. He buried it above the tideline, and when the Miller asked what the stone should say, he thought for a long time and wrote only: HE GAVE THEM BACK.', hold: 8 },
+    { ill: 'clock', text: 'The Great Clock opened. Its hands were cold.', hold: 6 },
+    { ill: 'giving', text: 'The hours went out of the glass and into the gears. Afternoons, returning to the street they were taken from.', hold: 8 },
+    { ill: 'shoreEnd', text: 'The Regent found the hourglass on the shore, empty. He buried it above the tideline. The Miller asked what the stone should say. HE GAVE THEM BACK.', hold: 8 },
     { title: 'WOUND', sub: '', hold: 4 },
-    { title: 'Thank you for playing', sub: 'Memories found and hours gathered are shown on the map.', hold: 4 },
+    { title: 'Thank you for playing', sub: '', hold: 4 },
   ],
 
+  // Fragments. Index = ROOMS `M` order (room id in the comment). `key` shards get the full ceremony.
   shards: [
-    { title: 'The stair', text: 'A narrow stair, your sister\'s hand on your collar, hauling you up past a door with a bell over it. "Do not look at them." Below, a line of people with their hats off. You look.' }, // A2
-    { title: 'A kitchen', text: 'A kitchen with a low ceiling. A woman at the table, younger, laughing, counting coins into stacks. She calls you by a name that is not Tam, a child\'s name, and tells you to stop stealing the sugar.' }, // A3
-    { title: 'Sugar', text: 'A paper twist of sugar. You did not steal it. She bought it with something that was not money, and the grocer\'s hands shook for a week afterward.' }, // A5
-    { title: 'Sand', text: 'A beach, the two of you small, her filling a bottle with sand. "If you keep it, you keep the day." You believe her. You still do.' }, // A6
-    { title: 'Fever', text: 'You in a bed, grey light. Her sitting with your hand in both of hers, promising to fix it. In the morning you are well and she is a little older.' }, // R1
-    { title: 'Glass', text: 'The Glassworks door. You are thirteen. She is at the gate. "Make me something that does not run out."' }, // R2
-    { title: 'The Well', text: 'A stone well in a courtyard, dry. People in a line. Your sister sits on the rim with a ledger on her knee and takes each of them by the hand, and when she lets go they walk away a little slower than they came.' }, // R4
-    { title: 'The vessel', text: 'Your bench. A glass with two bulbs and no neck, your best work. You hand it to her. She weighs it in her palm and says "It will do for one."' }, // R5
-    { title: 'Given', text: 'You on the rim, not her. The ledger reads "T., one hour, given." You wanted to know what it felt like. It felt like nothing, and that was the worst of it.' }, // R6
-    { title: 'The dog', text: 'A yellow dog at the Mills, you scratching its ears, the Miller laughing, your sister watching the dog and doing arithmetic.' }, // H3
-    { title: 'An argument', text: '"They owe," she says. "Everyone owes someone." You say that no one owes her their years. She says you have always been soft, and that softness is a thing she can fix, if you keep pushing.' }, // H4
-    { title: 'The ring', text: 'Forty years in one breath. A wedding at the Wheelhouse. A woman who asks you for nothing, which is how you know what she is. You give her one anyway.' }, // H6
-    { title: 'Smoke', text: 'Paper burning in a brazier. Columns of names curling black. Your hands, shaking, feeding them in. Footsteps on the stair behind you and her voice, very gentle: "Oh, Tam."' }, // H7
-    { title: 'The last vessel', text: 'The furnace. You, old, making one more glass, two bulbs, large enough for a chest. You know what it is for. You make it well anyway.' }, // T2
-    { title: 'The chair', text: 'Straps. A chair bolted to the floor beside the Well. She is apologising while she does it, and she means it, which is worse. "I need something that can pass his wards. I need it to be empty. I am so sorry it has to be you."' }, // D1
-    { title: 'An eleventh birthday', text: 'A cake with one candle. You are the girl. Your mother says the Lady needs an hour and good children count. You count.' }, // D5
-    { title: 'Smoke, from the stair', text: 'The brazier, seen from above. A man feeding pages into the fire, weeping. You are the one on the stair. You are not gentle; you are terrified; your voice comes out gentle anyway.' }, // D2
-    { title: 'A fisherman\'s winter', text: 'Ice in the nets. A last season you were saving. A kind woman on the quay asks for one hour to settle what you owe the boat, and you think, it is only one.' }, // D4
-    { title: 'Pouring', text: 'The hours going in. You feel every one. A fisherman\'s last winter. A girl\'s eleventh birthday. An old man\'s afternoon nap that he was saving for after the war. Four hundred lives, not one of them yours, poured into the space where you used to be.' }, // M1
-    { title: 'The shore', text: 'Being carried. Salt. Her voice, close to your ear, rehearsing: "The Regent did this to you. The Regent took your name. Say it back to me." You cannot say anything. She lays you down and walks away without looking back.' }, // M2
-    { title: 'The thread', text: 'You understand the bar you have been spending. Every recall, every withering, every stopped second: a stranger\'s hour, burned. You have been paying her debts with their lives since the moment you woke. You stop walking for a while.' }, // M5
-    { title: 'The count', text: 'Her at the Well at night, alone, the great vessel in her lap. She opens her own wrist and pours in one more. "So there is something in there that was given." She never tells anyone.' }, // U2
-    { title: 'The first morning', text: 'Waking on the shore. A woman\'s footprints leaving. You follow them up into the rust and forget why halfway. Hands under your arms, carrying you back down. Salt. Her voice, rehearsing.' }, // U5
-    { title: 'The charter', text: 'A table, four Hourwrights, a young clockmaster signing. You are across from him with your hat in your hands and a debt you cannot pay. He does not look up.' }, // U7
+    { title: 'Bell', key: true, text: 'A bell over a door, ringing as it opens. A small hand closes on a twist of paper. Sugar, damp from a pocket.' }, // A2
+    { title: 'Sugar', text: 'Two grains on a windowsill. "Don\'t tell her." Then a chair scraping, and someone counting coins into stacks.' }, // A3
+    { title: 'Bottle', text: 'Sand poured through a funnel of folded paper into a green bottle. A cork pressed in. "Keep it and you keep the day."' }, // A5
+    { title: 'Kettle', text: 'Wet wool, tallow, a kettle just off the boil. Someone humming in the next room, one verse, off key.' }, // A6
+    { title: 'Stair', text: 'Forty-one steps. Paint worn through to wood where a hand goes. The bell again, once, from below.' }, // R1
+    { title: 'Pen', text: 'A pen scratching in a kitchen, late. Columns. Every line ends in the same initial.' }, // R2
+    { title: 'The Well', key: true, text: 'Dry stone. A line of people, hats in their hands. The rim is cold to sit on. "Only the one. Give me your hand."' }, // R4
+    { title: 'Bulbs', text: 'Two bulbs of glass, no neck, warm from the oven. Weighed in a palm. "It will do for one."' }, // R5
+    { title: 'Slower', text: 'A man in grey, called by name, does not rise at once. Afterwards he walks slower than he came. The pen waits.' }, // R6
+    { title: 'Yellow dog', text: 'Warm ears under a thumb. Flour to the elbow, laughter. Someone watches the dog as one watches a scale.' }, // H3
+    { title: 'Owing', text: '"Everyone owes someone." "Not you. Not them." The pen stops. "Soft. It can be mended."' }, // H4
+    { title: 'Rice', text: 'Rice on the wheelhouse steps. A hand pressed into another, and a whole life going slack. Bells, and no one counting.' }, // H6
+    { title: 'Brazier', text: 'Paper in an iron brazier, edges lifting black. A name curls before it goes. Feet on the stair. A soft "Oh."' }, // H7
+    { title: 'Furnace', key: true, text: 'Old hands at the oven. The same two bulbs, no neck, wide as a ribcage. Steady hands. That is the worst of it.' }, // T2
+    { title: 'Straps', text: 'New leather, still stiff. A chair bolted down beside the well. "I\'m sorry. I am. Hold still."' }, // D1
+    { title: 'Candle', text: 'A small cake, one candle. A whisper at the ear: "Good girls count." Counting aloud, up to eleven.' }, // D5
+    { title: 'From above', text: 'The brazier from the stair. A man\'s shoulders shaking as he feeds the pages in. A voice, gentle only from outside.' }, // D2
+    { title: 'Ice', text: 'Ice in the nets. A quay in winter, a kind woman. "One hour, for the boat." It is only one.' }, // D4
+    { title: 'Pouring', key: true, text: 'A jug filling. Ice on nets; a candle; an old man\'s nap, saved for after the war. Crowded. None of it his.' }, // M1
+    { title: 'Salt', text: 'Sand under a cheek. A voice close, rehearsing: "The Regent did this. Say it back." Footsteps leaving, not turning.' }, // M2
+    { title: 'Matches', text: 'A box of matches, and a name for each. Fewer, now. Whoever strikes them does not look at the box.' }, // M5
+    { title: 'Charter', key: true, text: 'Four in black round a table. A young man in a clockmaster\'s grey signs where shown. He does not look at the hat held in two hands.' }, // U2
+    { title: 'Again', text: 'Footprints in wet sand, leading up toward the rust. Arms under his arms, hauling back. The same voice. The same words.' }, // U5
+    { title: 'Wrist', key: true, text: 'The Well at night. A thumb across a wrist, held over the glass. "There. One that was given." Nobody to hear.' }, // U7
   ],
 
-  // Inscribed tablets found in the world (tile 'i'). Keyed by screen id, in reading order within the
-  // screen. Each is a fragment of the City's own voice: lore, warnings, and hints about the powers.
+  // Found text (tile 'i'), keyed by screen id, in reading order. Notices, ledgers, graffiti.
   tablets: {
-    A1: [{ title: 'ON THE TIDELINE', text: 'Whoever reads this woke on the shore, as we all did. The sea brings only two things to this city: the drowned, and those the Hourwright is finished with. Learn which you are. Walk right. Strike with X; the first blow makes room for a second and a third.' }],
-    A2: [{ title: 'THE FIRST LESSON', text: 'A door that closes behind you is not a wall. Fix a point in time where you stand (F) and the stair will remember you there. Press what must be pressed, then return. The city teaches this to every child. Few remember being taught.' }],
-    A3: [{ title: 'ON THE DROWNED', text: 'The husks were people who paid everything and kept walking. They pull back before they lunge: the whole body coils and the eyes go green. That pause is a courtesy. Use it. Step back or strike first; do not stand and wait.' }],
-    G2: [{ title: 'ON THE FIRST VESSEL', text: 'Three hundred and twenty years ago a glassblower of this works drew an hour out of a dying man by the hand, to keep for his widow, and found that glass would hold it. He meant it kindly. The guild that grew from it did not. Beneath, newer: THE FIRST ONE WAS GIVEN. REMEMBER THAT WHEN YOU COUNT.' }],
-    G4: [{ title: 'THE BED-LEDGER', text: 'Apprentices, by cot. Page four: T., thirteen, indentured by his sister. Vessels hold more than they should. Retain. Someone has underlined RETAIN twice, years apart, in two different inks.' }],
-    G6: [{ title: 'THE FURNACE RULE', text: 'Never leave a vessel in the oven past its hour. It will anneal to the shape of what is in it and not what you made. Below, scratched with a nail: he has been in there a year. He will not come out. He says it is not finished.' }],
-    A5: [{ title: 'ON THE JETTY', text: 'Here the Hourwrights kept their boats. They did not sail them. They stood at the end of the planks and gave the sea the ones who could not pay. Someone has scratched beneath this, in a newer hand: SHE STILL COMES HERE. And below that, older: THE GUARDIANS KEEP SEALS. A SEAL OPENS FOR THE CITY\'S REMEMBERED THINGS: MEMORIES, UNSPENT HOURS, WOUND THREAD. LOOK IN THE CORNERS.' }],
-    R1: [{ title: 'ON THE DISTRICT', text: 'Iron rusts because time is poured into it faster than it can bear. Everything in this district was aged by hand. The knights do not know they are a hundred years dead. Their shields face forward: go over, go behind, or wait for the hammer to fall and the arms to tire.' }],
-    R4: [{ title: 'ON WITHERING', text: 'To wither is to give one thing its own future all at once. A lock becomes the dust it was always going to be; a cracked wall falls. A living thing\'s armour rots, and it breaks sooner. The Mother in the foundry learned this and it ate her from the inside. It reaches a little past the sword, no further. Point it upward (Up and V) at what hangs above you.' }],
-    H1: [{ title: 'ON THE CATHEDRAL', text: 'The Great Clock was not built to tell the hour. It was built to hold them. Every gear in these walls is turning somebody\'s afternoon. Listen: that ticking is four hundred heartbeats, kept. The slab over the scrap-heap hangs on a rope that has waited a century to be old.' }],
-    H3: [{ title: 'ON HOLDING', text: 'The Regent\'s duelist stole its tempo from the pendulum. Take it in one hand and one thing stops: a weight in its fall, an arrow in the air, a man mid-stride. For four breaths it is still, it is harmless, and it will bear you. Only one thing. The rest of the world goes on.' }],
-    H4: [{ title: 'WARNING', text: 'The weights in this shaft do not care who you are. Watch the chain: it draws taut before the fall. Hold one, or count.' }],
-    T1: [{ title: 'ON THE REGENT', text: 'He was the last clockmaster. When the Hourwrights came for the city\'s hours he climbed the tower and sealed the Clock with his own remaining years. He has not come down since. He is not kind. He is not what you were told.' }],
-    D1: [{ title: 'ON THE ARCHIVE', text: 'Below the city they kept the ledgers: who owed, who paid, who was paid with. The water came later. The paper did not drown; it learned to move. The wraiths here blink out before they cut. When one vanishes, it is behind you.' }],
-    D4: [{ title: 'ON MENDING', text: 'Mend is the gentlest and the most expensive. It asks one thing what it was and pays the difference. Fallen rubble becomes the stair it was. A man is put back where he stood two breaths ago, his blow unmade. With nothing in reach, it turns on you: a wound you took a moment ago never happened. Nothing is truly undone; the cost is simply moved onto someone else\'s page.' }],
-    M1: [{ title: 'ON THE MILLS', text: 'The hounds charge in straight lines and cannot turn. They lower their heads and dig in before they run. Be anywhere but in front of them when they finish. The millers knew this. The millers are gone.' }],
-    M4: [{ title: 'ON ECHOES', text: 'Five seconds of you, left behind. It will walk, strike and weigh what you weighed, and the dead will chase it, because it looks like you. The gates in the grindstones open for a weight that stays. A person is a weight that stays, for a while. The chimney above has no rungs; it had a vine once. Ask the seed.' }],
-    U1: [{ title: 'ON THE ROOT', text: 'This is where the hours go when they are spent. Down. Into the roots. The city drinks them back up and calls it a season. Climb. It is a long way and nothing here wants you to leave.' }],
-    U4: [{ title: 'ON SEVERING', text: 'To sever is to cut a thread. A strap, a rope, the thread a guardian\'s armour hangs on: one stroke, close in, and what it held falls open. It is never your own hours you cut with. There is a reason the Hourwright gives this one last, and gives it gladly. Think about who it is you are spending.' }],
-    U6: [{ title: 'A NEWER HAND', text: 'If you are reading this you climbed out, which means she wanted you to. Whoever she is to you now: a friend, a sister, a voice on the shore. Ask her who poured you. Ask her what the ledger at her waist is for. The hoist by the east wall still works, if you can bring yourself to cut what holds it down.' }],
-    A6: [{ title: 'A CHILD\'S SCRATCHING', text: 'Scratched low on the cistern wall, at a child\'s height: TAM + S. Below it, in the same hand but older: she said if you keep it you keep the day. Then nothing. The rest is under the waterline.' }],
-    R2: [{ title: 'A GUILD RULE, HALF LEGIBLE', text: '...the Hourwright shall take only what is OWED, and only by the HAND, and never from a child under... The next line has been chiselled out. Someone went to real trouble to remove one word.' }],
-    R5: [{ title: 'A LEDGER PAGE, NAILED UP', text: 'Column fourteen. Forty names. Each one: given, given, given. The last three: taken. Someone has written beside them in pencil: he would not have wanted this.' }],
-    R6: [{ title: 'THE CRANE\'S PLATE', text: 'CRANE DECK. CAPACITY: FOUR HUNDRED HOURS. THE CAB BRAKE HOLDS THE FOUNDRY DOORS; THROW IT AND THEY SWING. Scratched under the plate: it never lifted anything. She just liked the number. The boards by the brake have gone soft; something was wound and left down there.' }],
-    H5: [{ title: 'THE REGENT\'S NOTICE', text: 'BY ORDER OF THE CLOCKMASTER: the Clock is sealed. No hour shall be wound into it or out of it until the one who asks is... The notice is torn here. Below, newer, smaller: he means her. everybody knows he means her. And smaller still: the vestry wants two feet on two stones at once. Nobody has two of themselves. Nobody but you.' }],
-    H7: [{ title: 'THE BELL-RINGER\'S COUNT', text: 'Rang it for the drowned, rang it for the given, stopped ringing it when I could not keep count. If you are up here you came the hard way. There is nothing up here but the count, the bell-rope that unbars the duelist\'s hall below, and a shaft I was too old to climb: bare stone, no rungs, and my last spool at the top of it. 400 is wrong. It is 401.' }],
-    T2: [{ title: 'UNDER THE THRONE', text: 'Carved where only a man on his knees would see it: I kept it shut for a hundred years. I kept it shut from HER. If you are reading this she is already behind you.' }],
-    D2: [{ title: 'A FILING INSTRUCTION', text: 'Debtors to the east shelves. Donors to the west. Sort by hour, not by name; the names change, the hours do not. Archivist\'s note beneath: there is no west shelf. There never was.' }],
-    D5: [{ title: 'THE DROWNED LINE', text: 'Waterline, marked in paint, dated. Each year a little higher. The last mark: the year the Well went dry. The water had to go somewhere. Beside the marks, an instruction in the Archivist\'s hand: the balcony chain draws the Reading Room bolts. The old gate below the balcony is rust and would not hold a century more. What sits on the floor of this vault learned the walls, and so may you.' }],
-    M2: [{ title: 'THE MILLER\'S TALLY', text: 'Flour: none. Bone: by the cartload. She said it was only what was left when the hours were out. She said it the way you say a kettle has boiled. Under the tally, a note for the hands: the millstone rolls the far chamber. Stop it on the plate and the gate stays up as long as it stays still.' }],
-    M5: [{ title: 'A STONE WITH NO NAME', text: 'A GOOD DOG. IT ASKED FOR NOTHING. Someone has added, in chalk: that is how you could tell she had got to it. Lower, scratched by a nail: the kennel bar on the perch opens its vault. The Miller snapped it the night the dog stopped answering. Ask it what it was.' }],
-    U2: [{ title: 'ROOT-TALK', text: 'Carved into the root itself, which should not be possible: the roots drink what the city spends. you are standing in the city\'s receipts. The cistern below keeps one: open its mouth and the floor is yours; close it again and the water will carry you where the floor cannot.' }],
-    U3: [{ title: 'A WARNING, MOST OF IT', text: 'The weights fall for a reason. Count four between. If the count is wrong it is because someone upstairs has been... The rest is crushed flat under a weight.' }],
-    U7: [{ title: 'THE VEIN', text: 'Written in a hand that shakes: there is one hour in him that was given freely. I know, because I gave it. If he ever reads this, it was never arithmetic. Not that one. S. Beneath, in another hand: the weight above the stone keeps the vestry door honest. Let your shadow take the blow. The thread across the high pocket will hold you until you tell it not to.' }],
+    A1: [{ title: 'TIDELINE', text: 'The sea brings two kinds: the drowned, and the ones the Hourwright is done with. Walk right.' }],
+    A2: [{ title: 'CHALK, ON A STAIR', text: 'A child drawn by a nail. A shut door. The child at the nail again.' }],
+    A3: [{ title: 'NOTICE TO WORKERS', text: 'They pull back before they lunge. Eyes go green. Do not stand and wait.' }],
+    G2: [{ title: 'FIRST VESSEL', text: 'A glassblower of this works drew a dying man\'s hour into a flask, for his widow. Kindly meant. Beneath, newer: THE FIRST ONE WAS GIVEN.' }],
+    G4: [{ title: 'BED-LEDGER', text: 'Apprentices, by cot. Cot four: T., thirteen. Signed for: S. RETAIN is underlined twice, in two inks.' }],
+    G6: [{ title: 'FURNACE RULE', text: 'Never leave a vessel past its hour; it takes the shape of what is in it. Scratched below: he has been in there a year. He says it is not finished.' }],
+    A5: [{ title: 'JETTY', text: 'Boats nobody sailed. Those who could not pay were walked to the end. Scratched: SHE STILL COMES HERE. Older: SEALS ARE KEPT IN CORNERS.' }],
+    R1: [{ title: 'THE DISTRICT', text: 'Everything here was aged by hand. The knights do not know. Their shields face forward; their backs do not.' }],
+    R4: [{ title: 'CHALK', text: 'A raised hand. Under it a lock, crumbling. The Mother learned this, and it ate her.' }],
+    H1: [{ title: 'CATHEDRAL', text: 'Every gear turns somebody\'s afternoon. Listen. The slab over the scrap-heap hangs by a rope a century old.' }],
+    H3: [{ title: 'PENDULUM', text: 'The duelist stole its beat from the pendulum. Scratched: I saw an arrow hang in the air like a bead.' }],
+    H4: [{ title: 'WARNING', text: 'The chain draws taut before the weight falls. Count.' }],
+    T1: [{ title: 'THE REGENT', text: 'Last clockmaster. Sealed the Clock with his own years and has not come down. Not kind. Not what you were told.' }],
+    D1: [{ title: 'ARCHIVE', text: 'Who owed, who paid, who was paid with. The paper did not drown; it learned to move. When one blinks out, look behind you.' }],
+    D4: [{ title: 'CUT IN STONE', text: 'A stair, and the rubble of the stair, joined by an arrow. Under it: nothing is undone. It is moved to someone else\'s page.' }],
+    M1: [{ title: 'THE MILLS', text: 'Hounds charge straight and cannot turn. Heads go down first. The millers knew.' }],
+    M4: [{ title: 'CHALK', text: 'A figure and its twin on one plate. A gate, rising. Above, a chimney with no rungs and a vine, once. Ask the seed.' }],
+    U1: [{ title: 'THE ROOT', text: 'Where spent hours go: down. The city drinks them back and calls it spring. Climb.' }],
+    U4: [{ title: 'SEVER', text: 'One stroke, close in. A strap, a rope, a guardian\'s thread. She gives this one last, and gladly.' }],
+    U6: [{ title: 'A NEWER HAND', text: 'You climbed out, so she wanted you to. Ask her what the ledger at her waist is for. The east hoist still works, if you can cut what holds it.' }],
+    A6: [{ title: 'SCRATCHED LOW', text: 'TAM + S. Under it, older: if you keep it you keep the day. The rest is underwater.' }],
+    R2: [{ title: 'GUILD RULE', text: '...take only what is OWED, by the HAND, never from a child under... A word has been chiselled out.' }],
+    R5: [{ title: 'LEDGER PAGE', text: 'Column fourteen. Forty names: given, given, given. The last three: taken. In pencil beside them: he wouldn\'t have wanted this.' }],
+    R6: [{ title: 'CRANE PLATE', text: 'CRANE DECK. CAPACITY 400 HOURS. THE CAB BRAKE HOLDS THE FOUNDRY DOORS. Scratched under: it never lifted anything. She liked the number.' }],
+    H5: [{ title: 'NOTICE', text: 'BY ORDER: no hour shall be wound into the Clock or out of it until the one who asks is... Torn. Smaller: everybody knows he means her. Smaller: the vestry wants two stones, two feet.' }],
+    H7: [{ title: 'THE BELL-RINGER', text: 'Rang it for the drowned, rang it for the given, stopped when I lost count. The rope unbars the duelist\'s hall. 400 is wrong. It is 401.' }],
+    T2: [{ title: 'UNDER THE THRONE', text: 'Carved low, where only a man on his knees would see: I kept it shut from HER.' }],
+    D2: [{ title: 'FILING', text: 'Debtors to the east shelves. Donors to the west. Sort by hour, not name. Archivist\'s note: there is no west shelf.' }],
+    D5: [{ title: 'WATERLINE', text: 'Painted, dated, higher each year. The last mark is the year the Well went dry. Archivist\'s hand: the balcony chain draws the Reading Room bolts.' }],
+    M2: [{ title: 'MILLER\'S TALLY', text: 'Flour: none. Bone: by the cartload. She said it was only what was left when the hours were out. Stop the stone on the plate and the gate stays up.' }],
+    M5: [{ title: 'A STONE', text: 'A GOOD DOG. IT ASKED FOR NOTHING. Chalk: that is how you knew she had got to it. The kennel bar opens its vault.' }],
+    U2: [{ title: 'ROOT-TALK', text: 'Carved into the root, which should not be possible: you are standing in receipts. Open the cistern\'s mouth and the floor is yours.' }],
+    U3: [{ title: 'WARNING, MOST OF IT', text: 'The weights fall for a reason. Count four between. If the count is wrong it is because someone upstairs has been... Crushed flat.' }],
+    U7: [{ title: 'THE VEIN', text: 'Shaking hand: there is one hour in him that was given freely. I know. I gave it. S. Beneath, another hand: let your shadow take the blow. The thread across the pocket holds until you tell it not to.' }],
   },
 
   abilities: {
-    dash:   { title: 'SKIP', color: '#8fb3ff', text: 'Sef\'s seal. C, L or Shift steps you forward faster than the moment can follow. Nothing can touch you mid-skip, and cracked walls shatter.' },
-    age:     { title: 'WITHER', color: '#9fc59a', text: 'The Ferrous Mother\'s decay, held in the hand. Select it with Q / E and cast with V at one thing in reach; hold Up to cast upward. Rust locks and cracked walls crumble; a withered foe\'s armour rots and it takes double harm.' },
-    hold:    { title: 'HOLD', color: '#8fb3ff', text: 'The Escapement\'s stolen tempo. Cast it at one thing and that thing stops for four seconds: a crusher, an arrow, a foe. It is still, it is harmless, and you can stand on it.' },
-    restore: { title: 'MEND', color: '#7af0d0', text: 'Turn one thing back toward what it was. Fallen rubble is stone again; a foe is put back where it stood two seconds ago. With nothing in reach, the wounds you took in the last few seconds close.' },
-    echo:    { title: 'ECHO', color: '#e6d8ff', text: 'Leave the last five seconds of yourself behind. The echo walks where you walked, strikes where you struck, weighs down what you stood on, and the dead chase it instead of you.' },
-    cut:     { title: 'SEVER', color: '#ff3355', text: 'Sef\'s last gift. A short stroke that cuts a thread: a shield strap falls, a guard opens, a guardian\'s armour hangs loose for a while. Close in; it is a cut, not a reach.' },
-    cling:   { title: 'THE WALLS', color: '#c8bc9e', text: 'The drowned learned the walls before they learned to breathe. Lean into bare stone as you fall and it will hold you a moment; push off it and it will give you back the height it took.' },
-    wings:   { title: 'SECOND WIND', color: '#e6d8ff', text: 'The bones of those who leapt the Well. Not one of them reached the rim. Between them they left one more step in the air, and it is yours now: once, before you land.' },
+    dash:    { title: 'SKIP', color: '#8fb3ff', text: 'C, L or Shift. Step through a moment; nothing touches you. Cracked walls shatter.' },
+    age:     { title: 'WITHER', color: '#9fc59a', text: 'Q / E select, V cast; hold Up to cast upward. Rust crumbles. Armour rots.' },
+    hold:    { title: 'HOLD', color: '#8fb3ff', text: 'Stills one thing for four seconds: a crusher, an arrow, a foe. You can stand on it.' },
+    restore: { title: 'MEND', color: '#7af0d0', text: 'Turns one thing back toward what it was. With nothing in reach, your last wounds close.' },
+    echo:    { title: 'ECHO', color: '#e6d8ff', text: 'Leaves the last five seconds of you behind. It weighs what you weighed. The dead chase it.' },
+    cut:     { title: 'SEVER', color: '#ff3355', text: 'A short stroke that cuts a thread: a strap, a guard. Close in.' },
+    cling:   { title: 'THE WALLS', color: '#c8bc9e', text: 'Lean into bare stone as you fall and it holds you. Push off for the height back.' },
+    wings:   { title: 'SECOND WIND', color: '#e6d8ff', text: 'One more step in the air, once, before you land.' },
   },
 };
