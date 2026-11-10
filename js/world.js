@@ -494,10 +494,7 @@ const World = {
 
   draw(ctx, t, cam) {
     Art.drawDecorBehind(ctx, this, t, cam);
-    const tiles = Art.roomTiles(this);
-    const sx = Math.max(0, Math.floor(cam.x) - 8), sy = Math.max(0, Math.floor(cam.y) - 8);
-    const sw = Math.min(VW + 16, tiles.width - sx), sh = Math.min(VH + 16, tiles.height - sy);
-    ctx.drawImage(tiles, sx, sy, sw, sh, sx, sy, sw, sh);
+    Art.drawRoomTiles(ctx, this, cam); // the terrain, from chunks painted at the render scale (js/art/tiles.js)
     Art.drawDynamicTiles(ctx, this, t, cam);
   },
 };

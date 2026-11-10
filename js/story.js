@@ -4,22 +4,24 @@
 //   { ill, text, hold }        illustrated panel
 //   { who, name, text, mood }  dialogue line
 //   { title, sub, hold }       title card
+// Pacing rules (docs/STORY_BIBLE.md, Voice): nothing here teaches a control (Game.stepPrompts does, at the
+// need, once); nobody is named before the Jetty; a scene flagged `minor` is dropped rather than played
+// within Game's quiet gap of the last one. Arrays the engine reads stay, emptied, as [].
 // ---------------------------------------------------------------------------
 const Story = {
   prologue: [
     { ill: 'dark', text: 'Water, close. Something ticking, closer.', hold: 3 },
     { ill: 'shoreWake', text: 'Cold stone under one cheek. Salt. A weight where the chest should be, turning.' },
-    { ill: 'hourglass', text: 'Glass where a heart should be. Sand in it, running the wrong way.', hold: 4 },
   ],
+  // not a dialogue box: the first step's text surfaces as a whispered line a moment after he stands (Game.newGame)
   wake: [
     { who: 'you', name: '???', text: 'Who.', mood: 'sad' },
   ],
 
+  // no screen opens with a card: controls are taught by Game.stepPrompts, at the need
   screenEnter: {
-    A2: [
-      { title: 'ANCHOR', sub: 'F  set    F  return', hold: 4 },
-    ],
-    A3: [{ title: 'STRIKE', sub: 'X  strike    Up + X    Down + X in air', hold: 4.5 }],
+    A2: [],
+    A3: [],
     U4: [],
   },
 
@@ -31,18 +33,19 @@ const Story = {
     jetty: [
       { who: 'sef', name: '???', text: 'Easy. You\'re shaking. Sit a minute; there\'s no one on the planks.' },
       { who: 'sef', name: '???', text: 'Cut a chain like it was thread. The Warden won\'t be pleased.' },
-      { who: 'sef', name: 'Sef', text: 'Sef. And you\'re Tam. Say it.', mood: 'sad' },
+      { who: 'sef', name: '???', text: 'Tam. That\'s you. Say it.', mood: 'sad' },
       { who: 'you', name: 'Tam', text: 'Tam.' },
-      { who: 'sef', name: 'Sef', text: 'There. Take this; the old guild called it a skip. Up through the rust. I\'ll be along.' },
+      { who: 'sef', name: '???', text: 'There. I\'ll be along.' },
     ],
-    jettyAgain: [{ who: 'sef', name: 'Sef', text: 'Up through the rust. The seal\'s on the stone. I\'m right behind you.' }],
+    jettyAgain: [{ who: 'sef', name: '???', text: 'Go on. I\'m not far.' }],
     afterDash: [],
     root: [
-      { who: 'sef', name: 'Sef', text: 'There you are. I looked everywhere.', mood: 'sad' },
-      { who: 'sef', name: 'Sef', text: 'Take it. Sever. He can\'t follow a stopped second.' },
-      { who: 'sef', name: 'Sef', text: 'It costs a little. Everything does. Go up. I\'ll be at the Clock.', mood: 'stern' },
+      { who: 'sef', name: '???', text: 'There you are. I looked everywhere.', mood: 'sad' },
+      { who: 'sef', name: 'Sef', text: 'Sef. You had it once. Say that too.' },
+      { who: 'sef', name: 'Sef', text: 'Take it. He can\'t follow a stopped second.' },
+      { who: 'sef', name: 'Sef', text: 'It costs a little. Everything does. I\'ll be at the Clock.', mood: 'stern' },
     ],
-    rootAgain: [{ who: 'sef', name: 'Sef', text: 'The seal\'s on the altar. Take it, Tam. Hurry.' }],
+    rootAgain: [{ who: 'sef', name: 'Sef', text: 'Take it, Tam. Hurry.' }],
     afterSever: [],
     confront: [
       { who: 'sef', name: 'Sef', text: 'Look at him. A hundred years behind that door, and he\'s robes.' },
@@ -59,12 +62,12 @@ const Story = {
       { who: 'archivist', name: 'The Archivist', text: 'Another one down the chute. Early. They usually take a day to stop shouting.' },
       { who: 'archivist', name: 'The Archivist', text: 'The Regent? Not down here in sixty years. Sends bread, when he remembers.' },
       { who: 'archivist', name: 'The Archivist', text: 'No. It\'s the kind one who fills this place. Just an hour, she says. Just the one.' },
-      { who: 'archivist', name: 'The Archivist', text: 'Ledger\'s in the Reading Room. East. The Index won\'t let me by.' },
+      { who: 'archivist', name: 'The Archivist', text: 'The book\'s in the Reading Room. The Index won\'t let me by.' },
     ],
-    again: [{ who: 'archivist', name: 'The Archivist', text: 'East. Mind the paper. It cuts.' }],
+    again: [{ who: 'archivist', name: 'The Archivist', text: 'Mind the paper. It cuts.' }],
     afterIndex: [
       { who: 'archivist', name: 'The Archivist', text: 'You read it, then. I kept the Archive, and the city filed people in it.', mood: 'sad' },
-      { who: 'archivist', name: 'The Archivist', text: 'Mending\'s on the altar past the Mills. Ask the Miller who the kind one married.' },
+      { who: 'archivist', name: 'The Archivist', text: 'Ask the Miller who the kind one married.' },
     ],
     end: [{ who: 'archivist', name: 'The Archivist', text: 'Water\'s going. I\'d forgotten the floor had a pattern.' }],
   },
@@ -72,13 +75,13 @@ const Story = {
     intro: [
       { who: 'miller', name: 'The Miller', text: 'Don\'t mind the dust.' },
       { who: 'miller', name: 'The Miller', text: 'He sealed the Clock and sat on it. That is all the Regent ever did.' },
-      { who: 'miller', name: 'The Miller', text: 'My wife ran the Well. Sat you down by the water. Spoke so softly.' },
-      { who: 'miller', name: 'The Miller', text: 'Grinder\'s east. It was a dog.' },
+      { who: 'miller', name: 'The Miller', text: 'Sef ran the Well. My wife. Sat you down by the water. Spoke so softly.' },
+      { who: 'miller', name: 'The Miller', text: 'That noise is the Grinder. It was a dog.' },
     ],
-    again: [{ who: 'miller', name: 'The Miller', text: 'East. It was a dog once.' }],
+    again: [{ who: 'miller', name: 'The Miller', text: 'It was a dog once.' }],
     afterGrinder: [
       { who: 'miller', name: 'The Miller', text: 'Quiet, at last. You\'ve someone\'s eyes. I won\'t say whose.', mood: 'sad' },
-      { who: 'miller', name: 'The Miller', text: 'Echo altar\'s beyond. If she\'s waiting at the top, boy, don\'t let her sit you by the water.' },
+      { who: 'miller', name: 'The Miller', text: 'If she\'s waiting at the top, boy, don\'t let her sit you by the water.' },
     ],
     end: [{ who: 'miller', name: 'The Miller', text: 'Wheel\'s stopped. I\'ll go and see the sky.' }],
   },
@@ -180,13 +183,13 @@ const Story = {
 
   // Found text (tile 'i'), keyed by screen id, in reading order. Notices, ledgers, graffiti.
   tablets: {
-    A1: [{ title: 'TIDELINE', text: 'The sea brings two kinds: the drowned, and the ones the Hourwright is done with. Walk right.' }],
-    A2: [{ title: 'CHALK, ON A STAIR', text: 'A child drawn by a nail. A shut door. The child at the nail again.' }],
+    A1: [{ title: 'TIDELINE', text: 'Wreck, weed and the drowned to be cleared by first bell. Anything still breathing: leave it.' }],
+    A2: [{ title: 'CHALK, ON A STAIR', text: 'A child drawn beside a nail. A door, shutting. The child at the nail again, and the door not yet shut.' }],
     A3: [{ title: 'NOTICE TO WORKERS', text: 'They pull back before they lunge. Eyes go green. Do not stand and wait.' }],
     G2: [{ title: 'FIRST VESSEL', text: 'A glassblower of this works drew a dying man\'s hour into a flask, for his widow. Kindly meant. Beneath, newer: THE FIRST ONE WAS GIVEN.' }],
     G4: [{ title: 'BED-LEDGER', text: 'Apprentices, by cot. Cot four: T., thirteen. Signed for: S. RETAIN is underlined twice, in two inks.' }],
     G6: [{ title: 'FURNACE RULE', text: 'Never leave a vessel past its hour; it takes the shape of what is in it. Scratched below: he has been in there a year. He says it is not finished.' }],
-    A5: [{ title: 'JETTY', text: 'Boats nobody sailed. Those who could not pay were walked to the end. Scratched: SHE STILL COMES HERE. Older: SEALS ARE KEPT IN CORNERS.' }],
+    A5: [{ title: 'JETTY', text: 'Boats nobody sailed. Scratched: SHE STILL COMES HERE. Older, lower: LOOK IN CORNERS.' }],
     R1: [{ title: 'THE DISTRICT', text: 'Everything here was aged by hand. The knights do not know. Their shields face forward; their backs do not.' }],
     R4: [{ title: 'CHALK', text: 'A raised hand. Under it a lock, crumbling. The Mother learned this, and it ate her.' }],
     H1: [{ title: 'CATHEDRAL', text: 'Every gear turns somebody\'s afternoon. Listen. The slab over the scrap-heap hangs by a rope a century old.' }],
@@ -200,7 +203,7 @@ const Story = {
     U1: [{ title: 'THE ROOT', text: 'Where spent hours go: down. The city drinks them back and calls it spring. Climb.' }],
     U4: [{ title: 'SEVER', text: 'One stroke, close in. A strap, a rope, a guardian\'s thread. She gives this one last, and gladly.' }],
     U6: [{ title: 'A NEWER HAND', text: 'You climbed out, so she wanted you to. Ask her what the ledger at her waist is for. The east hoist still works, if you can cut what holds it.' }],
-    A6: [{ title: 'SCRATCHED LOW', text: 'TAM + S. Under it, older: if you keep it you keep the day. The rest is underwater.' }],
+    A6: [{ title: 'SCRATCHED LOW', text: 'T. + S. Under it, older: if you keep it you keep the day. The rest is underwater.' }],
     R2: [{ title: 'GUILD RULE', text: '...take only what is OWED, by the HAND, never from a child under... A word has been chiselled out.' }],
     R5: [{ title: 'LEDGER PAGE', text: 'Column fourteen. Forty names: given, given, given. The last three: taken. In pencil beside them: he wouldn\'t have wanted this.' }],
     R6: [{ title: 'CRANE PLATE', text: 'CRANE DECK. CAPACITY 400 HOURS. THE CAB BRAKE HOLDS THE FOUNDRY DOORS. Scratched under: it never lifted anything. She liked the number.' }],
@@ -216,14 +219,18 @@ const Story = {
     U7: [{ title: 'THE VEIN', text: 'Shaking hand: there is one hour in him that was given freely. I know. I gave it. S. Beneath, another hand: let your shadow take the blow. The thread across the pocket holds until you tell it not to.' }],
   },
 
+  // A name and one oblique line. No keys (the prompt gives the key when there is something to use it on) and
+  // nothing the player cannot try where the card opens.
   abilities: {
-    dash:    { title: 'SKIP', color: '#8fb3ff', text: 'C, L or Shift. Step through a moment; nothing touches you. Cracked walls shatter.' },
-    age:     { title: 'WITHER', color: '#9fc59a', text: 'Q / E select, V cast; hold Up to cast upward. Rust crumbles. Armour rots.' },
-    hold:    { title: 'HOLD', color: '#8fb3ff', text: 'Stills one thing for four seconds: a crusher, an arrow, a foe. You can stand on it.' },
-    restore: { title: 'MEND', color: '#7af0d0', text: 'Turns one thing back toward what it was. With nothing in reach, your last wounds close.' },
-    echo:    { title: 'ECHO', color: '#e6d8ff', text: 'Leaves the last five seconds of you behind. It weighs what you weighed. The dead chase it.' },
-    cut:     { title: 'SEVER', color: '#ff3355', text: 'A short stroke that cuts a thread: a strap, a guard. Close in.' },
-    cling:   { title: 'THE WALLS', color: '#c8bc9e', text: 'Lean into bare stone as you fall and it holds you. Push off for the height back.' },
-    wings:   { title: 'SECOND WIND', color: '#e6d8ff', text: 'One more step in the air, once, before you land.' },
+    dash:    { title: 'SKIP', color: '#8fb3ff', text: 'A moment, stepped over.' },
+    age:     { title: 'WITHER', color: '#9fc59a', text: 'Whatever it touches has already rusted.' },
+    hold:    { title: 'HOLD', color: '#8fb3ff', text: 'One thing, stilled. Only one.' },
+    restore: { title: 'MEND', color: '#7af0d0', text: 'A thing turned back toward what it was.' },
+    echo:    { title: 'ECHO', color: '#e6d8ff', text: 'The last few seconds of you, left standing.' },
+    cut:     { title: 'SEVER', color: '#ff3355', text: 'One stroke, close in.' },
+    cling:   { title: 'THE WALLS', color: '#c8bc9e', text: 'Bare stone holds, if leaned on.' },
+    wings:   { title: 'SECOND WIND', color: '#e6d8ff', text: 'One more step, in the air.' },
   },
 };
+// Mid-fight remarks give way if another scene has only just played (Game.playCutscene drops a `minor` scene inside the quiet gap).
+for (const b of ['annealer', 'regent']) Story.bosses[b].phase2.minor = true;

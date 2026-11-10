@@ -133,9 +133,9 @@ const HOLLOW_ENV = {
     ctx.restore();
   },
   // a swinging chain of links from (x, y) by angle ang with an end piece; cached link strip
-  chainSprite(col, w) { const key = 'c' + col + w; let sp = this.sprites[key]; if (!sp) { const n = 60, pw = Math.ceil(w * 1.4) * 2 + 2; sp = this.canvas(pw, n * w * 2 + 2); const c = sp.getContext('2d'); c.strokeStyle = col; c.lineWidth = Math.max(1.5, w * 0.5); for (let i = 0; i < n; i++) { const yy = i * w * 2 + w + 1; c.beginPath(); c.ellipse(pw / 2, yy, i % 2 ? w * 0.55 : w * 0.3, w * 1.1, 0, 0, Math.PI * 2); c.stroke(); } this.sprites[key] = sp; } return sp; },
+  chainSprite(col, w) { const key = 'c' + col + w; let sp = this.sprites[key]; if (!sp) { const n = 60, pw = Math.ceil(w * 1.4) * 2 + 2, k = Math.max(2, Math.ceil(typeof RS !== 'undefined' ? RS : 1)); sp = this.canvas(pw * k, (n * w * 2 + 2) * k); sp.k = k; sp.pw = pw; sp.ph = n * w * 2 + 2; const c = sp.getContext('2d'); c.scale(k, k); c.strokeStyle = col; c.lineWidth = Math.max(1.5, w * 0.5); for (let i = 0; i < n; i++) { const yy = i * w * 2 + w + 1; c.beginPath(); c.ellipse(pw / 2, yy, i % 2 ? w * 0.55 : w * 0.3, w * 1.1, 0, 0, Math.PI * 2); c.stroke(); } this.sprites[key] = sp; } return sp; },
   chainSway(ctx, x, y, len, ang, col, w, end) {
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang); const sp = this.chainSprite(col, w), h = Math.min(sp.height, Math.max(2, len)); ctx.drawImage(sp, 0, 0, sp.width, h, -sp.width / 2, 0, sp.width, h);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang); const sp = this.chainSprite(col, w), h = Math.min(sp.ph, Math.max(2, len)); ctx.drawImage(sp, 0, 0, sp.width, h * sp.k, -sp.pw / 2, 0, sp.pw, h);
     ctx.fillStyle = col; ctx.strokeStyle = col;
     if (end === 'hook') { ctx.lineWidth = w; ctx.beginPath(); ctx.arc(0, len + w * 2.5, w * 2.5, Math.PI * 0.1, Math.PI * 1.25); ctx.stroke(); }
     else if (end === 'weight') { ctx.fillRect(-w * 2.2, len, w * 4.4, w * 9); }
@@ -152,7 +152,7 @@ const HOLLOW_ENV = {
   // dissolve a layer's feet into the fog between y0 and y1
   fade(l, y0, y1, col, a) { const c = l.ctx; c.save(); c.globalCompositeOperation = 'source-atop'; const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, this.rgba(col, 0)); g.addColorStop(1, this.rgba(col, a)); c.fillStyle = g; c.fillRect(0, Math.min(y0, y1), l.c.width, Math.abs(y1 - y0)); c.restore(); },
   // soften a layer's edges (far layers are hazy, the foreground is out of focus)
-  blur(l, px) { const tmp = this.canvas(l.c.width, l.c.height), tc = tmp.getContext('2d'); if (!('filter' in tc)) return; tc.filter = 'blur(' + px + 'px)'; tc.drawImage(l.c, 0, 0); l.ctx.save(); l.ctx.globalCompositeOperation = 'copy'; l.ctx.filter = 'none'; l.ctx.drawImage(tmp, 0, 0); l.ctx.restore(); },
+  blur(l, px) { const tmp = this.canvas(l.c.width, l.c.height), tc = tmp.getContext('2d'); if (!('filter' in tc)) return; tc.filter = 'blur(' + (px * (l.q || 1)) + 'px)'; tc.drawImage(l.c, 0, 0); l.ctx.save(); l.ctx.setTransform(1, 0, 0, 1, 0, 0); l.ctx.globalCompositeOperation = 'copy'; l.ctx.filter = 'none'; l.ctx.drawImage(tmp, 0, 0); l.ctx.restore(); },
   // bake a light's tint into the surfaces of a layer (source-atop radial), so lit rock looks lit even where the live glow is faint
   bake(l, x, y, r, col, a) { const c = l.ctx; c.save(); c.globalCompositeOperation = 'source-atop'; const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, this.rgba(col, a)); g.addColorStop(1, this.rgba(col, 0)); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore(); },
   // register a light: drawn live with Paint.glow after its layer, baked into the layer, and (mid / near) echoed over the world
@@ -161,7 +161,18 @@ const HOLLOW_ENV = {
   tint(L, l, x, y, r, col, a) { L.bakes.push({ layer: l.i, x, y, r, col, a }); },
   // a cached flat ellipse of haze for drifting mist
   mistSprite(col) { const key = 'm' + col; let sp = this.sprites[key]; if (!sp) { sp = this.canvas(192, 48); const c = sp.getContext('2d'); c.save(); c.translate(96, 24); c.scale(1, 0.25); const g = c.createRadialGradient(0, 0, 0, 0, 0, 96); g.addColorStop(0, this.rgba(col, 1)); g.addColorStop(0.55, this.rgba(col, 0.45)); g.addColorStop(1, this.rgba(col, 0)); c.fillStyle = g; c.fillRect(-96, -96, 192, 192); c.restore(); this.sprites[key] = sp; } return sp; },
-  mist(ctx, x, y, w, h, col, a) { const ga = ctx.globalAlpha; ctx.globalAlpha = ga * a; ctx.drawImage(this.mistSprite(col), x - w / 2, y - h / 2, w, h); ctx.globalAlpha = ga; },
+  // Large patches come from a sprite made at their exact backing size (sizes snapped to steps of 64 x 16) and are
+  // blitted 1:1 on whole backing px; small or oddly transformed ones stretch the little master sprite.
+  mist(ctx, x, y, w, h, col, a) {
+    const ga = ctx.globalAlpha; ctx.globalAlpha = ga * a;
+    const m = ctx._rawGet ? ctx._rawGet() : null;
+    if (m && m.b === 0 && m.c === 0 && m.a === m.d && w >= 300) {
+      const qw = Math.ceil(w / 64) * 64, qh = Math.ceil(h / 16) * 16, pw = Math.round(qw * m.a), ph = Math.round(qh * m.a), key = 'M' + col + pw + 'x' + ph; let sp = this.sprites[key];
+      if (!sp) { sp = this.sprites[key] = this.canvas(pw, ph); const c = sp.getContext('2d'); c.imageSmoothingQuality = 'high'; c.drawImage(this.mistSprite(col), 0, 0, pw, ph); }
+      ctx.save(); ctx._rawSet(1, 0, 0, 1, 0, 0); ctx.drawImage(sp, Math.round(x * m.a + m.e - pw / 2), Math.round(y * m.d + m.f - ph / 2)); ctx.restore();
+    } else ctx.drawImage(this.mistSprite(col), x - w / 2, y - h / 2, w, h);
+    ctx.globalAlpha = ga;
+  },
   // a cached vertical gradient strip stretched over a rect (used for the backdrop)
   vgrad(ctx, x, y, w, h, stops) { const key = 'v' + JSON.stringify(stops); let sp = this.sprites[key]; if (!sp) { sp = this.canvas(2, 64); const c = sp.getContext('2d'); const g = c.createLinearGradient(0, 0, 0, 64); for (const [k, col] of stops) g.addColorStop(k, col); c.fillStyle = g; c.fillRect(0, 0, 2, 64); this.sprites[key] = sp; } ctx.drawImage(sp, x, y, w, h); },
   build: {},
@@ -339,12 +350,17 @@ HOLLOW_ENV.build.root = function (L, p, C, rng, K) {
 Object.assign(Art, {
   layers(region) {
     if (this.bgCache[region]) return this.bgCache[region];
-    const p = PALETTES[region], K = HOLLOW_ENV;
+    for (const k in this.bgCache) delete this.bgCache[k]; // one region's layers at a time: at the render scale they are large
+    const p = PALETTES[region], K = HOLLOW_ENV, rs = typeof RS !== 'undefined' ? RS : 1;
+    // Layer resolution (cache px per logical px): every layer is painted at the render scale and blitted 1:1 on whole
+    // backing px (a resampled full-screen blit costs ten times a straight one without a GPU). Above 3 the hazy
+    // layers (deep, far, foreground) drop to half: they are blurred anyway, and four layers at 4x are a lot of memory.
+    const hz = rs > 3 ? rs / 2 : rs, QS = [hz, hz, rs, rs], QF = hz;
     const W = VIEW_W + 320;
     // name, x parallax, y parallax (screen px per world px; the tiles move at ZOOM), extra height for vertical travel
     const specs = [['deep', 0.08, 0.02, 24], ['far', 0.22, 0.04, 48], ['mid', 0.48, 0.08, 90], ['near', 0.95, 0.12, 140]];
     const L = { W, region, layers: [], lights: [], bakes: [], gears: [], sway: [], smoke: [] };
-    specs.forEach(([name, fx, fy, extra], i) => { const H = VIEW_H + extra, c = K.canvas(W, H); L.layers.push({ i, name, c, ctx: c.getContext('2d'), fx, fy, extra, H, T: extra / 2, B: extra / 2 + VIEW_H * 0.74, ox: 0, oy: 0 }); });
+    specs.forEach(([name, fx, fy, extra], i) => { const H = VIEW_H + extra, q = QS[i], c = K.canvas(Math.round(W * q), Math.round(H * q)), lc = c.getContext('2d'); lc.scale(q, q); L.layers.push({ i, name, c, q, ctx: lc, fx, fy, extra, H, T: extra / 2, B: extra / 2 + VIEW_H * 0.74, ox: 0, oy: 0 }); });
     const fog = p.fogColor;
     // the value ramp: deep and far are lifted toward the fog, mid and near fall toward the ink
     const C = { deep: K.mix(fog, p.ink2, 0.3), far: K.mix(fog, p.ink2, 0.52), mid: K.mix(p.ink2, fog, 0.18), near: K.mix(p.ink2, p.ink, 0.45), ink: p.ink2, fore: p.ink, fog };
@@ -361,19 +377,26 @@ Object.assign(Art, {
     for (const gl of L.lights) K.bake(L.layers[gl.layer], gl.x, gl.y, gl.r * 0.85, gl.col, Math.min(0.55, gl.a * 1.3));
     for (const bk of L.bakes) K.bake(L.layers[bk.layer], bk.x, bk.y, bk.r, bk.col, bk.a);
     // the foreground: near-black silhouettes, slightly out of focus, parallaxing faster than the tiles
-    const fc = K.canvas(W, VIEW_H); const fl = { c: fc, ctx: fc.getContext('2d') }; if (L.fore) K.wrap3(fl.ctx, W, L.fore, 99); K.blur(fl, 2.4); L.foreC = fc; L.fore = null;
-    // backdrop: the hazed sky gradient, drawn once
-    L.backdrop = K.canvas(VIEW_W, VIEW_H); const bc = L.backdrop.getContext('2d');
-    K.vgrad(bc, 0, 0, VIEW_W, VIEW_H, [[0, K.mix(p.bgTop, fog, 0.45)], [0.55, K.mix(fog, p.light, 0.04)], [1, K.mix(fog, p.light, 0.16)]]);
+    const fc = K.canvas(Math.round(W * QF), Math.round(VIEW_H * QF)); const fl = { c: fc, q: QF, ctx: fc.getContext('2d') }; fl.ctx.scale(QF, QF); if (L.fore) K.wrap3(fl.ctx, W, L.fore, 99); K.blur(fl, 2.4); L.foreC = fc; L.fore = null;
+    // The fog band that sits between each layer and the next is baked under the next layer (it only shows through that
+    // layer's gaps anyway), and the hazed sky gradient is baked under the deep layer, which makes it opaque: the whole
+    // backdrop is then four straight blits instead of a gradient fill per layer.
+    const under = (l, fn) => { l.ctx.save(); l.ctx.globalCompositeOperation = 'destination-over'; fn(l.ctx); l.ctx.restore(); };
+    const FOG_K = [0.26, 0.18, 0.11, 0.06], FOG_TOP = [0.25, 0.4, 0.55, 0.7];
+    for (let i = 1; i < 4; i++) { const l = L.layers[i]; under(l, (c) => Paint.fog(c, 0, l.extra / 2 + VIEW_H * FOG_TOP[i - 1], W, l.H + 2, fog, 0, FOG_K[i - 1])); }
+    under(d, (c) => { const g = c.createLinearGradient(0, d.extra / 2, 0, d.extra / 2 + VIEW_H); g.addColorStop(0, K.mix(p.bgTop, fog, 0.45)); g.addColorStop(0.55, K.mix(fog, p.light, 0.04)); g.addColorStop(1, K.mix(fog, p.light, 0.16)); c.fillStyle = g; c.fillRect(0, 0, W, d.H); });
+    L.fogLast = FOG_K[3];
     this.bgCache[region] = L;
     return L;
   },
   // screen offset of a layer for this camera (x wraps; y clamps around the zone's middle)
   envOffset(L, l, cam) {
-    const ox = -((cam.x * l.fx) % L.W);
+    // snapped to whole backing px, so the crisp layers are blitted 1:1 and do not shimmer as the camera creeps
+    const rs = typeof RS !== 'undefined' ? RS : 1, snap = (v) => Math.round(v * rs) / rs;
+    const ox = snap(-((cam.x * l.fx) % L.W));
     const worldH = typeof World !== 'undefined' && World.H ? World.H : VIEW_H;
     const mid = Math.max(0, worldH - VH) / 2;
-    return [ox, -clamp(l.extra / 2 + (cam.y - mid) * l.fy, 0, l.extra)];
+    return [ox, snap(-clamp(l.extra / 2 + (cam.y - mid) * l.fy, 0, l.extra))];
   },
   // call fn for every wrapped copy of a layer point that lands near the screen
   envEach(L, l, x, y, r, fn) {
@@ -389,15 +412,12 @@ Object.assign(Art, {
   },
   drawBackground(ctx, region, t, cam) {
     const K = HOLLOW_ENV, L = this.layers(region), fog = L.C.fog;
-    ctx.drawImage(L.backdrop, 0, 0);
     for (let i = 0; i < L.layers.length; i++) {
       const l = L.layers[i]; const [ox, oy] = this.envOffset(L, l, cam); l.ox = ox; l.oy = oy;
-      ctx.drawImage(l.c, ox, oy); if (ox + L.W < VIEW_W) ctx.drawImage(l.c, ox + L.W, oy);
+      ctx.drawImage(l.c, ox, oy, L.W, l.H); if (ox + L.W < VIEW_W) ctx.drawImage(l.c, ox + L.W, oy, L.W, l.H);
       this.envLive(ctx, region, L, i, t, cam);
       for (const gl of L.lights) if (gl.layer === i) this.envEach(L, l, gl.x, gl.y, gl.r, (sx, sy) => Paint.glow(ctx, sx, sy, gl.r, gl.col, gl.a * this.envPulse(gl, t)));
-      // a fog band between this layer and the next: thick behind the far layers, thin before the tiles
-      const k = [0.26, 0.18, 0.11, 0.06][i], top = [0.25, 0.4, 0.55, 0.7][i];
-      Paint.fog(ctx, 0, VIEW_H * top, VIEW_W, VIEW_H, fog, 0, k);
+      // (the fog band between this layer and the next is baked under the next layer; the last, thin one is part of the ground fog)
       if (i === 1 && L.shafts) this.envShafts(ctx, L, t, cam);
       if (i === 1 || i === 2) this.envMist(ctx, L, t, cam, i - 1);
     }
@@ -434,10 +454,20 @@ Object.assign(Art, {
   },
   // shafts of light falling from an opening above (cached sprite, additive, drifting with a slow parallax)
   envShafts(ctx, L, t, cam) {
-    const K = HOLLOW_ENV, sh = L.shafts, key = 'shaft' + sh.col; let sp = K.sprites[key];
-    if (!sp) { sp = K.canvas(220, VIEW_H); const c = sp.getContext('2d'); const g = c.createLinearGradient(0, 0, 0, VIEW_H); g.addColorStop(0, K.rgba(sh.col, 1)); g.addColorStop(0.8, K.rgba(sh.col, 0)); c.fillStyle = g; c.beginPath(); c.moveTo(20, 0); c.lineTo(70, 0); c.lineTo(220, VIEW_H); c.lineTo(110, VIEW_H); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.lineTo(100, VIEW_H); c.lineTo(80, VIEW_H); c.closePath(); c.fill(); if ('filter' in c) { c.filter = 'blur(6px)'; c.globalCompositeOperation = 'copy'; c.drawImage(sp, 0, 0); } K.sprites[key] = sp; }
+    const K = HOLLOW_ENV, sh = L.shafts, rs = typeof RS !== 'undefined' ? RS : 1;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 2; i++) { const x = ((120 + i * 420 - cam.x * 0.3 + Math.sin(t * 0.2 + i) * 6 + 8000) % (VIEW_W + 300)) - 150; ctx.globalAlpha = sh.a * (0.85 + Math.sin(t * 0.4 + i * 2) * 0.15); ctx.drawImage(sp, x, -4, 220 * (1 + i * 0.3), VIEW_H + 8); }
+    for (let i = 0; i < 2; i++) {
+      // one sprite per shaft, made at its backing size (the second shaft is 30% wider) and blitted 1:1
+      const w = 220 * (1 + i * 0.3), h = VIEW_H + 8, key = 'shaft' + sh.col + i; let sp = K.sprites[key];
+      if (!sp) {
+        const raw = K.canvas(Math.round(w * rs), Math.round(h * rs)), c = raw.getContext('2d'); c.scale(rs * w / 220, rs * h / VIEW_H);
+        const g = c.createLinearGradient(0, 0, 0, VIEW_H); g.addColorStop(0, K.rgba(sh.col, 1)); g.addColorStop(0.8, K.rgba(sh.col, 0)); c.fillStyle = g;
+        c.beginPath(); c.moveTo(20, 0); c.lineTo(70, 0); c.lineTo(220, VIEW_H); c.lineTo(110, VIEW_H); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.lineTo(100, VIEW_H); c.lineTo(80, VIEW_H); c.closePath(); c.fill();
+        sp = K.canvas(raw.width, raw.height); const bc = sp.getContext('2d'); if ('filter' in bc) bc.filter = 'blur(' + (6 * rs) + 'px)'; bc.drawImage(raw, 0, 0); K.sprites[key] = sp;
+      }
+      const x = ((120 + i * 420 - cam.x * 0.3 + Math.sin(t * 0.2 + i) * 6 + 8000) % (VIEW_W + 300)) - 150; ctx.globalAlpha = sh.a * (0.85 + Math.sin(t * 0.4 + i * 2) * 0.15);
+      ctx.drawImage(sp, Math.round(x * rs) / rs, -4, w, h);
+    }
     ctx.restore();
   },
   // drifting mist patches between layers
@@ -455,7 +485,7 @@ Object.assign(Art, {
     // the nearer lights also touch the world: a soft echo of every mid / near glow over the tiles
     for (const gl of L.lights) if (gl.layer >= 2) { const l = L.layers[gl.layer]; this.envEach(L, l, gl.x, gl.y, gl.r, (sx, sy) => Paint.glow(ctx, sx, sy, gl.r * 1.3, gl.col, gl.a * 0.35 * this.envPulse(gl, t))); }
     // ground fog along the floor, drifting slowly, attached to the world
-    Paint.fog(ctx, 0, VIEW_H - 110, VIEW_W, VIEW_H, fog, 0, 0.24);
+    Paint.fog(ctx, 0, VIEW_H - 110, VIEW_W, VIEW_H, fog, 0, 0.28);
     { const worldW = typeof World !== 'undefined' && World.W ? World.W : VIEW_W;
       for (let i = 0, N = Math.ceil(worldW / 220) + 2; i < N; i++) { const wx = ((i * 220 + t * (3 + n(i, 31) * 3) + n(i, 32) * 100) % (worldW + 300)) - 150; const sx = (wx - cam.x) * ZOOM; if (sx < -300 || sx > VIEW_W + 300) continue; K.mist(ctx, sx, VIEW_H - 10 + Math.sin(t * 0.3 + i) * 6 + n(i, 33) * 14, 320 + n(i, 34) * 200, 60 + n(i, 35) * 30, fog, 0.09 + n(i, 36) * 0.05); } }
     // motes floating in the light
@@ -467,12 +497,14 @@ Object.assign(Art, {
       let y; if (M.dir === 'up') y = VIEW_H - ((by + t * sp - cam.y * depth) % VIEW_H + VIEW_H) % VIEW_H; else if (M.dir === 'down') y = ((by + t * sp - cam.y * depth) % VIEW_H + VIEW_H) % VIEW_H; else y = ((by + Math.sin(t * 0.3 + i * 1.3) * 16 - cam.y * depth) % VIEW_H + VIEW_H) % VIEW_H;
       const tw = M.flicker ? 0.5 + Math.sin(t * 6 + i * 3) * 0.5 : 0.6 + Math.sin(t * 1.3 + i) * 0.4;
       if (M.pages && i % 8 === 0) { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(t * 0.7 + i) * 0.7); ctx.globalAlpha = 0.4; ctx.fillStyle = '#d8d0bc'; ctx.fillRect(-3, -4, 6, 8); ctx.restore(); continue; }
-      ctx.globalAlpha = 0.25 + tw * 0.45; ctx.fillStyle = M.col; const s = i % 7 === 0 ? 2 : 1; ctx.fillRect(Math.floor(x), Math.floor(y), s, s);
-      if (M.glow && i % 3 === 0) Paint.glow(ctx, x, y, 6, M.col, 0.3 * tw);
+      // a soft round mote: nearer ones are larger and brighter, every one has its own size
+      const mr = (0.45 + r3 * 0.75) * (i % 7 === 0 ? 1.5 : 1);
+      ctx.globalAlpha = (0.2 + tw * 0.45) * (0.6 + r3 * 0.4); ctx.fillStyle = M.col; ctx.beginPath(); ctx.arc(x, y, mr, 0, 6.2832); ctx.fill();
+      if (M.glow ? i % 2 === 0 : i % 5 === 0) Paint.glow(ctx, x, y, mr * 6, M.col, 0.28 * tw);
     }
     ctx.globalAlpha = 1;
     // the foreground silhouettes: near-black, out of focus, passing fastest of all
-    if (L.foreC) { const ox = -((cam.x * 2.8) % L.W); ctx.globalAlpha = 0.9; ctx.drawImage(L.foreC, ox, 0); if (ox + L.W < VIEW_W) ctx.drawImage(L.foreC, ox + L.W, 0); ctx.globalAlpha = 1; }
+    if (L.foreC) { const rs = typeof RS !== 'undefined' ? RS : 1, ox = Math.round(-((cam.x * 2.8) % L.W) * rs) / rs; ctx.globalAlpha = 0.9; ctx.drawImage(L.foreC, ox, 0, L.W, VIEW_H); if (ox + L.W < VIEW_W) ctx.drawImage(L.foreC, ox + L.W, 0, L.W, VIEW_H); ctx.globalAlpha = 1; }
     ctx.restore();
   },
 });

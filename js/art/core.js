@@ -111,39 +111,71 @@ const Paint = {
     const poly = left.concat(right.reverse());
     this.shape(ctx, poly, { fill: color, light: o.light || this.shade(color, 0.18), shade: o.shade || this.shade(color, -0.3), ink: ink, w: o.w === undefined ? 2 : o.w, smooth: pts.length > 2 });
   },
-  // Cached additive radial glow. r in pixels of the current transform.
+  // Cached additive radial glow. r in units of the current transform.
+  // Wide glows are the most expensive thing in a frame when a sprite has to be resampled, so a glow whose radius is
+  // 20 backing px or more is drawn from a sprite made at (nearly) that exact size and blitted 1:1 on whole backing px:
+  // radii are rounded up to steps of about 9%, which no eye can tell on a soft pool of light. Small glows (motes,
+  // sparks) stretch one 64 px sprite. Under a rotated transform the 256 px master is stretched as before.
+  _glowMaster(color, n) {
+    const sp = document.createElement('canvas'); sp.width = sp.height = n; const c = sp.getContext('2d'), h = n / 2;
+    const g = c.createRadialGradient(h, h, 0, h, h, h);
+    for (const [k, a] of [[0, 1], [0.12, 0.8], [0.25, 0.58], [0.4, 0.37], [0.55, 0.2], [0.7, 0.095], [0.85, 0.03], [1, 0]]) g.addColorStop(k, this.rgba(color, a));
+    c.fillStyle = g; c.fillRect(0, 0, n, n); return sp;
+  },
+  _glowPx: 0, _glowLru: [],
   glow(ctx, x, y, r, color, a) {
-    const key = 'g' + color; let sp = this._cache[key];
-    if (!sp) {
-      sp = document.createElement('canvas'); sp.width = sp.height = 128; const c = sp.getContext('2d');
-      const g = c.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, this.rgba(color, 1)); g.addColorStop(0.35, this.rgba(color, 0.45)); g.addColorStop(1, this.rgba(color, 0));
-      c.fillStyle = g; c.fillRect(0, 0, 128, 128); this._cache[key] = sp;
+    if (!(r > 0)) return;
+    const m = ctx._rawGet ? ctx._rawGet() : ctx.getTransform(), flat = m.b === 0 && m.c === 0 && m.a > 0 && m.a === m.d, rd = r * m.a;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a === undefined ? 0.5 : a;
+    if (!flat || rd < 20) {
+      const key = (flat ? 'gs' : 'g') + color; let sp = this._cache[key];
+      if (!sp) sp = this._cache[key] = this._glowMaster(color, flat ? 64 : 256);
+      ctx.drawImage(sp, x - r, y - r, r * 2, r * 2);
+    } else {
+      const rb = Math.ceil(20 * Math.pow(1.09, Math.ceil(Math.log(rd / 20) / Math.log(1.09) - 1e-9))), key = 'G' + color + ':' + rb; let sp = this._cache[key];
+      if (!sp) {
+        sp = this._cache[key] = this._glowMaster(color, rb * 2); this._glowLru.push(key); this._glowPx += rb * rb * 4;
+        while (this._glowPx > 16e6 && this._glowLru.length > 4) { const k = this._glowLru.shift(), old = this._cache[k]; if (old) { this._glowPx -= old.width * old.height; delete this._cache[k]; } }
+      }
+      (ctx._rawSet || ctx.setTransform).call(ctx, 1, 0, 0, 1, 0, 0);
+      ctx.drawImage(sp, Math.round(x * m.a + m.e) - rb, Math.round(y * m.d + m.f) - rb);
     }
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a === undefined ? 0.5 : a; ctx.drawImage(sp, x - r, y - r, r * 2, r * 2); ctx.restore();
+    ctx.restore();
   },
   fog(ctx, x, y0, w, y1, color, a0, a1) {
     const g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, this.rgba(color, a0)); g.addColorStop(1, this.rgba(color, a1));
     ctx.fillStyle = g; ctx.fillRect(x, Math.min(y0, y1), w, Math.abs(y1 - y0));
   },
   vignette(ctx, w, h, a) {
-    const key = 'v' + w + 'x' + h; let sp = this._cache[key];
+    const rs = typeof RS !== 'undefined' ? RS : 1, key = 'v' + w + 'x' + h; let sp = this._cache[key];
     if (!sp) {
-      sp = document.createElement('canvas'); sp.width = w; sp.height = h; const c = sp.getContext('2d');
-      const g = c.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.hypot(w, h) * 0.55);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); c.fillStyle = g; c.fillRect(0, 0, w, h); this._cache[key] = sp;
+      // an elliptical falloff that follows the frame (wider than tall), eased so the corners go dark without a visible ring;
+      // made at the backing resolution so it is laid on 1:1
+      sp = document.createElement('canvas'); sp.width = Math.round(w * rs); sp.height = Math.round(h * rs); const c = sp.getContext('2d');
+      c.scale(rs, rs); c.translate(w / 2, h / 2); c.scale(1, h / w);
+      const R = Math.hypot(w, w) * 0.5, g = c.createRadialGradient(0, 0, w * 0.2, 0, 0, R);
+      for (const [k, al] of [[0, 0], [0.3, 0.06], [0.5, 0.2], [0.7, 0.45], [0.85, 0.72], [1, 1]]) g.addColorStop(k, 'rgba(0,0,0,' + al + ')');
+      c.fillStyle = g; c.fillRect(-w, -w, w * 2, w * 2); this._cache[key] = sp;
     }
-    ctx.save(); ctx.globalAlpha = a === undefined ? 0.45 : a; ctx.drawImage(sp, 0, 0); ctx.restore();
+    ctx.save(); ctx.globalAlpha = a === undefined ? 0.45 : a; ctx.drawImage(sp, 0, 0, w, h); ctx.restore();
   },
+  // Film grain: one sheet of noise the size of the backing store plus a margin, laid on 1:1 at a new offset twelve times
+  // a second. One grain is one backing px (two on a very dense store), never a blurry block.
   grain(ctx, w, h, a, t) {
-    let sp = this._cache.grain;
+    const rs = typeof RS !== 'undefined' ? RS : 1, cell = rs >= 3 ? 2 : 1, M = 128;
+    const W = Math.ceil(w * rs / cell) + M, H = Math.ceil(h * rs / cell) + M, key = 'grain' + W + 'x' + H; let sp = this._cache[key];
     if (!sp) {
-      sp = document.createElement('canvas'); sp.width = 256; sp.height = 256; const c = sp.getContext('2d'); const im = c.createImageData(256, 256);
-      for (let i = 0; i < im.data.length; i += 4) { const v = 128 + Math.floor((Ink.n(i, 3) - 0.5) * 90); im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
-      c.putImageData(im, 0, 0); this._cache.grain = sp;
+      sp = document.createElement('canvas'); sp.width = W * cell; sp.height = H * cell; const c = sp.getContext('2d'); const im = c.createImageData(W, H), d = im.data;
+      const rng = mulberry32(90210);
+      for (let i = 0; i < d.length; i += 4) { const v = 128 + Math.floor((rng() - 0.5) * 90); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+      c.putImageData(im, 0, 0);
+      if (cell > 1) { c.imageSmoothingEnabled = false; c.globalCompositeOperation = 'copy'; c.drawImage(sp, 0, 0, W, H, 0, 0, W * cell, H * cell); }
+      this._cache[key] = sp;
     }
-    const ox = Math.floor(Ink.n(Math.floor(t * 12), 5) * 200), oy = Math.floor(Ink.n(Math.floor(t * 12), 6) * 200);
-    ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = a === undefined ? 0.08 : a;
-    for (let y = -oy; y < h; y += 256) for (let x = -ox; x < w; x += 256) ctx.drawImage(sp, x, y);
+    const ox = Math.floor(Ink.n(Math.floor(t * 12), 5) * M * cell), oy = Math.floor(Ink.n(Math.floor(t * 12), 6) * M * cell);
+    ctx.save(); (ctx._rawSet || ctx.setTransform).call(ctx, 1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = a === undefined ? 0.08 : a;
+    ctx.drawImage(sp, -ox, -oy);
     ctx.restore();
   },
   ease: {

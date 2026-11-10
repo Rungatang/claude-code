@@ -7,6 +7,9 @@ const SAVE_KEY = 'hollow-hours-save-v4';
 const HEART_FRAGS = 2, SPOOL_FRAGS = 3;
 const WORLD_V = 2; // save.worldV: 2 = the spread world (connector screens between left-right neighbours); see Game.migrateWorld
 const OLD_SAVE_KEY = 'hollow-hours-save-v3'; // read once and migrated (power ids renamed, see readSave)
+// Pacing: after any scene or card, no unasked-for scene starts until this many seconds of play have passed
+// (a queued one waits; one flagged `minor` is dropped). Talking to someone and a guardian's own lines are not held back.
+const QUIET_GAP = 45;
 
 // A thin clock ring that empties over a hold (k = time left / duration), drawn around held things and beside the Hold seal.
 function drawHeldRing(ctx, x, y, r, k) {
@@ -30,11 +33,15 @@ const Game = {
   deathT: 0, overlay: null, debug: false, manual: false,
   shardStarts: {}, powerIndex: 0, curScreen: null,
   riteQueue: [], whisper: null, dimT: 0, fragToast: null,
+  // contextual prompts (stepPrompts) and scene pacing: the one prompt on screen { id, text, t, end }, its session
+  // state, the play seconds since the last scene, scenes waiting for the quiet gap, a guardian's name-card beat
+  prompt: null, ps: null, padLast: false, quietT: 0, sayQueue: [], bossIntro: null, wakeT: 0, mapHintT: 0,
 
   init() {
     this.canvas = document.getElementById('game');
     this.ctx = this.canvas.getContext('2d');
-    this.ctx.imageSmoothingEnabled = false;
+    this.scaleContext(this.ctx);
+    const rsq = /[?&]rs=([\d.]+)/.exec(location.search); this.rsForce = rsq ? clamp(+rsq[1] || 1, 0.5, 4) : 0;
     Input.init();
     this.debug = /[?&]debug/.test(location.search);
     let n = 0;
@@ -47,10 +54,47 @@ const Game = {
     this.last = performance.now();
     requestAnimationFrame((ts) => this.frame(ts));
   },
+  // The canvas is shown at a whole multiple of a quarter of the logical view and its backing store is sized to the
+  // device pixels it covers (RS, see util.js), capped at 4 (2560 x 1472) and lowered by the frame-time watchdog below.
   resize() {
     const s = Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H) * 4) / 4);
     this.canvas.style.width = VIEW_W * s + 'px';
     this.canvas.style.height = VIEW_H * s + 'px';
+    let rs = this.rsForce || clamp(Math.round(s * (window.devicePixelRatio || 1) * 4) / 4, 1, 4);
+    if (!this.rsForce && this.rsCap) rs = Math.max(1, Math.min(rs, this.rsCap));
+    const w = Math.round(VIEW_W * rs), h = Math.round(VIEW_H * rs);
+    if (rs !== RS || this.canvas.width !== w || this.canvas.height !== h) {
+      RS = rs; this.canvas.width = w; this.canvas.height = h;
+      Art.dropScaleCaches(); // every offscreen cache is painted for one render scale
+    }
+    this.ctx.imageSmoothingEnabled = true;
+    this.perf = { sum: 0, n: 0, grace: 2 };
+  },
+  // Every draw call on the main context is in logical view units: setTransform (the only absolute transform call the
+  // drawing code uses) is premultiplied by RS, so `setTransform(1, 0, 0, 1, 0, 0)` means "screen space" and
+  // `setTransform(ZOOM, ...)` means "world space" at any backing resolution. Offscreen contexts are untouched.
+  scaleContext(ctx) {
+    const set = ctx.setTransform.bind(ctx), get = ctx.getTransform.bind(ctx);
+    ctx._rawSet = function (a2, b2, c2, d2, e2, f2) { set(a2, b2, c2, d2, e2, f2); }; ctx._rawGet = get; // backing-px access for the 1:1 blits in Paint
+    ctx.setTransform = (a, b, c, d, e, f) => { if (a && typeof a === 'object') { f = a.f; e = a.e; d = a.d; c = a.c; b = a.b; a = a.a; } if (a === undefined) { a = 1; b = 0; c = 0; d = 1; e = 0; f = 0; } set(a * RS, b * RS, c * RS, d * RS, e * RS, f * RS); };
+    ctx.resetTransform = () => set(RS, 0, 0, RS, 0, 0);
+    ctx.getTransform = () => { const m = get(); return new DOMMatrix([m.a / RS, m.b / RS, m.c / RS, m.d / RS, m.e / RS, m.f / RS]); };
+    // shadow blur and offsets are in backing px whatever the transform: keep them in logical px too
+    for (const k of ['shadowBlur', 'shadowOffsetX', 'shadowOffsetY']) {
+      const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, k); if (!d || !d.set) continue;
+      Object.defineProperty(ctx, k, { configurable: true, get: () => d.get.call(ctx) / RS, set: (v) => d.set.call(ctx, v * RS) });
+    }
+  },
+  // Frame-time watchdog: if frames average over 22 ms across two seconds, give up half a step of render scale (down
+  // to 1) and repaint the caches once. Frames that painted a terrain chunk, and the windows right after a rescale, do not count.
+  watchFrame(ms) {
+    const pf = this.perf; if (!pf || this.manual || this.rsForce || ms > 250 || document.hidden) return;
+    if (Art.tileBuilt) { Art.tileBuilt = false; return; }
+    pf.sum += ms; pf.n++;
+    if (pf.sum < 2000) return;
+    const avg = pf.sum / pf.n; pf.sum = 0; pf.n = 0;
+    if (pf.grace > 0) { pf.grace--; return; }
+    if (avg > 22 && RS > 1) { this.rsCap = Math.max(1, RS - 0.5); this.resize(); }
   },
 
   // ---- save -------------------------------------------------------------
@@ -129,6 +173,7 @@ const Game = {
   // ---- flow ---------------------------------------------------------------
   newGame() {
     this.killed.clear(); this.riteQueue = []; this.whisper = null; this.dimT = 0;
+    this.prompt = null; this.ps = null; this.sayQueue = []; this.mapHintT = 0; this.wakeT = 0;
     this.save = this.defaultSave();
     this.player = new Player();
     this.playCutscene(Story.prologue, () => {
@@ -136,7 +181,8 @@ const Game = {
       this.save.x = this.player.x; this.save.y = this.player.y; this.save.zone = 'A1';
       this.writeSave();
       this.state = 'play';
-      this.playCutscene(Story.wake, null, true);
+      // no dialogue box on waking: his one word surfaces as a whispered line a moment after he stands (stepPrompts)
+      this.wakeT = 1.6;
     }, false, true);
     AudioSys.playTheme('shore');
   },
@@ -145,6 +191,7 @@ const Game = {
     const s = this.readSave();
     if (!s) { this.newGame(); return; }
     this.riteQueue = []; this.whisper = null; this.dimT = 0;
+    this.prompt = null; this.ps = null; this.sayQueue = []; this.mapHintT = 0; this.wakeT = 0; this.quietT = QUIET_GAP;
     this.save = s;
     this.player = new Player();
     this.player.maxHp = s.maxHp; this.player.hp = s.maxHp; this.player.maxThread = s.maxThread || 9;
@@ -155,7 +202,7 @@ const Game = {
     const prevRegion = World.room ? World.room.region : null;
     const specs = World.load(id);
     this.entities = []; this.projectiles = []; this.particles = []; this.floaters = [];
-    this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0;
+    this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0; this.bossIntro = null; this.prompt = null;
     this.timeScale = 1; this.severT = 0; this.held = null; this.fizzle = null; this.streak = null; World.platforms = [];
     const pl = this.player;
     pl.anchor = null; pl.history = []; pl.frozen = 0; pl.riding = null;
@@ -220,24 +267,25 @@ const Game = {
       this.save.explored[sc.id] = true;
       const prev = this.curScreen ? ROOMS[this.curScreen] : null;
       this.curScreen = sc.id;
-      if (!prev || prev.region !== sc.def.region) UI.showBanner(PALETTES[sc.def.region].name, sc.def.name);
+      if (!prev || prev.region !== sc.def.region) UI.showBanner(PALETTES[sc.def.region].name, ''); // a region card is the region's name and nothing else
       else if (first) UI.showBanner('', sc.def.name);
       if (!force) this.onScreenEnter();
     }
   },
   onScreenEnter() {
     const f = this.save.flags, id = this.curScreen;
-    if (Story.screenEnter[id] && !f['scene:' + id]) { f['scene:' + id] = true; this.pendingDialogue = Story.screenEnter[id]; }
+    if (Story.screenEnter[id] && Story.screenEnter[id].length && !f['scene:' + id]) { f['scene:' + id] = true; this.pendingDialogue = Story.screenEnter[id]; }
     // reaching the Surface from below unbars the Gallery door, so the underground stays open both ways from then on
     if (id === 'U6' && !f.surfaced) { f.surfaced = true; this.writeSave(); }
   },
   playCutscene(steps, onDone, overlay, skippable) {
     if (!steps || !steps.length) { if (onDone) onDone(); return; } // an emptied scene (story trims) must not stall or crash
+    if (steps.minor && this.quietT < QUIET_GAP) { if (onDone) onDone(); return; } // a minor scene never follows hard on another
     if (this.state !== 'cutscene') this.prevState = this.state === 'title' ? 'play' : this.state;
     this.state = 'cutscene';
     Cutscene.play(steps, () => {
       this.state = this.prevState === 'cutscene' ? 'play' : this.prevState;
-      Input.flush();
+      Input.flush(); this.quietT = 0;
       if (onDone) onDone();
     }, overlay, skippable);
   },
@@ -272,6 +320,8 @@ const Game = {
   saveAtLantern() {
     const pl = this.player;
     const healed = pl.maxHp - pl.hp, wound = pl.maxThread - pl.thread, back = this.killed.size;
+    this.save.flags['taught:rest'] = true; // the arrow over a lantern shows until one has been used
+    if (!this.taught('map')) this.mapHintT = 5; // the map is mentioned once, after the first rest
     pl.hp = pl.maxHp; pl.thread = pl.maxThread; pl.vx = 0; pl.healT = 0;
     this.save.zone = World.zoneId; this.save.x = pl.x; this.save.y = pl.y; this.save.maxHp = pl.maxHp; this.save.maxThread = pl.maxThread;
     this.writeSave();
@@ -281,8 +331,7 @@ const Game = {
     this.loadZone(World.zoneId, 'save'); Object.assign(this.player, keep);
     this.player.restT = 1.2; this.player.anim = 'rest'; this.restGlow = 1.2;
     AudioSys.sfx('save');
-    const parts = []; if (healed > 0) parts.push(healed + (healed === 1 ? ' hour' : ' hours') + ' restored'); if (wound > 0) parts.push('thread rewound'); if (back > 0) parts.push('the dead have risen again'); parts.push('progress kept');
-    UI.showToast('You rest. ' + parts.join(', ') + '.');
+    UI.showToast('You rest.'); // what resting does (hours, thread, the dead back on their feet) is for the player to notice
     this.burst(pl.x + pl.w / 2, pl.y + pl.h / 2, '#ffd27a', 16, 80);
   },
   onPickup(p) {
@@ -294,7 +343,7 @@ const Game = {
       pl.maxThread = this.save.maxThread = Math.min(15, 9 + Math.floor(n / SPOOL_FRAGS));
       if (done && pl.maxThread > before) {
         pl.thread = pl.maxThread; AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#8fb3ff', 16, 90);
-        this.startRite('spool', p, { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' });
+        this.startRite('spool', p, { title: 'A SPOOL OF THREAD', text: 'The thread runs one longer.', color: '#8fb3ff' });
       } else this.quietFragment(p, '#8fb3ff', 'Thread fragment ' + (done ? SPOOL_FRAGS : n % SPOOL_FRAGS) + '/' + SPOOL_FRAGS);
     } else if (p.kind === 'heart') {
       this.save.flags['heart:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
@@ -302,7 +351,7 @@ const Game = {
       pl.maxHp = this.save.maxHp = 5 + Math.floor(n / HEART_FRAGS);
       if (done) {
         pl.hp = pl.maxHp; AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
-        this.startRite('heart', p, { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now.', color: '#ff5a5a' });
+        this.startRite('heart', p, { title: 'AN HOUR', text: 'The glass holds one more.', color: '#ff5a5a' });
       } else this.quietFragment(p, '#ff5a5a', 'Hour fragment ' + (n % HEART_FRAGS) + '/' + HEART_FRAGS);
     } else if (p.kind === 'shard') {
       this.save.flags['shard:' + p.index] = true;
@@ -364,6 +413,7 @@ const Game = {
   },
   talkTo(id) {
     const f = this.save.flags;
+    f['taught:talk'] = true;
     const pick = (table) => { for (const [cond, lines] of table) if (cond()) return lines; return null; };
     if (id === 'sef') {
       const here = this.curScreen;
@@ -382,11 +432,88 @@ const Game = {
       this.playCutscene(pick([[() => f['boss:sef'], Story.miller.end], [() => f['boss:grinder'], Story.miller.afterGrinder], [() => f.millerMet, Story.miller.again], [() => true, Story.miller.intro]]), () => { f.millerMet = true; this.writeSave(); }, true);
     }
   },
+  // ---- prompts ------------------------------------------------------------
+  // A control is named only when the need for it is in front of the player, as one quiet line (UI.drawPrompt),
+  // and it goes the moment they do the thing; `taught:<id>` in the save means it is never shown again.
+  taught(id) { return !!this.save.flags['taught:' + id]; },
+  teach(id) { this.save.flags['taught:' + id] = true; if (this.prompt && this.prompt.id === id && this.prompt.end === undefined) this.prompt.end = this.prompt.t; },
+  promptText(id) {
+    const T = { move: ['← →      Z', 'stick      A'], strike: ['X', 'X'], anchor: ['F  ...  F', 'Y  ...  Y'], heal: ['hold H', 'hold B'], cast: ['V', 'RB'], select: ['Q    E', 'd-pad ← →'], dash: ['C', 'RT'], map: ['M', 'Select'] }[id.startsWith('cast:') ? 'cast' : id];
+    return T ? T[this.padLast ? 1 : 0] : '';
+  },
+  stepPrompts(dt) {
+    const pl = this.player, f = this.save.flags, T = (id) => !!f['taught:' + id];
+    const s = this.ps || (this.ps = { idle: 0, still: 0, doors: {}, tick: 0, cast: null, lead: 0, leadId: null });
+    // the last device touched decides the glyphs
+    for (const k in Input.pressed) { this.padLast = k.startsWith('Pad'); break; }
+    if (Input.down.PadLeft || Input.down.PadRight) this.padLast = true; else if (Input.keyMove()) this.padLast = false;
+    if (this.wakeT > 0) { this.wakeT -= dt; if (this.wakeT <= 0 && Story.wake[0]) this.whisper = { text: Story.wake[0].text, t: 0, dur: 4.2 }; }
+    const cur = this.prompt && this.prompt.end === undefined ? this.prompt.id : null;
+    const busy = pl.dead || pl.riteT > 0 || pl.restT > 0;
+    const cx = pl.x + pl.w / 2, cy = pl.y + pl.h / 2, scId = this.curScreen, list = this.powerList();
+    let foe = Infinity;
+    for (const e of this.entities) if ((e instanceof Enemy || (e instanceof Boss && e.active)) && !e.dead && e.visible !== false) foe = Math.min(foe, dist(cx, cy, e.x + e.w / 2, e.y + e.h / 2));
+    // done once, a thing is learnt
+    if (!T('move') && (Math.abs(pl.vx) > 20 || Input.hit('jump'))) this.teach('move');
+    if (!T('strike') && (pl.attackStarted || pl.attackT > 0)) this.teach('strike');
+    if (!T('dash') && pl.dashT > 0) this.teach('dash');
+    if (!T('heal') && pl.focusing && pl.healT > HEAL_TIME * 0.5) this.teach('heal');
+    if (!T('anchor') && this.save.recalls > 0) this.teach('anchor');
+    if (pl.castT > 0 && pl.castPower && !T('cast:' + pl.castPower)) this.teach('cast:' + pl.castPower);
+    if (!T('select') && list.length > 1 && (Input.hit('spellNext') || Input.hit('spellPrev'))) this.teach('select');
+    if (!T('read') && s.tick % 30 === 0) for (const k in f) if (k.startsWith('tablet:')) { f['taught:read'] = true; break; }
+    // what, if anything, the moment asks for (first match wins)
+    let want = null;
+    // strike: a live foe close by and no blow struck yet
+    if (!T('strike') && foe < (cur === 'strike' ? 150 : 110)) want = 'strike';
+    // anchor: a timed door that has already shut on them (or that they have stood at, shut, for three seconds), then
+    // shown by the door, by its plate, and for as long as an anchor is down, until the first return
+    const d = World.doors && World.doors[scId];
+    if (!T('anchor') && d && !d.latched && d.x >= 0) {
+      const m = s.doors[scId] || (s.doors[scId] = { open: false, fail: false, t: 0, timed: !ROOMS[scId].grid.join('').includes('e') });
+      if (m.timed) {
+        if (m.open && !d.open) m.fail = true;
+        m.open = d.open;
+        const nearDoor = Math.abs(cx - d.x) < 80, plate = this.entities.find((e) => e instanceof Plate && e.screen === scId);
+        if (nearDoor && !d.open) m.t += dt;
+        if (!want && (m.fail || m.t >= 3) && (nearDoor || pl.anchor || (plate && dist(cx, cy, plate.x + 8, plate.y) < 90))) want = 'anchor';
+      }
+    }
+    // cast: a real target of the chosen power in its box (echo: standing on a plate); select: only another power has one
+    if (list.length && s.tick % 6 === 0) {
+      const real = (id) => pl.thread >= POWERS[id].cost && !(pl.cds[id] > 0) && (id === 'echo' ? this.entities.some((e) => e instanceof Plate && e.pressed && e.screen === scId) : pl.castTargets(id).some((g) => g.kind !== 'self'));
+      const sel = list[this.powerIndex], selReal = !!sel && real(sel);
+      s.cast = selReal && !T('cast:' + sel) ? 'cast:' + sel : !selReal && list.length > 1 && !T('select') && list.some((id) => id !== sel && real(id)) ? 'select' : null;
+    }
+    s.tick++;
+    if (!want && list.length && s.cast && !T(s.cast)) want = s.cast;
+    // skip: from the moment it is his until the first one
+    if (!want && this.has('dash') && !T('dash')) want = 'dash';
+    // focus: hurt, thread to spend, standing still for two seconds with nothing near
+    const calm = !T('heal') && pl.hp < pl.maxHp && pl.thread >= HEAL_COST && pl.onGround && Math.abs(pl.vx) < 5 && foe > 170 && !World.bossActive && !busy;
+    s.still = calm ? s.still + dt : 0;
+    if (!want && s.still >= 2) want = 'heal';
+    // the map: once, for a few seconds, after the first rest
+    if (this.mapHintT > 0 && !busy && !want) { want = 'map'; this.mapHintT -= dt; if (this.mapHintT <= 0) this.teach('map'); }
+    // moving: only for someone who has stood where they woke for six seconds
+    if (!T('move')) { s.idle += dt; if (!want && s.idle > 6) want = 'move'; }
+    const p = this.prompt;
+    if (p) {
+      p.t += dt; p.text = this.promptText(p.id);
+      if (p.end === undefined && p.id !== want) p.end = p.t; // the need has passed or been met: fade
+      if (p.end !== undefined && p.t - p.end > 0.5) this.prompt = null;
+    } else if (want && !busy) {
+      s.lead = s.leadId === want ? s.lead + dt : 0; s.leadId = want;
+      if (s.lead >= 0.25) { this.prompt = { id: want, text: this.promptText(want), t: 0 }; s.leadId = null; }
+    } else s.leadId = null;
+  },
   startBoss(b) {
     this.pendingBosses = this.pendingBosses.filter((x) => x !== b);
     World.bossActive = true;
     AudioSys.sfx('gate'); World.shake = 0.3;
-    const sc = Story.bosses[b.type];
+    const sc = Story.bosses[b.type], intro = sc.intro || [], card = intro.find((s) => s.title);
+    // A guardian with nothing to say gets no scene: the doors shut, a beat passes, its name rises and the fight is on.
+    if (!intro.some((s) => !s.title)) { this.bossIntro = { b, t: 0.9, title: card ? card.title : '' }; return; }
     this.playCutscene(sc.intro, () => { b.active = true; AudioSys.playTheme('boss'); }, true);
   },
   bossDefeated(b) {
@@ -431,6 +558,7 @@ const Game = {
   // ---- loop ---------------------------------------------------------------
   frame(ts) {
     let dt = (ts - this.last) / 1000; this.last = ts;
+    this.watchFrame(dt * 1000);
     if (dt > 0.1) dt = 0.1;
     this.acc += dt;
     Input.poll();
@@ -449,7 +577,7 @@ const Game = {
       case 'cutscene': Cutscene.update(dt); if (Cutscene.overlay) this.stepParticles(dt); break;
       case 'play': this.stepPlay(dt); break;
       case 'rite': this.stepRite(dt); break;
-      case 'overlay': this.stepParticles(dt); this.overlayT += dt; if (Input.hit('confirm') && this.overlayT > 0.6) { const o = this.overlay; this.overlay = null; this.rite = null; this.state = 'play'; if (o.onClose) o.onClose(); const q = this.riteQueue.shift(); if (q) this.startRite(q.kind, q.p, q.card); } break;
+      case 'overlay': this.stepParticles(dt); this.overlayT += dt; if (Input.hit('confirm') && this.overlayT > 0.6) { const o = this.overlay; this.overlay = null; this.rite = null; this.state = 'play'; this.quietT = 0; if (o.onClose) o.onClose(); const q = this.riteQueue.shift(); if (q) this.startRite(q.kind, q.p, q.card); } break;
       case 'map': if (Input.hit('map') || Input.hit('pause')) { this.state = 'play'; AudioSys.sfx('menu'); } break;
       case 'pause': this.stepPause(); break;
       case 'journal': this.stepJournal(); break;
@@ -515,11 +643,18 @@ const Game = {
     if (World.bossActive && !Cutscene.active) {
       const live = this.entities.some((e) => e instanceof Boss && !e.dead);
       if (!live) { World.bossActive = false; World.tileVersion++; }
-      else { const b = this.entities.find((e) => e instanceof Boss && !e.dead && !e.active && !this.pendingBosses.includes(e)); if (b) b.active = true; }
+      else { const b = this.entities.find((e) => e instanceof Boss && !e.dead && !e.active && !this.pendingBosses.includes(e) && !(this.bossIntro && this.bossIntro.b === e)); if (b) b.active = true; }
+    }
+    if (this.bossIntro) {
+      const bi = this.bossIntro; bi.t -= dt;
+      if (bi.t <= 0 || bi.b.dead) { this.bossIntro = null; if (!bi.b.dead) { bi.b.active = true; AudioSys.playTheme('boss'); if (bi.title) UI.showBanner(bi.title, ''); } }
     }
     if (Input.hit('pause')) { this.state = 'pause'; UI.menuIndex = 0; AudioSys.sfx('menu'); return; }
-    if (Input.hit('map')) { this.state = 'map'; AudioSys.sfx('menu'); return; }
-    if (this.pendingDialogue) { const d = this.pendingDialogue; this.pendingDialogue = null; this.playCutscene(d, null, true); return; }
+    if (Input.hit('map')) { this.state = 'map'; this.teach('map'); AudioSys.sfx('menu'); return; }
+    // scripted scenes wait their turn: never inside the quiet gap after another scene or card, never mid-fight
+    if (this.pendingDialogue) { const d = this.pendingDialogue; this.pendingDialogue = null; if (d.length && !(d.minor && this.quietT < QUIET_GAP)) this.sayQueue.push(d); }
+    this.quietT += dt;
+    if (this.sayQueue.length && this.quietT >= QUIET_GAP && !World.bossActive && this.player.onGround) { this.playCutscene(this.sayQueue.shift(), null, true); return; }
     if (this.pendingEnding) { this.pendingEnding = false; this.playEnding(); return; }
     if (this.bossDefeatTimer > 0) {
       this.bossDefeatTimer -= dt;
@@ -555,6 +690,7 @@ const Game = {
     this.projectiles = this.projectiles.filter((p) => !p.dead);
     if (this.state !== 'play') return;
     this.trackScreen(false);
+    this.stepPrompts(dt);
     // boss trigger
     for (const b of this.pendingBosses) {
       const a = b.arena, cx = pl.x + pl.w / 2;
@@ -664,6 +800,19 @@ const Game = {
     }
     ctx.restore();
   },
+  // Particles are soft round motes, not squares: a bright core in a faint halo of the same colour, each with its own
+  // slight size and brightness (seeded by its lifetime, so nothing flickers), shrinking as it dies.
+  drawParticles(ctx) {
+    const ps = this.particles; if (!ps.length) return;
+    ctx.save();
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i], k = clamp(p.life / p.max, 0, 1), v = Ink.n(Math.floor(p.max * 9973), 3);
+      const r = Math.max(0.3, p.size * (0.22 + 0.16 * v) * (0.5 + 0.5 * k)), a = Math.min(1, k * 1.6) * (0.7 + 0.3 * v);
+      if (p.size >= 1.5) Paint.glow(ctx, p.x, p.y, r * 4.5, p.color, a * 0.35);
+      ctx.globalAlpha = a; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  },
   draw() {
     const ctx = this.ctx, t = this.t;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -680,13 +829,15 @@ const Game = {
       shy = amp * (Math.sin(t * 53.1 + 2.1) * 0.6 + Math.sin(t * 29.9 + 0.4) * 0.4);
     }
     Art.drawBackground(ctx, World.room.region, t, cam);
-    // world space: magnified by ZOOM, scrolled by the camera
-    const zk = this.riteZoom();
+    // world space: magnified by ZOOM, scrolled by the camera; the scroll is snapped to whole backing px (1 / RS of a
+    // logical px) so the terrain chunks land 1:1 on the backing store and nothing shimmers
+    const zk = this.riteZoom(), snap = (v) => Math.round(v * RS) / RS; let wt;
     if (zk > 1) {
       const Z = ZOOM * zk, e = (zk - 1) / 0.32, fx = cam.x + VW / 2 + (this.rite.x - cam.x - VW / 2) * e, fy = cam.y + VH / 2 + (this.rite.y - cam.y - VH / 2) * e;
-      ctx.setTransform(Z, 0, 0, Z, Math.round(VIEW_W / 2 - fx * Z) + shx, Math.round(VIEW_H / 2 - fy * Z) + shy);
+      wt = [Z, snap(VIEW_W / 2 - fx * Z + shx), snap(VIEW_H / 2 - fy * Z + shy)];
       this.focus = { x: VIEW_W / 2 - (fx - this.rite.x) * Z, y: VIEW_H / 2 - (fy - this.rite.y) * Z };
-    } else { ctx.setTransform(ZOOM, 0, 0, ZOOM, -Math.round(cam.x * ZOOM) + shx, -Math.round(cam.y * ZOOM) + shy); this.focus = null; }
+    } else { wt = [ZOOM, snap(-cam.x * ZOOM + shx), snap(-cam.y * ZOOM + shy)]; this.focus = null; }
+    ctx.setTransform(wt[0], 0, 0, wt[0], wt[1], wt[2]);
     World.draw(ctx, t, cam);
     const pl = this.player;
     if (pl.anchor) Art.drawAnchor(ctx, pl.anchor, t);
@@ -695,7 +846,7 @@ const Game = {
     for (const p of this.projectiles) p.draw(ctx, t);
     this.drawPowerFx(ctx, t);
     pl.draw(ctx, t);
-    for (const p of this.particles) p.draw(ctx);
+    this.drawParticles(ctx);
     if (this.rite && this.focus) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       const r = this.rite, k = this.state === 'rite' ? Math.min(1, this.riteT / r.dur) : 1, f = this.focus;
@@ -711,7 +862,7 @@ const Game = {
       ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2 * Math.min(1, k * 1.2)); ctx.stroke();
       for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; const len = 3 + 5 * Ink.n(i, 4); ctx.beginPath(); ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); ctx.lineTo(Math.cos(a) * (R + len), Math.sin(a) * (R + len)); ctx.stroke(); }
       ctx.restore();
-      ctx.setTransform(ZOOM * zk, 0, 0, ZOOM * zk, 0, 0);
+      ctx.setTransform(wt[0], 0, 0, wt[0], wt[1], wt[2]);
     }
     for (const f of this.floaters) {
       const k = f.t / f.life;
@@ -725,14 +876,10 @@ const Game = {
         ctx.lineWidth = 2; ctx.strokeStyle = '#0a0810'; ctx.strokeText(f.text, f.x, f.y); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y); ctx.restore();
       }
     }
-    if (!pl.dead) {
-      const g = ctx.createRadialGradient(pl.x + pl.w / 2, pl.y + 10, 6, pl.x + pl.w / 2, pl.y + 10, 80);
-      g.addColorStop(0, 'rgba(255,214,150,0.12)'); g.addColorStop(1, 'rgba(255,214,150,0)');
-      ctx.fillStyle = g; ctx.fillRect(pl.x - 90, pl.y - 90, 200, 200);
-    }
+    if (!pl.dead) Paint.glow(ctx, pl.x + pl.w / 2, pl.y + 10, 84, '#ffd696', 0.13); // the light he carries: a wide soft pool
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     Art.drawAtmosphere(ctx, World.room.region, t, cam);
-    Paint.vignette(ctx, VIEW_W, VIEW_H, 0.42); Paint.grain(ctx, VIEW_W, VIEW_H, 0.06, t);
+    Paint.vignette(ctx, VIEW_W, VIEW_H, 0.6); Paint.grain(ctx, VIEW_W, VIEW_H, 0.06, t);
     if (this.timeScale < 1 || this.stopFx > 0) Art.drawTimeFx(ctx, t, this.timeScale, this.stopFx > 0);
     if (this.restGlow > 0) { const a = Math.min(0.35, this.restGlow * 0.4); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.2, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.9); g.addColorStop(0, `rgba(255,214,140,${a * 0.5})`); g.addColorStop(1, 'rgba(255,190,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.hurtFlash > 0) { const a = Math.min(0.5, this.hurtFlash); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85); g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, `rgba(200,10,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }

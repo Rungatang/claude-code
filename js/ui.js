@@ -45,7 +45,7 @@ function uiMask(ctx, x, y, on, t, i) {
     ctx.globalAlpha = breath;
     Paint.shape(ctx, pts, { fill: '#ece2cc', light: '#fffaf0', shade: '#c4b394', ink: 'rgba(26,20,30,0.8)', w: 1.5 });
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(x + 3.2, y + 3, 1.6, 4); // the small specular on the glass
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + 3.7, y + 3.4); ctx.quadraticCurveTo(x + 3.9, y + 5.4, x + 4.9, y + 6.8); ctx.stroke(); // the small specular on the glass, following its curve
     ctx.fillStyle = 'rgba(255,208,140,0.95)'; ctx.beginPath(); ctx.moveTo(x + 3.2, y + h - 3); ctx.lineTo(x + w - 3.2, y + h - 3); ctx.lineTo(x + w / 2, y + h - 7); ctx.closePath(); ctx.fill(); // sand resting in the lower bulb
   } else {
     Paint.shape(ctx, pts, { fill: 'rgba(18,14,24,0.6)', ink: 'rgba(214,200,172,0.35)', w: 1.2 });
@@ -54,12 +54,13 @@ function uiMask(ctx, x, y, on, t, i) {
 }
 
 const UI = {
-  // hints show only for a budget of play seconds after they first become relevant, then fall silent (mystery)
-  hintLive(key, budget) {
-    const save = Game.save; if (!save) return true;
-    const t = save.hintT || (save.hintT = {});
-    if (Game.state === 'play' && !Game.paused) t[key] = (t[key] || 0) + 1 / 60;
-    return (t[key] || 0) < budget;
+  // The one contextual prompt (Game.prompt, see Game.stepPrompts): a bare key in thin pale serif near the bottom
+  // centre, soft shadow, no box. It fades in when the need arises and out when the need is met or gone.
+  drawPrompt(ctx) {
+    const p = Game.prompt; if (!p || !p.text || Game.state !== 'play') return;
+    const a = p.end === undefined ? clamp(p.t / 0.7, 0, 1) : clamp(p.end / 0.7, 0, 1) * clamp(1 - (p.t - p.end) / 0.5, 0, 1);
+    const fight = World.bossActive && Game.entities.some((e) => e instanceof Boss && e.active && !e.dead); // the guardian's bar owns the bottom edge
+    uiText(ctx, p.text, VIEW_W / 2, VIEW_H - (fight ? 64 : 18), { font: '16px Georgia, serif', color: '#efe7d6', align: 'center', alpha: a * 0.92, spacing: 2, blur: 7, shadow: 'rgba(4,3,8,0.95)' });
   },
   menuIndex: 0, journalIndex: 0,
   pauseItems: ['Resume', 'Memories', 'Stuck? Back to lantern', 'Quit to Title'],
@@ -71,9 +72,11 @@ const UI = {
   // drawn in world space (magnified), so sizes are divided by the zoom
   prompt(ctx, x, y, text) {
     const z = ZOOM;
-    y -= 12; // callers pass the top of the hitbox; props (lanterns, signs) carry art above it, so the caption floats clear
+    // interact captions ('UP: rest' / 'read' / 'talk') are a bare arrow over the thing, until that kind of thing has been used once
+    const kind = /^UP: (\w+)/.exec(text); if (kind) { if (Game.save.flags['taught:' + kind[1]]) return; text = '↑'; }
+    y -= kind ? 17 : 12; // callers pass the top of the hitbox; props (lanterns, signs) carry art above it, so the caption floats clear
     ctx.save();
-    ctx.font = (10 / z).toFixed(1) + 'px Georgia, serif'; ctx.textAlign = 'center';
+    ctx.font = ((kind ? 14 : 10) / z).toFixed(1) + 'px Georgia, serif'; ctx.textAlign = 'center';
     const w = ctx.measureText(text).width;
     // a soft dark halo so the pale words read over a lantern's glow
     const g = ctx.createRadialGradient(x, y - 2 / z, 1, x, y - 2 / z, w * 0.8);
@@ -83,7 +86,7 @@ const UI = {
     ctx.fillStyle = 'rgba(4,3,8,0.6)'; ctx.fillText(text, x, y);
     ctx.fillStyle = this.PAPER; ctx.fillText(text, x, y);
     ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(233,223,200,0.7)';
-    ctx.fillRect(x - w / 2, y + 2 / z, w, 0.5); // a hairline under the words, like a caption
+    if (!kind) ctx.fillRect(x - w / 2, y + 2 / z, w, 0.5); // a hairline under the words, like a caption
     ctx.restore();
     ctx.textAlign = 'left';
   },
@@ -113,19 +116,22 @@ const UI = {
     if (who) {
       const ps = 112, px = bx + 26, py = VIEW_H - ps - 10;
       // the portrait is drawn into an offscreen canvas and softened at the edges with a radial mask
-      if (!this._pc) { this._pc = document.createElement('canvas'); this._pc.width = this._pc.height = 128; }
-      const key = 'm' + ps;
+      // (128 logical px square, painted at the render scale so the portrait is as crisp as the text beside it)
+      const pq = Math.max(1, Math.ceil(RS)), PN = 128 * pq;
+      if (!this._pc || this._pc.width !== PN) { this._pc = document.createElement('canvas'); this._pc.width = this._pc.height = PN; this._pmKey = ''; }
+      const key = 'm' + ps + ':' + pq;
       if (this._pmKey !== key) {
-        const m = document.createElement('canvas'); m.width = m.height = 128; const mc = m.getContext('2d');
+        const m = document.createElement('canvas'); m.width = m.height = PN; const mc = m.getContext('2d'); mc.scale(pq, pq);
         const rg = mc.createRadialGradient(64, 60, ps * 0.3, 64, 60, ps * 0.56); rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(0.75, 'rgba(0,0,0,0.85)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
         mc.fillStyle = rg; mc.fillRect(0, 0, 128, 128); this._pm = m; this._pmKey = key;
       }
       const pc = this._pc.getContext('2d');
-      pc.setTransform(1, 0, 0, 1, 0, 0); pc.globalCompositeOperation = 'source-over'; pc.clearRect(0, 0, 128, 128);
+      pc.setTransform(1, 0, 0, 1, 0, 0); pc.globalCompositeOperation = 'source-over'; pc.clearRect(0, 0, PN, PN);
+      pc.setTransform(pq, 0, 0, pq, 0, 0);
       pc.save(); pc.translate(64 - ps / 2, 60 - ps / 2); Art.drawPortrait(pc, who, 0, 0, ps, mood, t); pc.restore();
-      pc.globalCompositeOperation = 'destination-in'; pc.drawImage(this._pm, 0, 0); pc.globalCompositeOperation = 'source-over';
+      pc.setTransform(1, 0, 0, 1, 0, 0); pc.globalCompositeOperation = 'destination-in'; pc.drawImage(this._pm, 0, 0); pc.globalCompositeOperation = 'source-over';
       Paint.glow(ctx, px + 64, py + 60, 72, '#8a7a6a', 0.2);
-      ctx.drawImage(this._pc, px, py);
+      ctx.drawImage(this._pc, px, py, 128, 128);
       tx = px + 128 + 2;
     }
     // the name in small, tracked capitals
@@ -179,9 +185,9 @@ const UI = {
     ctx.restore();
     // hints beneath: thin pale text, no plate
     let hy = 77;
-    if (pl.anchor) { uiText(ctx, '⚓ anchor ' + (pl.anchor.ride ? 'riding' : 'set') + '  (F returns, ' + RECALL_COST + ' thread)', 16, hy, { font: '10px Georgia, serif', color: '#f0d9a4' }); hy += 13; }
-    else if (Game.save.flags['scene:A2'] && UI.hintLive('anchor', 60)) { uiText(ctx, 'F: set anchor', 16, hy, { font: '10px Georgia, serif', color: '#9d9686' }); hy += 13; }
-    if (pl.hp < pl.maxHp && pl.thread >= HEAL_COST && (pl.focusing || UI.hintLive('focus', 45))) uiText(ctx, pl.focusing ? 'focusing...' : 'Hold H: focus (' + HEAL_COST + ' thread = 1 hour)', 16, hy, { font: '10px Georgia, serif', color: pl.focusing ? '#ffd27a' : '#c8bc9e', glow: pl.focusing ? 'rgba(255,210,122,0.8)' : null });
+    // (state only, never a control: keys are named by the contextual prompt, once, at the need)
+    if (pl.anchor) { uiText(ctx, pl.anchor.ride ? '⚓ riding' : '⚓', 16, hy, { font: '10px Georgia, serif', color: '#f0d9a4' }); hy += 13; }
+    this.drawPrompt(ctx);
     // powers: soft round seals along the top right, the chosen one lifted and glowing
     const list = Game.powerList();
     list.forEach((id, i) => {
@@ -203,8 +209,7 @@ const UI = {
       if (id === 'hold' && Game.held) drawHeldRing(ctx, x - r - 5, y + r - 2, 3.5, Game.held.t / Game.held.dur);
       if (sel) uiText(ctx, p.name + '  (' + p.cost + ')', VIEW_W - 14, 48, { font: '11px Georgia, serif', color: '#efe7d6', align: 'right' });
     });
-    if (list.length) uiText(ctx, 'Q / E select   V cast', VIEW_W - 14, 61, { font: '9px Georgia, serif', color: '#8e8778', align: 'right' });
-    uiText(ctx, '◆ ' + Game.shardCount() + ' / ' + Story.shards.length, VIEW_W - 14, list.length ? 76 : 48, { font: '11px Georgia, serif', color: '#e6d8ff', align: 'right' });
+    uiText(ctx, '◆ ' + Game.shardCount() + ' / ' + Story.shards.length, VIEW_W - 14, list.length ? 63 : 48, { font: '11px Georgia, serif', color: '#e6d8ff', align: 'right' });
     // boss bar with poise: a thin pale bar on a soft dark wash, the name in serif above
     const boss = Game.entities.find((e) => e instanceof Boss && e.active && !e.dead);
     if (boss) {
@@ -306,7 +311,7 @@ const UI = {
     ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     Paint.vignette(ctx, VIEW_W, VIEW_H, 0.5);
     // ash drifting through the light
-    ctx.fillStyle = '#d8d4d0'; for (let i = 0; i < 60; i++) { ctx.globalAlpha = 0.15 + (i % 3) * 0.1; ctx.fillRect(((i * 7919 * 13) % VIEW_W) + Math.sin(t * 0.6 + i) * 14, (((i * 7919) % VIEW_H) + t * (8 + (i % 5) * 6)) % VIEW_H, 1 + (i % 2), 1 + (i % 2)); }
+    ctx.fillStyle = '#d8d4d0'; for (let i = 0; i < 60; i++) { ctx.globalAlpha = 0.15 + (i % 3) * 0.1; ctx.beginPath(); ctx.arc(((i * 7919 * 13) % VIEW_W) + Math.sin(t * 0.6 + i) * 14, (((i * 7919) % VIEW_H) + t * (8 + (i % 5) * 6)) % VIEW_H, 0.5 + (i % 2) * 0.45 + Ink.n(i, 9) * 0.3, 0, 6.2832); ctx.fill(); } // drifting ash: soft round motes, each its own size
     ctx.globalAlpha = 1;
     // the title: a tall thin serif with a soft glow behind it
     const breathe = 0.5 + Math.sin(t * 0.8) * 0.5;

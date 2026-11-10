@@ -6,7 +6,7 @@ where this document says "the title card", read whichever word wins.
 
 ## Voice (binding; supersedes any line below that contradicts it)
 
-1. **Tam is nearly mute.** He speaks four lines in the whole game: "Who." (wake), "Tam." (his name,
+1. **Tam is nearly mute.** He speaks four lines in the whole game: "Who." (wake, a whispered line, not a box), "Tam." (his name,
    first given), "Sef." (the confrontation), "No." (the refusal). Everyone else talks TO him; the
    player fills his silence. No inner narration, no questions, no reactions after bosses.
 2. **No one explains.** NPCs and bosses speak in fragments, habits, trade talk and small grievances.
@@ -19,10 +19,54 @@ where this document says "the title card", read whichever word wins.
    rest go quietly to the journal and must stand alone as a line worth re-reading.
 4. **Tablets are found text**: notices, ledgers, graffiti, a worker's note, a child's chalk. They may
    hint at a power by a picture or a verb; they never describe a mechanic outright, never state the
-   theme. Ability cards keep one functional sentence and no lore.
-5. **Title cards show, they do not say.** Boss subtitles are blank; tutorial hints are bare controls.
+   theme. Ability cards are a name and at most one short oblique line: no key, no lore, and nothing the
+   player cannot try in the room where the card opens.
+5. **Title cards show, they do not say.** A region card is the region's name and nothing else. A
+   guardian with nothing to say gets no scene at all: the doors shut, a beat, its name rises, the
+   fight is on. No card ever names a control.
 6. **The truth arrives as an object.** The Index's ledger (columns signed S) and the last page of
    the ledger after Sef falls ("S., one hour. Given.") carry the revelation, not speeches.
+
+7. **A prompt appears only at the need, once.** There are no tutorial cards and no standing key
+   hints on the HUD. A control is named by one quiet line at the bottom of the screen (a bare key, no
+   box, no sentence) the first time the thing it does is needed and possible, and the line goes the
+   moment the player does it; `taught:<id>` in the save keeps it from ever returning. Things a player
+   finds by pressing buttons (moving, jumping, the up-cut, the pogo) are not taught at all; a tablet may
+   carry a carving. The engine is `Game.stepPrompts`; the table is below.
+8. **Scenes are spaced.** After any scene or card, no unasked-for scene starts for 45 seconds of play
+   (`QUIET_GAP`): a queued one waits, one flagged `minor` is dropped. Talking to someone is the
+   player's choice and is never held back. Tablets never open by themselves. Nothing tells the player
+   where to go: no "east", no "up through", no "the seal is on the stone".
+
+Prompts (each shown once; glyphs follow the last device touched, keyboard / pad):
+
+| Prompt | Appears when | Text | Goes when |
+|---|---|---|---|
+| move | he has stood where he woke for 6 s | `← →  Z` / `stick  A` | he moves |
+| strike | a live foe is within about 110 px and no blow has been struck | `X` | the first blow |
+| anchor | a timed door has shut on him once, or he has stood at it shut for 3 s; shown by the door, by its plate, and while an anchor is down | `F ... F` / `Y ... Y` | the first return |
+| focus | hurt, 3 thread, still on the ground for 2 s, nothing near | `hold H` / `hold B` | half a focus held |
+| skip | the Skip is his | `C` / `RT` | the first skip |
+| cast | the chosen power has a real target in its box (Echo: he is standing on a plate) | `V` / `RB` | that power's first cast |
+| select | two powers owned, and only the one not chosen has a target | `Q  E` / `d-pad` | the first switch |
+| map | the first rest at a lantern, for five seconds | `M` / `Select` | time, or the map opened |
+| rest, read, talk | within reach of a lantern, tablet or person | `↑` over the thing | that kind of thing used once |
+
+Reveal schedule (what is on screen, in play order; nothing earlier may say more):
+
+| Beat | Where | What the player learns |
+|---|---|---|
+| Prologue (2 panels) | before A1 | Water, a ticking, a weight in the chest. No name, no place, no glass. |
+| Waking | A1 Tideline | One whispered word, "Who.", with no dialogue box. The tablet is a clearance notice; it names no one. |
+| First door | A2 Sunken Stair | A chalk drawing of a child, a nail and a door. The anchor's key only after the door has beaten him. |
+| First foes | A1 to A3 | That they were people is left to the eye. The strike key beside the first one. A workers' notice about lunges. |
+| First guardian | A4 Shallows Hall | Its name, after a beat. No words before or after. |
+| The Jetty | A5 | A kind woman, tagged `???`, gives him one thing: "Tam." She does not name herself and sends him nowhere. The Skip card is a name and a line. |
+| Rust, Glassworks, Cathedral | R, G, H | Initials only (T., S.), ledger pages as found objects, "Her." from the Escapement. Regent blamed by everything written. |
+| The fall | T1, D1 | The Regent does not know him. First mention of "the kind one" (Archivist). |
+| The Mills | M1 | The Miller says the name aloud for the first time: "Sef ran the Well. My wife." (optional to hear) |
+| The Root | U4 | Her tag turns from `???` to `Sef` as she says it herself: "Sef. You had it once. Say that too." |
+| The Clock | T2, T3 | Unchanged: the Regent's denial, "little brother", the ledger's last page. |
 
 The player's rules, all binding, restated so every section below can be checked against them:
 

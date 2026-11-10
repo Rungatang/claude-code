@@ -123,7 +123,8 @@ const bzStars = (ctx, cx, top, t) => {
 };
 
 // Offscreen used to tint the whole silhouette (white on hit, violet when withered).
-const bzFlash = { cv: null, W: 288, H: 240, get() { if (!this.cv) { this.cv = document.createElement('canvas'); this.cv.width = this.W; this.cv.height = this.H; } return this.cv; } };
+// (W x H world px, painted at the scale the world is shown at: ZOOM * RS, at least 2)
+const bzFlash = { cv: null, W: 288, H: 240, S: 2, get() { const S = Math.min(8, Math.max(2, Math.ceil(ZOOM * (typeof RS !== 'undefined' ? RS : 1)))); if (!this.cv || this.S !== S || this.cv.width !== this.W * S) { this.S = S; this.cv = document.createElement('canvas'); this.cv.width = this.W * S; this.cv.height = this.H * S; } return this.cv; } };
 
 // ---- shared body parts ------------------------------------------------------
 // Eyes that pick up the telegraph colour.
@@ -823,13 +824,14 @@ Object.assign(Art, {
     }
     if (b.flash > 0 || b.withered > 0) {
       const cv = bzFlash.get(), oc = cv.getContext('2d');
-      oc.setTransform(1, 0, 0, 1, 0, 0); oc.clearRect(0, 0, bzFlash.W, bzFlash.H);
-      oc.setTransform(1, 0, 0, 1, bzFlash.W / 2, bzFlash.H - 30);
+      const fs = bzFlash.S;
+      oc.setTransform(1, 0, 0, 1, 0, 0); oc.clearRect(0, 0, cv.width, cv.height);
+      oc.setTransform(fs, 0, 0, fs, bzFlash.W / 2 * fs, (bzFlash.H - 30) * fs);
       body(oc);
       oc.setTransform(1, 0, 0, 1, 0, 0); oc.globalCompositeOperation = 'source-atop';
       oc.fillStyle = b.flash > 0 ? 'rgba(255,255,255,' + (0.55 + 0.35 * bz01(b.flash / 0.12)) + ')' : 'rgba(150,90,200,0.4)';
-      oc.fillRect(0, 0, bzFlash.W, bzFlash.H); oc.globalCompositeOperation = 'source-over';
-      ctx.drawImage(cv, cx - bzFlash.W / 2, bottom - bzFlash.H + 30);
+      oc.fillRect(0, 0, cv.width, cv.height); oc.globalCompositeOperation = 'source-over';
+      ctx.drawImage(cv, cx - bzFlash.W / 2, bottom - bzFlash.H + 30, bzFlash.W, bzFlash.H);
     } else { ctx.save(); ctx.translate(cx, bottom); body(ctx); ctx.restore(); }
     bzTell(ctx, b, p, cx, bottom, b.y);
     if (p.stagger) bzStars(ctx, cx, b.y + 4, t);

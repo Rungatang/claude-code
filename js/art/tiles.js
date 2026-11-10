@@ -35,13 +35,32 @@ const TILE_PATH = (ctx, pts) => { ctx.beginPath(); for (let i = 0; i < pts.lengt
 const TILE_VW = () => (typeof VW !== 'undefined' ? VW : VIEW_W), TILE_VH = () => (typeof VH !== 'undefined' ? VH : VIEW_H);
 
 Object.assign(Art, {
-  roomTiles(world) {
-    const key = world.zoneId + ':' + world.tileVersion;
+  // The whole zone as one canvas at S cache px per world px (default 1). The game itself draws the terrain from
+  // resolution-matched chunks (drawRoomTiles below); this whole-zone form is for the review sheets in tools/.
+  roomTiles(world, S) {
+    S = S || 1;
+    const key = world.zoneId + ':' + world.tileVersion + ':' + S;
     if (this.tileCache && this.tileCacheKey === key) return this.tileCache;
+    const c = this._paintTiles(world, S, 0, 0, world.W, world.H, 0);
+    this.tileCache = c; this.tileCacheKey = key;
+    this._growKey = ''; // the growing things are rebuilt lazily by drawDynamicTiles
+    return c;
+  },
+  // Paint the terrain of the world rect (OX, OY, CW, CH), plus PADW world px of margin all round, into a new canvas at
+  // S cache px per world px. Everything below draws in world coordinates; blurs are scaled by S. The painting is
+  // deterministic (seeded per zone), so neighbouring chunks agree along their shared edge.
+  _paintTiles(world, S, OX, OY, CW, CH, PADW) { const g = this._paintTilesGen(world, S, OX, OY, CW, CH, PADW); let r; do r = g.next(); while (!r.done); return r.value; },
+  // (a generator: it yields between its stages, so a chunk painted ahead of the camera can be spread over frames)
+  *_paintTilesGen(world, S, OX, OY, CW, CH, PADW) {
     const region = world.room.region, p = PALETTES[region], st = TILE_STYLES[region] || TILE_STYLES.shore;
     const W = world.W, H = world.H, T = TILE, ZW = world.zone.W, ZH = world.zone.H, tiles = world.tiles, decor = world.decor || [];
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const RX = OX - PADW, RY = OY - PADW, RW = CW + PADW * 2, RH = CH + PADW * 2; // the painted rect, world px
+    const c = document.createElement('canvas'); c.width = Math.round(RW * S); c.height = Math.round(RH * S);
     const ctx = c.getContext('2d');
+    ctx.setTransform(S, 0, 0, S, -RX * S, -RY * S);
+    // tiles worth painting for this rect (three tiles of slack for details that reach out of their tile)
+    const vx0 = Math.floor(RX / T) - 3, vx1 = Math.floor((RX + RW) / T) + 3, vy0 = Math.floor(RY / T) - 3, vy1 = Math.floor((RY + RH) / T) + 3;
+    const vis = (x, y) => x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1;
     // Outside the zone counts as rock for the depth field (so border rock has no false 'exposed' face),
     // but as AIR for the contour loops: every island, including the border frame, must close into a
     // loop or the evenodd fill inverts in a fully enclosed room.
@@ -61,9 +80,11 @@ Object.assign(Art, {
     const organic = st.strata === 'wavy';
 
     // ---- depth field: how far each rock tile is from air (0 = exposed face)
-    const depth = []; const q = [];
-    for (let y = 0; y < ZH; y++) { const row = new Int8Array(ZW); for (let x = 0; x < ZW; x++) { if (solid(x, y)) row[x] = 9; else { row[x] = 0; q.push(x, y); } } depth.push(row); }
-    for (let i = 0; i < q.length; i += 2) {
+    // (the depth field and the contour are the same for every chunk of a zone: kept until a tile changes)
+    const sig = tiles.map((r) => r.join('')).join('/'); let pc = this._tilePrep; if (!pc || pc.world !== world || pc.sig !== sig) pc = null;
+    const depth = pc ? pc.depth : []; const q = [];
+    if (!pc) for (let y = 0; y < ZH; y++) { const row = new Int8Array(ZW); for (let x = 0; x < ZW; x++) { if (solid(x, y)) row[x] = 9; else { row[x] = 0; q.push(x, y); } } depth.push(row); }
+    if (!pc) for (let i = 0; i < q.length; i += 2) {
       const x = q[i], y = q[i + 1], d = depth[y][x] + 1; if (d > 7) continue;
       if (x > 0 && depth[y][x - 1] > d) { depth[y][x - 1] = d; q.push(x - 1, y); }
       if (x < ZW - 1 && depth[y][x + 1] > d) { depth[y][x + 1] = d; q.push(x + 1, y); }
@@ -71,6 +92,7 @@ Object.assign(Art, {
       if (y < ZH - 1 && depth[y + 1][x] > d) { depth[y + 1][x] = d; q.push(x, y + 1); }
     }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 1. the contour of every rock island, traced as closed loops (solid kept on the right hand), then eroded
     // inward along slow profiles and rounded at convex corners. The loops become ONE path: the painted mass is
     // clipped to it, the ink is stroked along it. Erosion only ever removes rock, so the grid stays the collision.
@@ -83,7 +105,7 @@ Object.assign(Art, {
     const topY = (px, tx, ty) => ty * T + topE(px, tx, ty), botY = (px, tx, ty) => (ty + 1) * T - botE(px, tx, ty);
     const edges = new Map();
     const addE = (vx, vy, dx, dy, tx, ty) => { const k = vx + ',' + vy; let a = edges.get(k); if (!a) { a = []; edges.set(k, a); } a.push({ vx, vy, dx, dy, tx, ty, used: false }); };
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
+    if (!pc) for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       if (!solidIn(x, y)) continue;
       if (!solidIn(x, y - 1)) addE(x, y, 1, 0, x, y);
       if (!solidIn(x, y + 1)) addE(x + 1, y + 1, -1, 0, x, y);
@@ -105,9 +127,9 @@ Object.assign(Art, {
     }
     // merge collinear unit edges into segments, then sample each segment with its erosion offset
     const R = organic ? 5.5 : 3.2;
-    const shape = new Path2D();
-    const runs = { t: [], b: [], l: [], r: [] }; // contour sample runs per facing, for rim light and shadow bands
-    for (const loop of loops) {
+    const shape = pc ? pc.shape : new Path2D();
+    const runsAll = pc ? pc.runs : { t: [], b: [], l: [], r: [] }, runs = {}; // contour sample runs per facing, for rim light and shadow bands
+    if (!pc) for (const loop of loops) {
       const segs = [];
       for (const e of loop) { const last = segs[segs.length - 1]; if (last && last.dx === e.dx && last.dy === e.dy) { last.len++; last.tiles.push([e.tx, e.ty]); } else segs.push({ x0: e.vx, y0: e.vy, dx: e.dx, dy: e.dy, len: 1, tiles: [[e.tx, e.ty]] }); }
       if (segs.length > 1 && segs[0].dx === segs[segs.length - 1].dx && segs[0].dy === segs[segs.length - 1].dy) { const a = segs.pop(); segs[0].x0 = a.x0; segs[0].y0 = a.y0; segs[0].len += a.len; segs[0].tiles = a.tiles.concat(segs[0].tiles); }
@@ -139,12 +161,23 @@ Object.assign(Art, {
       let i0 = 0;
       while (i0 < pts.length) {
         const f = tags[i0]; let i1 = i0; while (i1 + 1 < pts.length && tags[i1 + 1] === f) i1++;
-        if (runs[f] && i1 > i0) { const run = pts.slice(Math.max(0, i0 - 1), Math.min(pts.length, i1 + 2)); if (i0 === 0) run.unshift(pts[pts.length - 1]); runs[f].push(run); }
+        if (runsAll[f] && i1 > i0) { const run = pts.slice(Math.max(0, i0 - 1), Math.min(pts.length, i1 + 2)); if (i0 === 0) run.unshift(pts[pts.length - 1]); runsAll[f].push(run); }
         i0 = i1 + 1;
       }
     }
-    const strokeRun = (run, w, col, dx, dy, blur) => { ctx.save(); if (blur) ctx.filter = 'blur(' + blur + 'px)'; ctx.beginPath(); Ink.smoothPath(ctx, run.map(([x, y]) => [x + dx, y + dy]), false); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); ctx.restore(); };
+    // only the runs that touch this rect, and all of one band in a single (optionally blurred) stroke
+    if (!pc) this._tilePrep = { world, sig, depth, shape, runs: runsAll };
+    for (const f of ['t', 'b', 'l', 'r']) runs[f] = runsAll[f].filter((run) => { let a = Infinity, b = -Infinity, c2 = Infinity, d = -Infinity; for (const q2 of run) { if (q2[0] < a) a = q2[0]; if (q2[0] > b) b = q2[0]; if (q2[1] < c2) c2 = q2[1]; if (q2[1] > d) d = q2[1]; } return b > RX - 28 && a < RX + RW + 28 && d > RY - 28 && c2 < RY + RH + 28; });
+    const strokeRuns = (g, list, w, col, dx, dy, blur, cap) => { if (!list.length) return; g.save(); if (blur) g.filter = 'blur(' + blur + 'px)'; g.beginPath(); for (const run of list) Ink.smoothPath(g, run.map(([x, y]) => [x + dx, y + dy]), false); g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.lineCap = cap || 'round'; g.stroke(); g.restore(); };
+    // Everything soft (the depth shadow, the blurred edge bands, the halo) is painted and blurred on a scratch canvas at one
+    // px per world px, over this rect plus a margin, and laid onto the cache scaled up: a blur of several world px loses
+    // nothing that way, and blurring at the cache's own resolution would cost S * S times as much.
+    const DM = 24, LW = Math.ceil(RW) + DM * 2, LH = Math.ceil(RH) + DM * 2;
+    const low = (fn) => { const lc = document.createElement('canvas'); lc.width = LW; lc.height = LH; const g = lc.getContext('2d'); g.translate(-(RX - DM), -(RY - DM)); fn(g); return lc; };
+    const lowBlur = (lc, px) => { const bc = document.createElement('canvas'); bc.width = LW; bc.height = LH; const g = bc.getContext('2d'); g.filter = 'blur(' + px + 'px)'; g.drawImage(lc, 0, 0); return bc; };
+    const drawLow = (lc) => ctx.drawImage(lc, RX - DM, RY - DM, LW, LH);
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 2. the painted mass, clipped to the contour
     ctx.save(); ctx.clip(shape, 'evenodd');
     ctx.fillStyle = rockFill; ctx.fillRect(0, 0, W, H);
@@ -155,6 +188,7 @@ Object.assign(Art, {
     for (let i = 0; i < nb; i++) {
       const cx = rng() * W, cy = rng() * H, r = 26 + rng() * 80, isLt = rng() < 0.45;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, isLt ? lt(0.1) : ink2(0.26)); g.addColorStop(1, isLt ? lt(0) : ink2(0));
+      if (cx + r < RX || cx - r > RX + RW || cy + r < RY || cy - r > RY + RH) continue;
       ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
     if (st.strata === 'wavy') {
@@ -179,7 +213,7 @@ Object.assign(Art, {
       for (let y = 0; y < ZH; y++) {
         const Y = y * T, off = (y % 2) * T;
         for (let x = 0; x < ZW; x++) {
-          if (!solid(x, y) || depth[y][x] > 2) continue;
+          if (!vis(x, y) || !solid(x, y) || depth[y][x] > 2) continue;
           const X = x * T, s = x * 131 + y * 17;
           ctx.fillStyle = ink2(0.2); ctx.fillRect(X, Y, T, 1);
           if ((x * T + off) % (2 * T) === 0) { ctx.fillStyle = ink2(0.2); ctx.fillRect(X, Y + 1, 1, T - 1); }
@@ -192,6 +226,7 @@ Object.assign(Art, {
       const PS = 3;
       for (let y = 0; y < ZH; y += PS) for (let x = -(Math.floor(y / PS) % 2); x < ZW; x += PS) {
         const X = x * T, Y = y * T, s = x * 131 + y * 17, S = PS * T;
+        if (!vis(x, y) && !vis(x + PS, y + PS)) continue;
         let any = false; for (let yy = 0; yy < PS && !any; yy++) for (let xx = 0; xx < PS; xx++) if (solid(x + xx, y + yy) && depth[Math.min(ZH - 1, y + yy)][clamp(x + xx, 0, ZW - 1)] <= 3) { any = true; break; }
         if (!any) continue;
         ctx.fillStyle = n(s, 1) < 0.5 ? lt(0.04) : ink2(0.1); ctx.fillRect(X + 1, Y + 1, S - 2, S - 2);
@@ -208,7 +243,7 @@ Object.assign(Art, {
     } else if (st.strata === 'brick') {
       // firebrick in long courses (one per half tile), faint mortar, a warm baked patch here and there, soot near the faces
       for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
-        if (!solid(x, y) || depth[y][x] > 3) continue;
+        if (!vis(x, y) || !solid(x, y) || depth[y][x] > 3) continue;
         const X = x * T, Y = y * T, s = x * 131 + y * 17, d = depth[y][x];
         for (let cc = 0; cc < 2; cc++) {
           const cy = Y + cc * 8, off = ((y * 2 + cc) % 2) * 12;
@@ -221,10 +256,11 @@ Object.assign(Art, {
       }
     }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 3. depth shadow (ambient occlusion: the mass darkens toward its own inside and into every inner corner)
-    const dark = document.createElement('canvas'); dark.width = W; dark.height = H; const dc = dark.getContext('2d');
+    const dark = low(() => {}), dc = dark.getContext('2d');
     const DEPTH_A = [0, 0.14, 0.36, 0.58, 0.74, 0.84, 0.9, 0.92];
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
+    for (let y = Math.max(0, vy0); y < ZH && y <= vy1; y++) for (let x = Math.max(0, vx0); x < ZW && x <= vx1; x++) {
       const X = x * T, Y = y * T;
       if (solid(x, y)) {
         const d = Math.min(depth[y][x], 7);
@@ -239,12 +275,13 @@ Object.assign(Art, {
         if (solid(x, y - 1) && solid(x + 1, y)) dc.fillRect(X + T - 8, Y, 8, 8);
       }
     }
-    ctx.filter = 'blur(6px)'; ctx.drawImage(dark, 0, 0); ctx.filter = 'none';
-    for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) if (solid(x, y) && depth[y][x] >= 4) { ctx.fillStyle = TILE_RGBA(ink2C, depth[y][x] >= 5 ? 0.5 : 0.28); ctx.fillRect(x * T, y * T, T, T); }
+    drawLow(lowBlur(dark, 6));
+    for (let y = Math.max(0, vy0); y < ZH && y <= vy1; y++) for (let x = Math.max(0, vx0); x < ZW && x <= vx1; x++) if (solid(x, y) && depth[y][x] >= 4) { ctx.fillStyle = TILE_RGBA(ink2C, depth[y][x] >= 5 ? 0.5 : 0.28); ctx.fillRect(x * T, y * T, T, T); }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 4. sparse large details embedded in the rock (one every few tiles, never a repeating texture)
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
-      if (!solid(x, y)) continue;
+      if (!vis(x, y) || !solid(x, y)) continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17, d = depth[y][x];
       if (d > 3) continue;
       switch (st.detail) {
@@ -326,26 +363,29 @@ Object.assign(Art, {
       }
     }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 5. the painted edge bands, following the eroded contour: a crust and a lighter rim along the tops, a soft
     // dark fall-off under the undersides and right faces, a faint light on the left faces
     const crustCol = { wet: TILE_MIX(p.rim, p.moss, 0.5, 0.45), moss: moss(0.6), slime: moss(0.5), dust: TILE_MIX(p.rock, p.rim, 0.55, 0.45), ash: rim(0.2), rust: TILE_MIX(p.rock, p.accent, 0.4, 0.4), soot: TILE_MIX(p.rock, p.ink, 0.55, 0.6) }[st.crust] || rim(0.3);
-    for (const run of runs.b) { strokeRun(run, 9, ink2(0.6), 0, -3.5, 3); }
-    for (const run of runs.r) { strokeRun(run, 7, ink2(0.45), -2.5, 0, 3); }
-    for (const run of runs.l) { strokeRun(run, 4, lt(0.1), 1.5, 0, 2); }
-    for (const run of runs.t) {
-      strokeRun(run, 7, crustCol, 0, 3.5, 0);
-      strokeRun(run, 6, ink2(0.3), 0, 8.5, 3);      // the face falls into shadow under the cap
-      strokeRun(run, 5, lt(0.22), 0, 2.5, 2);        // the lit rim band, soft
-      strokeRun(run, 1.2, lt(0.36), 0, 1.9, 0);      // a crisp pale hairline right under the ink
-    }
+    strokeRuns(ctx, runs.t, 5.2, crustCol, 0, 2.8, 0, 'butt');
+    drawLow(low((g) => {
+      strokeRuns(g, runs.b, 9, ink2(0.6), 0, -3.5, 3);
+      strokeRuns(g, runs.r, 7, ink2(0.45), -2.5, 0, 3);
+      strokeRuns(g, runs.l, 4, lt(0.1), 1.5, 0, 2);
+      strokeRuns(g, runs.t, 6, ink2(0.3), 0, 8.5, 3);      // the face falls into shadow under the cap
+      strokeRuns(g, runs.t, 6, lt(0.26), 0, 2.8, 2);        // the lit rim band, soft
+    }));
+    strokeRuns(ctx, runs.t, 1, lt(0.42), 0, 1.9, 0);        // a crisp pale hairline right under the ink
     ctx.restore();
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 6. the outline: one thick, smooth, still stroke along the whole contour
     ctx.save(); ctx.strokeStyle = ink2C; ctx.lineWidth = 2.8; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(shape); ctx.restore();
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 7. the static part of what hangs from the undersides: stalactites, moss clumps and pebbles on the tops
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
-      if (!solid(x, y)) continue;
+      if (!vis(x, y) || !solid(x, y)) continue;
       const X = x * T, Y = y * T, s = x * 131 + y * 17;
       if (at(x, y - 1) === '.') {
         const gy = topY(X + 8, x, y) - 0.6;
@@ -355,9 +395,10 @@ Object.assign(Art, {
       if (at(x, y + 1) === '.' && n(s, 3) < st.stal * 0.6) this._tileStal(ctx, X, botY(X + 8, x, y) - 0.5, s, n, p, rockDk);
     }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 8. fixtures: platforms, spikes, cracks, locks, rubble, door frames, loose stones
     const plank = (x, y) => at(x, y) === '=' && !vineAt(x, y);
-    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (!plank(x, y)) { x++; continue; } let x1 = x; while (x1 + 1 < ZW && plank(x1 + 1, y)) x1++; this._tilePlatform(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, st, p); x = x1 + 1; } }
+    for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (!plank(x, y)) { x++; continue; } let x1 = x; while (x1 + 1 < ZW && plank(x1 + 1, y)) x1++; if (y >= vy0 && y <= vy1 && x1 >= vx0 && x <= vx1) this._tilePlatform(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, st, p, S); x = x1 + 1; } }
     // weak floors: one fissure per run; thread bridges: one span per run; thread curtains: one fall per column
     for (let y = 0; y < ZH; y++) { let x = 0; while (x < ZW) { if (at(x, y) !== 'f') { x++; continue; } let x1 = x; while (x1 + 1 < ZW && at(x1 + 1, y) === 'f') x1++; this._tileWeakFloor(ctx, x * T, y * T, (x1 - x + 1) * T, x * 131 + y * 17, n, p, at(x, y - 1) === '.'); x = x1 + 1; } }
     const threadV = (x, y) => at(x, y) === 'b' && (at(x, y - 1) === 'b' || at(x, y + 1) === 'b');
@@ -367,6 +408,7 @@ Object.assign(Art, {
     const seenL = new Set();
     for (let y = 0; y < ZH; y++) for (let x = 0; x < ZW; x++) {
       const ch = at(x, y), X = x * T, Y = y * T, s = x * 131 + y * 17;
+      if (!vis(x, y) && ch !== 'y' && ch !== 'C' && ch !== 'L') continue;
       if (ch === '^') this._tileSpikes(ctx, X, Y, s, n, p);
       else if (ch === 's') this._tileSeed(ctx, X, Y, s, n, p);
       else if (ch === 'q' || (ch === '.' && world.orig && world.orig(x, y) === 'q')) this._tileSluiceFrame(ctx, X, Y, p); // the frame stays once the grate has rotted ('q' -> '.')
@@ -398,14 +440,11 @@ Object.assign(Art, {
       if (decor[y] && decor[y][x] === ':' && ch === '.') this._tileStones(ctx, X, Y, s, n, p, rockLt);
     }
 
+    yield; // (a pause point: chunks painted ahead of the camera are spread over several frames)
     // ---- 9. a soft dark halo under everything, on the air side, so terrain and platforms separate from the parallax
-    const halo = document.createElement('canvas'); halo.width = W; halo.height = H; const hc = halo.getContext('2d');
-    hc.drawImage(c, 0, 0); hc.globalCompositeOperation = 'source-in'; hc.fillStyle = p.ink; hc.fillRect(0, 0, W, H);
-    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.filter = 'blur(2.5px)'; ctx.globalAlpha = 0.7;
-    ctx.drawImage(halo, 0, 0); ctx.drawImage(halo, 0, 1); ctx.restore();
-
-    this.tileCache = c; this.tileCacheKey = key;
-    this._growKey = ''; // the growing things are rebuilt lazily by drawDynamicTiles
+    const halo = low((g) => { g.drawImage(c, RX, RY, RW, RH); g.globalCompositeOperation = 'source-in'; g.fillStyle = p.ink; g.fillRect(RX - DM, RY - DM, LW, LH); });
+    const hb = lowBlur(halo, 2.5), hb2 = low((g) => { g.globalAlpha = 0.7; g.drawImage(hb, RX - DM, RY - DM); g.drawImage(hb, RX - DM, RY - DM + 1); });
+    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; drawLow(hb2); ctx.restore();
     return c;
   },
 
@@ -525,12 +564,13 @@ Object.assign(Art, {
       ctx.fillStyle = TILE_RGBA(p.rim, 0.5); ctx.fillRect(sx - r * 0.5, sy - r * 0.6, r * 0.9, 1);
     }
   },
-  _tilePlatform(ctx, X, Y, L, s, n, st, p) {
+  _tilePlatform(ctx, X, Y, L, s, n, st, p, SC) {
     // A one-way platform run. It is drawn straight into a scratch canvas, then composited column by
     // column with a sag in the middle of long organic spans, under an ink drop-shadow, with ~30% of
     // runs losing one end to a break. Thickness varies per run.
     const PAD = 14, TH = 40, OY = 6;
-    const tc = document.createElement('canvas'); tc.width = L + PAD * 2; tc.height = TH; const g2 = tc.getContext('2d');
+    SC = SC || 1; // cache px per world px: the scratch canvas is painted at the cache's own resolution
+    const tc = document.createElement('canvas'); tc.width = Math.round((L + PAD * 2) * SC); tc.height = Math.round(TH * SC); const g2 = tc.getContext('2d'); g2.scale(SC, SC);
     this._platformBody(g2, PAD, OY, L, s, n, st, p);
     const organicPlat = st.plat === 'plank' || st.plat === 'bone' || st.plat === 'root';
     const broken = n(s, 88) < 0.3 && L >= 32 && st.plat !== 'rail' && st.plat !== 'ledge';
@@ -547,14 +587,18 @@ Object.assign(Art, {
       g2.strokeStyle = TILE_RGBA(p.rim, 0.5); g2.lineWidth = 0.7; g2.beginPath(); for (let i = 2; i < pts.length - 2; i += 2) { const [px, py] = pts[i]; if (py < OY || py > OY + 8) continue; g2.moveTo(px + dir * 0.5, py); g2.lineTo(px + dir * 0.5 - dir * 1.5, py + 0.6); } g2.stroke();
     }
     const S = organicPlat && L >= 48 ? 1 + n(s, 87) * 1.2 : 0;
-    const sag = (px) => Math.round(S * Math.sin(Math.PI * clamp((px - PAD) / L, 0, 1)));
+    // the sag is a smooth curve, sampled once per cache px column and snapped to whole cache px so the board stays crisp
+    const sag = (px) => Math.round(S * Math.sin(Math.PI * clamp((px / SC - PAD) / L, 0, 1)) * SC) / SC;
     // drop shadow of the whole board onto whatever is behind it
-    const sh = document.createElement('canvas'); sh.width = tc.width; sh.height = TH; const sc = sh.getContext('2d');
-    sc.drawImage(tc, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = p.ink; sc.fillRect(0, 0, sh.width, TH);
+    const sh = document.createElement('canvas'); sh.width = tc.width; sh.height = tc.height; const sc = sh.getContext('2d');
+    sc.drawImage(tc, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = p.ink; sc.fillRect(0, 0, sh.width, sh.height);
+    const TW = L + PAD * 2, col = 1 / SC;
     ctx.save(); ctx.globalAlpha = 0.45;
-    for (let px = 0; px < tc.width; px++) ctx.drawImage(sh, px, 0, 1, TH, X - PAD + px + 1, Y - OY + sag(px) + 2, 1, TH);
+    if (!S) ctx.drawImage(sh, X - PAD + 1, Y - OY + 2, TW, TH);
+    else for (let px = 0; px < tc.width; px++) ctx.drawImage(sh, px, 0, 1, tc.height, X - PAD + px * col + 1, Y - OY + sag(px) + 2, col, TH);
     ctx.restore();
-    for (let px = 0; px < tc.width; px++) ctx.drawImage(tc, px, 0, 1, TH, X - PAD + px, Y - OY + sag(px), 1, TH);
+    if (!S) ctx.drawImage(tc, X - PAD, Y - OY, TW, TH);
+    else for (let px = 0; px < tc.width; px++) ctx.drawImage(tc, px, 0, 1, tc.height, X - PAD + px * col, Y - OY + sag(px), col, TH);
   },
   _platformBody(ctx, X, Y, L, s, n, st, p) {
     const rim = (a) => TILE_RGBA(p.rim, a), acc = (a) => TILE_RGBA(p.accent, a), ink = (a) => TILE_RGBA(p.ink, a), dk = (a) => TILE_RGBA(p.rockDark, a);
@@ -581,7 +625,7 @@ Object.assign(Art, {
         ctx.fillStyle = TILE_MIX(p.rock, p.rim, 0.18); ctx.fillRect(X, Y + 1, L, 6);
         ctx.fillStyle = rim(0.8); ctx.fillRect(X, Y + 1, L, 1); ctx.fillStyle = rim(0.25); ctx.fillRect(X, Y + 2, L, 1); ctx.fillStyle = ink(0.6); ctx.fillRect(X, Y + 6, L, 1);
         ctx.fillStyle = ink(0.25); ctx.fillRect(X + 3, Y + 3, L - 6, 2.5);
-        for (let rx = X + 4; rx < X + L - 2; rx += 8) { ctx.fillStyle = ink(0.9); ctx.fillRect(rx, Y + 3, 2.2, 2.2); ctx.fillStyle = rim(0.7); ctx.fillRect(rx, Y + 3, 1, 1); if (n(s, rx) < 0.35) { ctx.fillStyle = acc(0.35); ctx.fillRect(rx + 0.5, Y + 5, 1.5, 3 + n(s, rx + 1) * 4); } }
+        for (let rx = X + 4; rx < X + L - 2; rx += 8) { if (n(s, rx) < 0.35) { const rl = 3 + n(s, rx + 1) * 4; ctx.fillStyle = acc(0.35); ctx.beginPath(); ctx.moveTo(rx + 0.4, Y + 5); ctx.lineTo(rx + 1.8, Y + 5); ctx.quadraticCurveTo(rx + 1.5, Y + 5 + rl * 0.7, rx + 1.1, Y + 5 + rl); ctx.quadraticCurveTo(rx + 0.7, Y + 5 + rl * 0.7, rx + 0.4, Y + 5); ctx.fill(); } ctx.fillStyle = ink(0.9); ctx.beginPath(); ctx.arc(rx + 1.1, Y + 4.1, 1.25, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = rim(0.7); ctx.beginPath(); ctx.arc(rx + 0.75, Y + 3.75, 0.5, 0, Math.PI * 2); ctx.fill(); }
         ctx.fillStyle = dk(0.95); for (const ex of [X + 2, X + L - 8]) { ctx.beginPath(); ctx.moveTo(ex, Y + 7); ctx.lineTo(ex + 6, Y + 7); ctx.lineTo(ex + 3, Y + 12); ctx.closePath(); ctx.fill(); ctx.fillStyle = rim(0.4); ctx.fillRect(ex + 2.5, Y + 8, 1, 3); ctx.fillStyle = dk(0.95); }
         if (n(s, 5) < 0.5) { ctx.fillStyle = acc(0.2); ctx.fillRect(X + 10 + n(s, 6) * (L - 20), Y + 1, 5 + n(s, 7) * 6, 5); } // a rust bloom
         if (n(s, 8) < 0.5) { const cx = X + 6 + n(s, 9) * (L - 12); ctx.strokeStyle = rim(0.55); ctx.lineWidth = 1; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(cx, Y + 9 + k * 3, 1.1, 1.7, 0, 0, Math.PI * 2); ctx.stroke(); } } // a short chain hanging off it
@@ -671,16 +715,16 @@ Object.assign(Art, {
     // the socket sill: a riveted dark bar with a lit lip, sunk into the floor
     ctx.fillStyle = TILE_RGBA(p.ink, 0.5); ctx.fillRect(X - 1, Y + T - 6, T + 2, 7);
     ctx.fillStyle = '#17151a'; ctx.fillRect(X, Y + T - 5, T, 5); ctx.fillStyle = 'rgba(150,160,180,0.45)'; ctx.fillRect(X, Y + T - 5, T, 1); ctx.fillStyle = p.ink; ctx.fillRect(X, Y + T - 0.8, T, 0.8);
-    ctx.fillStyle = '#05050a'; ctx.fillRect(X + 1.5, Y + T - 3, 1.6, 1.6); ctx.fillRect(X + T - 3.1, Y + T - 3, 1.6, 1.6); ctx.fillStyle = 'rgba(200,210,230,0.5)'; ctx.fillRect(X + 1.5, Y + T - 3, 0.7, 0.7); ctx.fillRect(X + T - 3.1, Y + T - 3, 0.7, 0.7);
+    for (const bx of [X + 2.3, X + T - 2.3]) { ctx.fillStyle = '#05050a'; ctx.beginPath(); ctx.arc(bx, Y + T - 2.2, 0.95, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(200,210,230,0.5)'; ctx.beginPath(); ctx.arc(bx - 0.3, Y + T - 2.5, 0.38, 0, Math.PI * 2); ctx.fill(); } // round rivets
     for (const [bx0, bw, ty] of [[0.5, 6, 3.5], [6.3, 4, 8.5], [9.8, 6, 4.5]]) {
       const bx = X + bx0, base = Y + T - 5, tip = Y + ty + n(s + bx0, 1) * 1.5, mid = bx + bw / 2;
       ctx.fillStyle = '#05050a'; ctx.fillRect(bx + 0.5, base - 0.5, bw - 1, 1.5); // the socket mouth each thorn rises from
       ctx.fillStyle = '#d9dfe8'; ctx.beginPath(); ctx.moveTo(bx, base); ctx.lineTo(mid, tip); ctx.lineTo(bx + bw, base); ctx.closePath(); ctx.fill();
       ctx.fillStyle = 'rgba(70,80,100,0.6)'; ctx.beginPath(); ctx.moveTo(mid, tip + 1); ctx.lineTo(bx + bw, base); ctx.lineTo(mid, base); ctx.closePath(); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.moveTo(bx + 1, base); ctx.lineTo(mid - 0.2, tip + 1.5); ctx.lineTo(mid - 0.6, base); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = p.ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, base); ctx.lineTo(mid, tip); ctx.lineTo(bx + bw, base); ctx.stroke();
+      ctx.strokeStyle = p.ink; ctx.lineWidth = 1.1; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(bx, base); ctx.lineTo(mid, tip); ctx.lineTo(bx + bw, base); ctx.stroke();
     }
-    if (n(s, 5) < 0.5) { ctx.fillStyle = 'rgba(110,26,38,0.75)'; ctx.fillRect(X + 6.5, Y + T - 7, 2, 2); ctx.fillRect(X + 5.5, Y + T - 6, 1, 1); ctx.fillRect(X + 8.5, Y + T - 5.5, 1, 0.8); }
+    if (n(s, 5) < 0.5) { ctx.fillStyle = 'rgba(110,26,38,0.75)'; ctx.beginPath(); ctx.ellipse(X + 7.5, Y + T - 6, 1.3, 1, 0, 0, Math.PI * 2); ctx.ellipse(X + 5.9, Y + T - 5.4, 0.6, 0.5, 0, 0, Math.PI * 2); ctx.ellipse(X + 9, Y + T - 5.1, 0.6, 0.4, 0, 0, Math.PI * 2); ctx.fill(); } // old blood, in drops
   },
   _tileCrack(ctx, group, n, p) {
     // a wall that will give to a dash: one impact point, long cracks running across the whole block,
@@ -953,7 +997,7 @@ Object.assign(Art, {
     this._drawGrow(ctx, world, t, dt, cam.x - 24, cam.y - 24, cam.x + vw + 24, cam.y + vh + 24, p);
 
     // ---- weak floors: the cracked look lives in the cache; a tile the engine is shaking is redrawn over itself, offset, and sheds dust
-    const cache = this.tileCache, shakeFn = world.tileShake ? (x, y) => world.tileShake(x, y) : null, fr = Math.floor(t * 60);
+    const cache = true, shakeFn = world.tileShake ? (x, y) => world.tileShake(x, y) : null, fr = Math.floor(t * 60);
     // ---- flooding: on a screen with a flood level, the '~' tiles under the level are one body of water and those above are air
     const floodFn = world.floodLevel && world.screenAt ? (sc) => world.floodLevel(sc.id) : null;
     // a screen is a flood screen when its level is above 0, or when the engine lists it in World.floods (then level 0 = drained = air)
@@ -965,7 +1009,7 @@ Object.assign(Art, {
         const k = shakeFn(x, y);
         if (k > 0) {
           const kk = Math.min(1, k), ox = (Ink.n(fr + x * 7, 41) - 0.5) * 3 * kk, oy = (Ink.n(fr + y * 5, 42) - 0.5) * 3 * kk;
-          ctx.drawImage(cache, X - 2, Y - 2, T + 4, T + 4, X - 2 + ox, Y - 2 + oy, T + 4, T + 4);
+          this.blitTiles(ctx, world, X - 2, Y - 2, T + 4, T + 4, X - 2 + ox, Y - 2 + oy);
           if (at(x, y + 1) === '.') { // dust shed from the underside: two motes per tile on their own slow loops
             ctx.fillStyle = TILE_RGBA(p.rim, 0.6);
             for (let i = 0; i < 2; i++) { const sp = 0.8 + i * 0.5, ph = (t * sp + Ink.n(x * 3 + i, 43)) % 1, cyc = Math.floor(t * sp + Ink.n(x * 3 + i, 43)); const dx = X + 2 + Ink.n(x + i * 11 + cyc, 44) * 12; ctx.globalAlpha = (1 - ph) * kk; ctx.fillRect(dx, Y + T + 1 + ph * ph * 16, 1.6, 1.6); }
@@ -1119,19 +1163,18 @@ Object.assign(Art, {
     // caustics: two drifting nets of light under the surface, brighter where they cross
     ctx.lineWidth = 1;
     for (let k = 0; k < 2; k++) { ctx.strokeStyle = acc(0.15); ctx.beginPath(); for (let x = X; x <= X + L; x += 3) ctx.lineTo(x, Y + 9.5 + k * 2.5 + Math.sin(x * 0.3 + t * (1.6 + k * 0.7) + k * 2) * 1.6 + Math.sin(x * 0.09 - t * 0.7 + k) * 1.3); ctx.stroke(); }
-    ctx.fillStyle = acc(0.32);
-    for (let i = 0; i < L / 14; i++) { const fx = X + ((i * 53 + t * 11) % L); ctx.fillRect(fx, Y + 10 + Math.sin(i * 2.1 + t * 2) * 2.5, 2.5, 1); }
-    // foam gathered against the walls
-    ctx.fillStyle = 'rgba(240,255,252,0.7)';
-    if (lf) for (let i = 0; i < 4; i++) ctx.fillRect(X + 1 + i * 2.2, surf(X + 2) - 1 + Ink.n(i + Ink.boil(t) % 5, 2) * 3, 1.6, 1);
-    if (rt) for (let i = 0; i < 4; i++) ctx.fillRect(X + L - 2.5 - i * 2.2, surf(X + L - 2) - 1 + Ink.n(i + Ink.boil(t) % 5, 3) * 3, 1.6, 1);
+    // glints and foam are short round-capped dashes (soft at any resolution), never squares
+    const dash = (x, y, w, h, col) => { ctx.strokeStyle = col; ctx.lineWidth = h; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + h / 2, y + h / 2); ctx.lineTo(x + Math.max(h / 2 + 0.01, w - h / 2), y + h / 2); ctx.stroke(); };
+    for (let i = 0; i < L / 14; i++) { const fx = X + ((i * 53 + t * 11) % L); dash(fx, Y + 10 + Math.sin(i * 2.1 + t * 2) * 2.5, 2.5, 0.9, acc(0.32)); }
+    // foam gathered against the walls: a few bubbles riding the surface, bobbing slowly
+    ctx.fillStyle = 'rgba(240,255,252,0.6)';
+    if (lf) for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(X + 1.6 + i * 2.2, surf(X + 2) + 0.4 + Math.sin(t * 1.3 + i * 1.9) * 0.9, 0.55 + Ink.n(i, 2) * 0.45, 0, Math.PI * 2); ctx.fill(); }
+    if (rt) for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(X + L - 1.6 - i * 2.2, surf(X + L - 2) + 0.4 + Math.sin(t * 1.3 + i * 2.3 + 1) * 0.9, 0.55 + Ink.n(i, 3) * 0.45, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
     ctx.beginPath(); for (let x = X; x <= X + L; x += 4) ctx.lineTo(x, surf(x) + 2); ctx.strokeStyle = acc(0.3); ctx.lineWidth = 1.5; ctx.stroke();
     ctx.beginPath(); for (let x = X; x <= X + L; x += 4) ctx.lineTo(x, surf(x)); ctx.strokeStyle = 'rgba(225,255,248,0.9)'; ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.fillStyle = 'rgba(240,255,252,0.85)';
-    for (let i = 0; i < L / 12; i++) { const fx = X + ((i * 41 + t * 13) % L); ctx.fillRect(fx, surf(fx) - 1.5, 2 + Ink.n(i, 3) * 4, 1.2); }
-    ctx.fillStyle = 'rgba(240,255,252,0.5)';
-    for (let i = 0; i < L / 18; i++) { const fx = X + (((i * 67 + 9 - t * 6) % L) + L) % L; ctx.fillRect(fx, surf(fx) + 3 + Ink.n(i, 7) * 2, 1 + Ink.n(i, 8) * 2, 1); }
+    for (let i = 0; i < L / 12; i++) { const fx = X + ((i * 41 + t * 13) % L), fw = 2 + Ink.n(i, 3) * 4, k = Math.min(1, fx - X, X + L - fx - fw); if (k > 0) dash(fx, surf(fx + fw / 2) - 1.4, fw, 1.1, 'rgba(240,255,252,' + (0.8 * k).toFixed(2) + ')'); }
+    for (let i = 0; i < L / 18; i++) { const fx = X + (((i * 67 + 9 - t * 6) % L) + L) % L; dash(fx, surf(fx) + 3 + Ink.n(i, 7) * 2, 1.2 + Ink.n(i, 8) * 2, 0.9, 'rgba(240,255,252,0.45)'); }
   },
   drawDecorBehind(ctx, world, t, cam) {
     const p = PALETTES[world.room.region], T = TILE, region = world.room.region, decor = world.decor || [];
@@ -1165,5 +1208,95 @@ Object.assign(Art, {
         ctx.fillStyle = TILE_RGBA(p.ink, 0.4); ctx.fillRect(X + 1, TY + 3, 14, 1);
       }
     }
+  },
+});
+
+// ---------------------------------------------------------------------------
+// The game's terrain cache. The view is rendered at RS backing px per logical px (see Game.resize) and the world
+// at ZOOM on top of that, so the terrain is painted at ZOOM * RS cache px per world px, in chunks a little larger
+// than one camera view: a whole zone at that scale would be far too large a canvas. Chunks are painted on demand
+// (the ones on screen now, then one neighbour at a time while nothing else is being painted), kept in a small LRU,
+// and blitted 1:1 onto whole backing px, so there is no resampling, no seam and no shimmer. When a tile changes
+// only the chunks near the change are repainted.
+// ---------------------------------------------------------------------------
+const TILE_CHUNK_W = 320, TILE_CHUNK_H = 192, TILE_CHUNK_PAD = 16, TILE_CHUNK_BUDGET = 30e6; // world px; cache px kept
+Object.assign(Art, {
+  _tileChunks: null,
+  tileScale() { return Math.max(1, Math.round(ZOOM * (typeof RS !== 'undefined' ? RS : 1) * 2) / 2); },
+  _chunkStore(world) {
+    const S = this.tileScale(), key = world.zoneId + ':' + S;
+    let st = this._tileChunks;
+    if (!st || st.key !== key || st.world !== world) st = this._tileChunks = { key, world, S, ver: null, map: new Map(), rows: null, tick: 0, pending: null, px: 0 };
+    if (st.ver !== world.tileVersion) {
+      st.pending = null;
+      const T = TILE, rows = world.tiles.map((r, y) => r.join('') + '|' + (world.decor && world.decor[y] ? world.decor[y].join('') : ''));
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      if (st.rows && st.rows.length === rows.length) {
+        const half = (rows[0].length - 1) / 2;
+        for (let y = 0; y < rows.length; y++) if (rows[y] !== st.rows[y]) { const a = rows[y], b = st.rows[y]; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { const x = i > half ? i - half - 1 : i; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+      }
+      if (x1 < x0) { st.map.clear(); st.px = 0; } // nothing to compare against, or a change that is not in the tiles: repaint everything
+      else {
+        const R = 8, ax = (x0 - R) * T - TILE_CHUNK_PAD, ay = (y0 - R) * T - TILE_CHUNK_PAD, bx = (x1 + 1 + R) * T + TILE_CHUNK_PAD, by = (y1 + 1 + R) * T + TILE_CHUNK_PAD;
+        for (const [k, ch] of st.map) if (ch.x < bx && ch.x + TILE_CHUNK_W > ax && ch.y < by && ch.y + TILE_CHUNK_H > ay) { st.px -= ch.c.width * ch.c.height; st.map.delete(k); }
+      }
+      st.rows = rows; st.ver = world.tileVersion;
+    }
+    return st;
+  },
+  _chunkAdd(st, k, ch) {
+    st.map.set(k, ch); st.px += ch.c.width * ch.c.height;
+    // forget the chunks not drawn for the longest once the budget is spent (never the ones in use this frame)
+    while (st.px > TILE_CHUNK_BUDGET && st.map.size > 6) { let old = null, ok = null; for (const [kk, c2] of st.map) if (c2 !== ch && c2.tick < st.tick - 1 && (!old || c2.tick < old.tick)) { old = c2; ok = kk; } if (!old) break; st.px -= old.c.width * old.c.height; st.map.delete(ok); }
+  },
+  _chunk(st, cx, cy, build) {
+    const k = cx + ',' + cy; let ch = st.map.get(k);
+    if (!ch && build) {
+      ch = { x: cx * TILE_CHUNK_W, y: cy * TILE_CHUNK_H, c: null, tick: st.tick };
+      if (st.pending && st.pending.k === k) { let r; do r = st.pending.gen.next(); while (!r.done); ch.c = r.value; st.pending = null; } // it was being painted ahead: finish it now
+      else ch.c = this._paintTiles(st.world, st.S, ch.x, ch.y, TILE_CHUNK_W, TILE_CHUNK_H, TILE_CHUNK_PAD);
+      this._chunkAdd(st, k, ch); this.tileBuilt = true;
+    }
+    if (ch) ch.tick = st.tick;
+    return ch;
+  },
+  // draw the terrain around the camera (world space: the caller has the world transform set)
+  drawRoomTiles(ctx, world, cam) {
+    const st = this._chunkStore(world), S = st.S, P = TILE_CHUNK_PAD, CW = TILE_CHUNK_W, CH = TILE_CHUNK_H; st.tick++;
+    const vw = TILE_VW(), vh = TILE_VH(), M = 40;
+    const nx = Math.ceil(world.W / CW), ny = Math.ceil(world.H / CH);
+    const cx0 = clamp(Math.floor((cam.x - M) / CW), 0, nx - 1), cx1 = clamp(Math.floor((cam.x + vw + M) / CW), 0, nx - 1);
+    const cy0 = clamp(Math.floor((cam.y - M) / CH), 0, ny - 1), cy1 = clamp(Math.floor((cam.y + vh + M) / CH), 0, ny - 1);
+    let built = false;
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      const had = st.map.has(cx + ',' + cy), ch = this._chunk(st, cx, cy, true); if (!had) built = true;
+      ctx.drawImage(ch.c, P * S, P * S, CW * S, CH * S, ch.x, ch.y, CW, CH);
+    }
+    // paint ahead: the chunks next to the ones on screen, one at a time and one stage of the painter per frame, and
+    // only on frames that painted nothing else, so walking into new ground never waits for it
+    if (built) return;
+    if (st.pending) {
+      const r = st.pending.gen.next(); this.tileBuilt = true;
+      if (r.done) { const pd = st.pending; st.pending = null; this._chunkAdd(st, pd.k, { x: pd.cx * CW, y: pd.cy * CH, c: r.value, tick: st.tick }); }
+      return;
+    }
+    for (let cy = cy0 - 1; cy <= cy1 + 1; cy++) for (let cx = cx0 - 1; cx <= cx1 + 1; cx++) {
+      if (cx < 0 || cy < 0 || cx >= nx || cy >= ny || st.map.has(cx + ',' + cy)) continue;
+      st.pending = { k: cx + ',' + cy, cx, cy, gen: this._paintTilesGen(world, S, cx * CW, cy * CH, CW, CH, P) }; return;
+    }
+  },
+  // a piece of the painted terrain, redrawn at an offset (a shaking tile). The rect must lie within 16 px of one chunk.
+  blitTiles(ctx, world, X, Y, w, h, dx, dy) {
+    const st = this._chunkStore(world), S = st.S, P = TILE_CHUNK_PAD;
+    const ch = this._chunk(st, Math.floor((X + w / 2) / TILE_CHUNK_W), Math.floor((Y + h / 2) / TILE_CHUNK_H), true); if (!ch) return;
+    ctx.drawImage(ch.c, (X - ch.x + P) * S, (Y - ch.y + P) * S, w * S, h * S, dx, dy, w, h);
+  },
+  // forget every resolution-dependent cache (the render scale changed)
+  dropScaleCaches() {
+    this._tileChunks = null; this.tileCache = null; this.tileCacheKey = ''; this.bgCache = {};
+    if (typeof HOLLOW_ENV !== 'undefined') HOLLOW_ENV.sprites = {};
+    if (typeof Paint !== 'undefined') Paint._cache = {};
+    if (this.dropIllustrationCaches) this.dropIllustrationCaches();
+    if (typeof UI !== 'undefined') { UI._pc = null; UI._pm = null; }
   },
 });

@@ -5,6 +5,8 @@
 // objects: the second-pass mechanisms (hanging/track platforms, blade, boulder, lever, sluice, wall cling) in every state,
 //          and the new tile letters (f y s b q, vine rungs, hinge doors, flood water) in an inline sample zone.
 // Writes PNGs into outDir (default: ./renders). Needs playwright + chromium.
+// The game renders at a scale RS matched to the window (see Game.resize); append `&rs=N` to the page URL below to force one.
+// The sheets take the canvas over at their own size and scale the context themselves, so they do not depend on RS.
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -31,7 +33,7 @@ fs.mkdirSync(outDir, { recursive: true });
   };
 
   if (want('player')) await sheet('player', 1280, 420, () => {
-    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
     ctx.fillStyle = '#1d3038'; ctx.fillRect(0, 0, 1280, 420);
     ctx.save(); ctx.scale(4, 4);
     const base = { w: 10, h: 22, facing: 1, invuln: 0, hurtT: 0, castT: 0, attackT: 0, attackDur: 0.3, attackKind: 'slash', step: 0, vx: 0, vy: 0, onGround: true, frozen: 0, dashT: 0, attackPhase() { return 'active'; } };
@@ -44,7 +46,7 @@ fs.mkdirSync(outDir, { recursive: true });
   });
 
   if (want('enemies')) await sheet('enemies', 1280, 300, () => {
-    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
     ctx.fillStyle = '#1b2335'; ctx.fillRect(0, 0, 1280, 300);
     ctx.save(); ctx.scale(4, 4);
     const defs = [['husk', 14, 20, {}], ['husk', 14, 20, { tele: 0.3 }], ['hourfly', 12, 12, {}], ['hourfly', 12, 12, { tele: 0.3 }], ['archer', 14, 24, { aim: 0.2 }], ['archer', 14, 24, { aim: 0.2, tele: 0.5 }], ['knight', 18, 30, {}], ['knight', 18, 30, { tele: 0.3 }], ['knight', 18, 30, { stun: 1 }], ['wraith', 14, 24, {}], ['wraith', 14, 24, { tele: 0.3 }], ['hound', 22, 14, {}], ['hound', 22, 14, { state: 'charge' }]];
@@ -54,7 +56,7 @@ fs.mkdirSync(outDir, { recursive: true });
   });
 
   if (want('bosses')) await sheet('bosses', 1280, 480, () => {
-    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
     ctx.fillStyle = '#1e1a24'; ctx.fillRect(0, 0, 1280, 480);
     ctx.save(); ctx.scale(2.2, 2.2);
     const types = ['shallows', 'ferrous', 'annealer', 'escapement', 'regent', 'index', 'grinder', 'sef'];
@@ -64,7 +66,7 @@ fs.mkdirSync(outDir, { recursive: true });
   });
 
   if (want('portraits')) await sheet('portraits', 1280, 460, () => {
-    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+    const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
     ctx.fillStyle = '#14101c'; ctx.fillRect(0, 0, 1280, 460);
     const who = ['you', 'sef', 'regent', 'archivist', 'miller'];
     who.forEach((w, i) => { Art.drawPortrait(ctx, w, 20 + i * 250, 20, 192, 'neutral', 1); Art.drawPortrait(ctx, w, 20 + i * 250, 230, 96, 'stern', 1); Art.drawPortrait(ctx, w, 126 + i * 250, 230, 96, 'sad', 1); });
@@ -80,7 +82,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
   if (want('objects')) {
     await sheet('objects', 1280, 640, () => {
-      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
       World.room = World.room || { region: 'hours' }; World.room.region = 'hours';
       const p = PALETTES.hours; ctx.fillStyle = p.bgBot; ctx.fillRect(0, 0, 1280, 640);
       ctx.save(); ctx.scale(3, 3);
@@ -112,7 +114,7 @@ fs.mkdirSync(outDir, { recursive: true });
       ctx.fillText('row 2: blade -52deg / 0 / +52deg held / fallen(nothing) | boulder rolling / rolled / falling / hanging | lever off / on / broken / on+kick | sluice closed / open drain .15 / open drain .9 | cling L, cling R', 12, 630);
     });
     await sheet('objects_tiles', 1040, 960, () => {
-      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const ctx = document.getElementById('game').getContext('2d'); ctx.imageSmoothingEnabled = true;
       const grid = [
         '##########################',
         '#....................b...#',
@@ -138,7 +140,7 @@ fs.mkdirSync(outDir, { recursive: true });
         World.room = World.room || { region }; World.room.region = region;
         ctx.save(); ctx.translate(0, i * 480); ctx.scale(2.5, 2.5);
         ctx.fillStyle = p.bgBot; ctx.fillRect(0, 0, world.W, world.H);
-        Art.tileCacheKey = ''; const cache = Art.roomTiles(world); ctx.drawImage(cache, 0, 0);
+        Art.tileCacheKey = ''; const cache = Art.roomTiles(world, 2.5); ctx.drawImage(cache, 0, 0, world.W, world.H); // painted at the sheet's own scale
         Art.drawDynamicTiles(ctx, world, 1.37, { x: 0, y: 0 });
         ctx.restore();
         ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.fillText(region + ': L hinge door (col 3) | b bridge + curtain | = vine rungs over an s seed | q sluice frame | y thorns | f weak floor (two tiles shaking) | ~ flood at .55 (top row is air)', 12, i * 480 + 14);

@@ -111,15 +111,17 @@ const enStars = (ctx, t, y, color) => {
 // hit flash: the creature is drawn into an offscreen canvas and bleached pale
 let EN_FX = null;
 const enFlash = (ctx, e, cx, by, draw) => {
-  if (!EN_FX) { EN_FX = document.createElement('canvas'); EN_FX.width = 800; EN_FX.height = 800; }
-  const S = 4, fx = EN_FX.getContext('2d');
-  fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, 800, 800);
+  // the scratch canvas covers 200 x 200 world px at the scale the world is shown at (ZOOM * RS, at least 4)
+  const S = Math.min(8, Math.max(4, Math.ceil(ZOOM * (typeof RS !== 'undefined' ? RS : 1)))), N = 200 * S;
+  if (!EN_FX || EN_FX.width !== N) { EN_FX = document.createElement('canvas'); EN_FX.width = N; EN_FX.height = N; }
+  const fx = EN_FX.getContext('2d');
+  fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, N, N);
   fx.setTransform(S, 0, 0, S, (100 - cx) * S, (150 - by) * S);
   EN_NOGLOW = true; try { draw(fx); } finally { EN_NOGLOW = false; }
   fx.setTransform(1, 0, 0, 1, 0, 0);
-  fx.globalCompositeOperation = 'source-atop'; fx.fillStyle = 'rgba(240,236,228,' + (0.5 + 0.45 * enClamp01(e.flash / 0.12)).toFixed(2) + ')'; fx.fillRect(0, 0, 800, 800);
+  fx.globalCompositeOperation = 'source-atop'; fx.fillStyle = 'rgba(240,236,228,' + (0.5 + 0.45 * enClamp01(e.flash / 0.12)).toFixed(2) + ')'; fx.fillRect(0, 0, N, N);
   fx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(EN_FX, 0, 0, 800, 800, cx - 100, by - 150, 200, 200);
+  ctx.drawImage(EN_FX, 0, 0, N, N, cx - 100, by - 150, 200, 200);
 };
 
 // ---- Husk: a drowned shambler (14x20). Big pale dome, a sagging dark body, thin legs. -------------

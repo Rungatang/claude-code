@@ -18,6 +18,11 @@ const GAME_SPEED = 0.72;
 const HEAL_COST = 3, HEAL_TIME = 0.95;
 const VW = VIEW_W / ZOOM;
 const VH = VIEW_H / ZOOM;
+// Render scale: backing-store pixels per logical view pixel. All drawing stays in logical units (the view is
+// VIEW_W x VIEW_H, the world is magnified by ZOOM inside it); the canvas backing store is VIEW_W * RS x VIEW_H * RS
+// so the vector art is rasterised at the size it is shown, not upscaled. Chosen by Game.resize from the displayed
+// size and devicePixelRatio (1 to 4, in quarter steps so the backing size stays whole); `?rs=2` in the URL forces it.
+let RS = 1;
 const DT = 1 / 60;
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);

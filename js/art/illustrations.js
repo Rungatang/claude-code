@@ -39,11 +39,13 @@ const ilLinear = (ctx, x0, y0, x1, y1, stops, rect) => {
 };
 // offscreen caches for the static layers (built on first use)
 const ilCaches = {};
-const ilLayer = (key, fn, w, h) => {
+// (painted at the render scale RS, in logical units; draw them back with an explicit IL_W x IL_H destination. q forces a scale.)
+const ilLayer = (key, fn, w, h, q) => {
   let c = ilCaches[key];
-  if (!c) { c = document.createElement('canvas'); c.width = w || IL_W; c.height = h || IL_H; fn(c.getContext('2d')); ilCaches[key] = c; }
+  if (!c) { q = q || (typeof RS !== 'undefined' ? RS : 1); c = document.createElement('canvas'); c.width = Math.round((w || IL_W) * q); c.height = Math.round((h || IL_H) * q); const g = c.getContext('2d'); g.scale(q, q); fn(g); ilCaches[key] = c; }
   return c;
 };
+Art.dropIllustrationCaches = () => { for (const k in ilCaches) delete ilCaches[k]; };
 // paper grain + scratches, drawn once; laid over every panel
 const ilGrain = () => ilLayer('grain', (g) => {
   const img = g.createImageData(IL_W, IL_H), d = img.data, r = mulberry32(777);
@@ -51,10 +53,10 @@ const ilGrain = () => ilLayer('grain', (g) => {
   g.putImageData(img, 0, 0);
   g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 0.6;
   for (let i = 0; i < 60; i++) { const x = r() * IL_W, y = r() * IL_H, a = r() * Math.PI; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * (6 + r() * 30), y + Math.sin(a) * (6 + r() * 30)); g.stroke(); }
-});
+}, IL_W, IL_H, 1);
 const ilFinish = (ctx, vig, tint) => {
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = 0.2; ctx.drawImage(ilGrain(), 0, 0); ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.2; ctx.drawImage(ilGrain(), 0, 0, IL_W, IL_H); ctx.globalAlpha = 1;
   if (vig) { const g = ctx.createRadialGradient(IL_W / 2, IL_H / 2, IL_H * 0.35, IL_W / 2, IL_H / 2, IL_W * 0.62); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(${tint || '4,2,8'},${vig})`); ctx.fillStyle = g; ctx.fillRect(0, 0, IL_W, IL_H); }
   ctx.restore();
 };
@@ -380,7 +382,7 @@ const ilClockStage = (ctx, t, o) => {
     Ink.line(g, [[150, 300], [372, 300]], { w: 2.2, color: IL_INK, jit: 0, t: 0, seed: 391 });
     for (const x of [176, 262, 348]) { Ink.line(g, [[x, 300], [x - 34, 350]], { w: 3, color: '#0c0a0f', jit: 0, t: 0, seed: 392 + x }); Ink.line(g, [[x - 8, 300], [x - 8, 324], [x - 34, 350]], { w: 2, color: '#1e181f', jit: 0, t: 0, seed: 393 + x }); g.fillStyle = '#8a6a2a'; g.fillRect(x - 10, 302, 3, 3); }
     ilLinear(g, 0, 300, 0, 368, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(4,2,6,0.9)']], [-20, 300, IL_W + 40, 80]);
-  }), 0, 0);
+  }), 0, 0, IL_W, IL_H);
   // the works turning (or not): three wheels behind the dial's edge, drawn live
   ilGear(ctx, 612, 318, 86, 22, 0.2 + spin, '#0c0a0f', `rgba(255,${200 + lit * 55},${120 + lit * 80},${0.06 + lit * 0.3})`, 1.4);
   ilGear(ctx, 96, 60, 64, 16, -spin * 1.34, '#0c0a0f', `rgba(255,${200 + lit * 55},${120 + lit * 80},${0.06 + lit * 0.25})`, 1.4);
@@ -553,7 +555,7 @@ Object.assign(Art, {
         Ink.line(g, edge, { w: 1.5, color: '#03070a', jit: 0, t: 0, seed: 70 });
         // the sea's light on the underside of the vault
         g.save(); ilPath(g, ceil); g.clip(); ilGlow(g, 470, 150, 300, 'rgba(100,200,180,0.13)', undefined, 110); g.restore();
-      }), 0, 0);
+      }), 0, 0, IL_W, IL_H);
       // the living sea: swell lines, a glowing band where it breaks, plankton
       ctx.save(); ilPath(ctx, seaPoly); ctx.clip();
       ilSea(ctx, t, 152, 330, 240, 700, 'rgba(70,150,150,', 'rgba(159,224,200,', 22, 1);
@@ -607,7 +609,7 @@ Object.assign(Art, {
         g.restore();
         const r = mulberry32(5);
         for (let i = 0; i < 9; i++) { const pts = ilCrack(r, i); Ink.line(g, pts, { w: 2.4 - (i % 3) * 0.5, color: 'rgba(30,14,22,0.9)', jit: 0, t: 0, seed: 150 + i }); Ink.line(g, pts, { w: 0.8, color: 'rgba(255,230,200,0.25)', jit: 0, t: 0, seed: 150 + i }); }
-      }), 0, 0);
+      }), 0, 0, IL_W, IL_H);
       // light leaking from the cracks, breathing with the beat
       const r = mulberry32(5);
       for (let i = 0; i < 9; i++) { const pts = ilCrack(r, i); Ink.line(ctx, pts.slice(0, 3), { w: 1, color: `rgba(255,200,110,${(0.2 + pulse * 0.55).toFixed(3)})`, jit: 0, t, seed: 150 + i }); }
@@ -660,7 +662,7 @@ Object.assign(Art, {
         // the dark below us, and the faintest green of water at the bottom corners
         ilLinear(g, 0, 200, 0, 368, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(2,2,4,0.85)']]);
         ilGlow(g, 60, 380, 120, 'rgba(60,160,150,0.12)'); ilGlow(g, 600, 390, 130, 'rgba(60,160,150,0.1)');
-      }), 0, 0);
+      }), 0, 0, IL_W, IL_H);
       // the clock face, far above and getting farther: hands held at the same minute
       ilGlow(ctx, vx, vy, R * 3.4, 'rgba(255,51,85,0.22)');
       ctx.fillStyle = '#1a0a10'; ctx.beginPath(); ctx.ellipse(vx, vy, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
@@ -814,7 +816,7 @@ Object.assign(Art, {
         g.textAlign = 'left';
         // a little of the sand spilled at the foot of the slab, all that shows of what is buried
         for (let i = 0; i < 18; i++) { g.fillStyle = i % 3 ? '#ffd27a' : '#fff1c4'; g.fillRect(184 + r() * 30, 259 + r() * 5, 1, 1); }
-      }), 0, 0);
+      }), 0, 0, IL_W, IL_H);
       // the living sea: swell, the sun's road on the water, the wash at the shingle
       ctx.save(); ctx.beginPath(); ctx.rect(-20, HZ, IL_W + 40, 118); ctx.clip();
       ilSea(ctx, t, HZ + 2, 262, -20, 700, 'rgba(30,70,80,', 'rgba(255,240,210,', 24, 7);

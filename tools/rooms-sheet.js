@@ -32,13 +32,13 @@ fs.mkdirSync(outDir, { recursive: true });
       Game.save = Game.defaultSave(); Game.state = 'play';
       Game.loadZone(id, 'link');
       const c = document.getElementById('game'); c.width = w; c.height = h; c.style.width = w + 'px'; c.style.height = h + 'px';
-      const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true;
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
       ctx.save(); ctx.scale(scale, scale);
       const cam = { x: 0, y: 0 };
       try { Art.drawBackground(ctx, World.room.region, 1, cam); } catch (e) { /* backdrop is optional here */ }
       ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, World.W, World.H);
-      const tiles = Art.roomTiles(World); ctx.drawImage(tiles, 0, 0);
+      const tiles = Art.roomTiles(World); ctx.drawImage(tiles, 0, 0, World.W, World.H); // the whole zone at one cache px per world px
       try { Art.drawDynamicTiles(ctx, World, 1, cam); } catch (e) { /* ignore */ }
       // one-way platforms, spikes and decor may be drawn by the tile cache already; add outlines for clarity
       for (let y = 0; y < World.zone.H; y++) for (let x = 0; x < World.zone.W; x++) {
