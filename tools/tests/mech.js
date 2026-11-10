@@ -26,8 +26,8 @@ const { chromium } = require('playwright');
     const feetRow = () => (Game.player.y + Game.player.h) / TILE;
     // 1. jump heights
     setup('A1', 20, 22); let minFeet = 99; run(1, [], { 0: ['KeyZ'] }); for (let i = 0; i < 60; i++) { run(1, ['KeyZ']); minFeet = Math.min(minFeet, feetRow()); } out.jumpTiles = +(22 - minFeet).toFixed(2);
-    // 2. melee combo hits a husk 3 times, thread gained (A1: floor at local row 20, cols 20-30)
-    setup('A1', 24, 20); { const e = new Enemy('husk', ...G('A1', 26, 19)); e.hp = 50; Game.entities.push(e); const t0 = Game.player.thread; run(1, [], { 0: ['KeyX'] }); run(14, []); run(1, [], { 0: ['KeyX'] }); run(14, []); run(1, [], { 0: ['KeyX'] }); run(30, []); out.comboDamage = 50 - e.hp; out.threadGained = Game.player.thread - t0; }
+    // 2. melee combo hits a husk 3 times at the swing rhythm (SWING_CD 0.38 s), thread gained (A1: floor at local row 20, cols 20-30)
+    setup('A1', 24, 20); { const e = new Enemy('husk', ...G('A1', 26, 19)); e.hp = 50; Game.entities.push(e); const t0 = Game.player.thread; run(1, [], { 0: ['KeyX'] }); run(23, []); run(1, [], { 0: ['KeyX'] }); run(23, []); run(1, [], { 0: ['KeyX'] }); run(40, []); out.comboDamage = 50 - e.hp; out.threadGained = Game.player.thread - t0; }
     // 3. pogo bounces
     setup('A1', 20, 22); { const e = new Enemy('husk', ...G('A1', 20, 21)); e.hp = 50; Game.entities.push(e); Game.player.y -= 40; Game.player.vy = 100; run(1, ['ArrowDown'], { 0: ['KeyX'] }); let bounced = false; for (let i = 0; i < 20; i++) { run(1, ['ArrowDown']); if (Game.player.vy < -300) bounced = true; } out.pogoBounce = bounced && e.hp < 50; }
     // 4. anchor and recall

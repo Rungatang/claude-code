@@ -12,6 +12,8 @@ for f in js/*.js js/art/*.js js/rooms/*.js; do node -e "new Function(require('fs
 run layouts node tools/validate.js
 expect smoke "errors: none" node tools/tests/smoke.js
 expect rite "flow: OK" node tools/tests/rite.js
+expect feel "feel: OK" node tools/tests/feel.js
+expect prompts "prompt: OK" node tools/tests/prompt.js
 if [ "$1" != "quick" ]; then
   expect solver "SOLVER OK" node tools/solve.js
   expect mechanics "errors: none" node tools/tests/mech.js
