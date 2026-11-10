@@ -57,7 +57,8 @@ const Game = {
   // The canvas is shown at a whole multiple of a quarter of the logical view and its backing store is sized to the
   // device pixels it covers (RS, see util.js), capped at 4 (2560 x 1472) and lowered by the frame-time watchdog below.
   resize() {
-    const s = Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H) * 4) / 4);
+    // a host page may supply layoutScale() when the canvas shares the window with other elements
+    const s = this.layoutScale ? this.layoutScale() : Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H) * 4) / 4);
     this.canvas.style.width = VIEW_W * s + 'px';
     this.canvas.style.height = VIEW_H * s + 'px';
     let rs = this.rsForce || clamp(Math.round(s * (window.devicePixelRatio || 1) * 4) / 4, 1, 4);
