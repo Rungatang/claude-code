@@ -800,6 +800,7 @@ const AudioSys = {
         for (let i = 0; i < 6; i++) this.tone(220 * Math.pow(1.5, i % 3) * (i >= 3 ? 2 : 1), 0.9, 'sine', 0.1, 0.4, now + i * 0.28, { rev: 0.9 });
         this.tone(110, 2.4, 'triangle', 0.14, 0.2, now + 1.4, { rev: 1 }); this.tone(1760, 1.6, 'sine', 0.06, 0.3, now + 1.5, { rev: 1 });
         this.noise(1.2, 0.05, 2600, now + 1.3, { type: 'bandpass' }); break; }
+      case 'fragment': this.chime(96, now, 0.5, 0.22); this.chime(103, now + 0.14, 0.7, 0.16, 'celesta'); break; // a piece of something: two soft high bells, quiet
       case 'memory': { // a shard remembers: three soft detuned bells and a long reversed hush
         [523, 659, 784].forEach((f, i) => { this.tone(f, 1.4, 'sine', 0.09, 0.3, now + i * 0.22, { rev: 0.9 }); this.tone(f * 1.004, 1.4, 'sine', 0.05, 0.3, now + i * 0.22 + 0.02, { rev: 0.9 }); });
         this.noise(1.6, 0.03, 1800, now, { type: 'bandpass' }); break; }

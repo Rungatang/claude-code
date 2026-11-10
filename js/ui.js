@@ -61,7 +61,8 @@ const UI = {
     if (Game.state === 'play' && !Game.paused) t[key] = (t[key] || 0) + 1 / 60;
     return (t[key] || 0) < budget;
   },
-  menuIndex: 0,
+  menuIndex: 0, journalIndex: 0,
+  pauseItems: ['Resume', 'Memories', 'Stuck? Back to lantern', 'Quit to Title'],
   banner: null,
   toast: null,
   PAPER: '#e9dfc8', INK: '#15101a', SEAL: '#b8202c', GOLD: '#c9a24a', JADE: '#7af0d0',
@@ -247,6 +248,56 @@ const UI = {
   showBanner(region, room) { this.banner = { region, room, t: 3 }; },
   totalHearts() { let n = 0; for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) if (ch === 'H') n++; return n; },
   totalSpools() { let n = 0; for (const r of Object.values(ROOMS)) for (const row of r.grid) for (const ch of row) if (ch === 'T') n++; return n; },
+  // ---- quiet pickups: a fragment toast beside the HUD, a whispered first line, a slow dim ----
+  drawQuiet(ctx, t) {
+    const ft = Game.fragToast;
+    if (ft) {
+      ft.t -= DT; const a = clamp(Math.min(ft.t, 2.5 - ft.t) / 0.4, 0, 1);
+      uiText(ctx, ft.text, 16, 94, { font: 'italic 11px Georgia, serif', color: Paint.mix(ft.color, '#efe7d6', 0.7), alpha: a * 0.9, spacing: 0.5 });
+      if (ft.t <= 0) Game.fragToast = null;
+    }
+    if (Game.dimT > 0) {
+      const k = Game.dimT / 1.2, a = Math.sin(Math.PI * (1 - k)) * 0.42;
+      ctx.fillStyle = `rgba(4,3,8,${a * 0.5})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); Paint.vignette(ctx, VIEW_W, VIEW_H, 0.35 + a);
+    }
+    const w = Game.whisper;
+    if (w) {
+      const a = Math.min(1, w.t / 0.5, (w.dur - w.t) / 1.2), shown = Math.floor(w.t * 34);
+      ctx.font = 'italic 13px Georgia, serif';
+      const lines = wrapText(ctx, w.text, VIEW_W - 140); let left = shown;
+      const y0 = VIEW_H - 40 - (lines.length - 1) * 17;
+      lines.forEach((l, i) => { const piece = l.slice(0, Math.max(0, left)); left -= l.length + 1; if (piece) uiText(ctx, piece, VIEW_W / 2 - (ctx.measureText(l).width - ctx.measureText(piece).width) / 2, y0 + i * 17, { font: 'italic 13px Georgia, serif', color: '#e4dcf2', align: 'center', alpha: Math.max(0, a) * 0.9, glow: 'rgba(200,185,240,0.35)', glowBlur: 6 }); });
+    }
+  },
+  // ---- the journal (pause > Memories) ----
+  journalList() { const r = []; for (let i = 0; i < Story.shards.length; i++) if (Game.save.flags['shard:' + i]) r.push(i); return r; },
+  journalMark() { const l = this.journalList(); if (l.length) Game.save.flags['read:' + l[Math.min(this.journalIndex, l.length - 1)]] = true; },
+  journalUnread() { let n = 0; for (const i of this.journalList()) if (!Game.save.flags['read:' + i]) n++; return n; },
+  drawJournal(ctx, t) {
+    ctx.fillStyle = 'rgba(4,3,8,0.86)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    Paint.vignette(ctx, VIEW_W, VIEW_H, 0.5);
+    uiText(ctx, 'MEMORIES', VIEW_W / 2, 52, { font: '17px Georgia, serif', color: '#efe7d6', align: 'center', spacing: 6, glow: 'rgba(233,223,200,0.35)' });
+    uiFlourish(ctx, VIEW_W / 2, 62, 140, '#d8ccb0', 0.7);
+    const list = this.journalList();
+    if (!list.length) { uiText(ctx, 'Nothing yet. The city keeps what it keeps.', VIEW_W / 2, 180, { font: 'italic 13px Georgia, serif', color: '#8e8778', align: 'center' }); }
+    else {
+      const sel = Math.min(this.journalIndex, list.length - 1), rows = 11, top = clamp(sel - 5, 0, Math.max(0, list.length - rows));
+      for (let r = 0; r < rows && top + r < list.length; r++) {
+        const i = top + r, id = list[i], y = 92 + r * 22, on = i === sel, unread = !Game.save.flags['read:' + id];
+        if (unread && !on) { ctx.fillStyle = 'rgba(230,216,255,0.8)'; ctx.beginPath(); ctx.arc(44, y - 4, 2, 0, Math.PI * 2); ctx.fill(); }
+        uiText(ctx, Story.shards[id].title, 56, y, { font: on ? '14px Georgia, serif' : '13px Georgia, serif', color: on ? '#fbf6ea' : '#8e8778', glow: on ? 'rgba(233,223,200,0.45)' : null });
+      }
+      if (top > 0) uiText(ctx, '▴', 48, 80, { font: '10px Georgia, serif', color: '#6e675c', align: 'center' });
+      if (top + rows < list.length) uiText(ctx, '▾', 48, 92 + rows * 22 - 6, { font: '10px Georgia, serif', color: '#6e675c', align: 'center' });
+      const sh = Story.shards[list[sel]], tx = 250;
+      uiText(ctx, sh.title, tx, 92, { font: 'italic 14px Georgia, serif', color: '#e4dcf2', glow: 'rgba(200,185,240,0.3)' });
+      ctx.fillStyle = 'rgba(217,207,182,0.3)'; ctx.fillRect(tx, 99, 120, 1);
+      ctx.font = '13px Georgia, serif';
+      wrapText(ctx, sh.text, VIEW_W - tx - 40).forEach((l, i) => uiText(ctx, l, tx, 122 + i * 18, { font: '13px Georgia, serif', color: '#e6dec9' }));
+    }
+    uiText(ctx, list.length + ' of ' + Story.shards.length + ' remembered', 56, VIEW_H - 22, { font: 'italic 10px Georgia, serif', color: '#7a7366' });
+    uiText(ctx, 'up / down read    Esc back', VIEW_W - 40, VIEW_H - 22, { font: '10px Georgia, serif', color: '#7a7366', align: 'right' });
+  },
   showToast(text) { this.toast = { text, t: 2.5 }; },
 
   drawTitle(ctx, t) {
@@ -289,8 +340,8 @@ const UI = {
     this.frame(ctx, 110, 70, 420, 240, { fill: 'rgba(10,8,14,0.55)' });
     uiText(ctx, 'PAUSED', VIEW_W / 2, 112, { font: '20px Georgia, serif', color: '#efe7d6', align: 'center', spacing: 6, glow: 'rgba(233,223,200,0.4)' });
     uiFlourish(ctx, VIEW_W / 2, 122, 150, '#d8ccb0', 0.8);
-    ['Resume', 'Stuck? Back to lantern', 'Quit to Title'].forEach((it, i) => {
-      const sel = i === this.menuIndex, y = 166 + i * 28;
+    this.pauseItems.forEach((it, i) => {
+      const sel = i === this.menuIndex, y = 154 + i * 22;
       if (sel) {
         uiText(ctx, it, VIEW_W / 2, y, { font: '17px Georgia, serif', color: '#fbf6ea', align: 'center', spacing: 1, glow: 'rgba(233,223,200,0.5)' });
         const tw = ctx.measureText(it).width / 2 + it.length + 14;
@@ -298,6 +349,7 @@ const UI = {
         ctx.beginPath(); ctx.moveTo(VIEW_W / 2 - tw, y - 5); ctx.lineTo(VIEW_W / 2 - tw + 2.5, y - 2.5); ctx.lineTo(VIEW_W / 2 - tw, y); ctx.lineTo(VIEW_W / 2 - tw - 2.5, y - 2.5); ctx.closePath(); ctx.fill();
         ctx.beginPath(); ctx.moveTo(VIEW_W / 2 + tw, y - 5); ctx.lineTo(VIEW_W / 2 + tw + 2.5, y - 2.5); ctx.lineTo(VIEW_W / 2 + tw, y); ctx.lineTo(VIEW_W / 2 + tw - 2.5, y - 2.5); ctx.closePath(); ctx.fill();
       } else uiText(ctx, it, VIEW_W / 2, y, { font: '16px Georgia, serif', color: '#8e8778', align: 'center', spacing: 1 });
+      if (it === 'Memories' && this.journalUnread() > 0) { ctx.font = '16px Georgia, serif'; ctx.fillStyle = 'rgba(230,216,255,0.85)'; ctx.beginPath(); ctx.arc(VIEW_W / 2 + ctx.measureText(it).width / 2 + 14, y - 5, 2, 0, Math.PI * 2); ctx.fill(); }
     });
     uiText(ctx, 'Keys: arrows move  Z jump  X strike  C dash  V cast  Q/E power  F anchor  hold H focus  M map', VIEW_W / 2, 250, { font: '10px Georgia, serif', color: '#8e8778', align: 'center' });
     uiText(ctx, 'Pad: A jump  X strike  RT dash  RB cast  d-pad power  Y anchor  hold B focus  LB/LT quick cast  Select map', VIEW_W / 2, 263, { font: '10px Georgia, serif', color: '#8e8778', align: 'center' });

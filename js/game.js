@@ -3,6 +3,8 @@
 // Game state machine, camera, time powers, zone transitions, save system.
 // ---------------------------------------------------------------------------
 const SAVE_KEY = 'hollow-hours-save-v4';
+// Fragments: hours and spools come in pieces; a set completes into +1 max hour / +1 max thread (the rite plays on completion only).
+const HEART_FRAGS = 2, SPOOL_FRAGS = 3;
 const OLD_SAVE_KEY = 'hollow-hours-save-v3'; // read once and migrated (power ids renamed, see readSave)
 
 // A thin clock ring that empties over a hold (k = time left / duration), drawn around held things and beside the Hold seal.
@@ -26,6 +28,7 @@ const Game = {
   transition: null, pendingBosses: [], pendingDialogue: null, pendingEnding: false, bossDefeatTimer: 0, defeatedBoss: null,
   deathT: 0, overlay: null, debug: false, manual: false,
   shardStarts: {}, powerIndex: 0, curScreen: null,
+  riteQueue: [], whisper: null, dimT: 0, fragToast: null,
 
   init() {
     this.canvas = document.getElementById('game');
@@ -56,12 +59,17 @@ const Game = {
   readSave() {
     try {
       const s = localStorage.getItem(SAVE_KEY);
-      if (s) return Object.assign(this.defaultSave(), JSON.parse(s));
+      if (s) return this.deriveStats(Object.assign(this.defaultSave(), JSON.parse(s)));
       const old = localStorage.getItem(OLD_SAVE_KEY); if (!old) return null;
       const m = this.migrateSave(Object.assign(this.defaultSave(), JSON.parse(old)));
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(m)); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { /* unavailable */ }
-      return m;
+      return this.deriveStats(m);
     } catch (e) { return null; }
+  },
+  // max hours / thread are derived from the fragment flags, so old saves (one flag = one point) migrate on load
+  deriveStats(s) {
+    let h = 0, sp = 0; for (const k in s.flags) { if (k.startsWith('heart:')) h++; else if (k.startsWith('spool:')) sp++; }
+    s.maxHp = 5 + Math.floor(h / HEART_FRAGS); s.maxThread = Math.min(15, 9 + Math.floor(sp / SPOOL_FRAGS)); return s;
   },
   // v3 -> v4: the powers were renamed (wither age, stall hold, mend restore, sever cut); the tower gate flag with them
   migrateSave(s) {
@@ -89,7 +97,7 @@ const Game = {
 
   // ---- flow ---------------------------------------------------------------
   newGame() {
-    this.killed.clear();
+    this.killed.clear(); this.riteQueue = []; this.whisper = null; this.dimT = 0;
     this.save = this.defaultSave();
     this.player = new Player();
     this.playCutscene(Story.prologue, () => {
@@ -105,6 +113,7 @@ const Game = {
     this.killed.clear();
     const s = this.readSave();
     if (!s) { this.newGame(); return; }
+    this.riteQueue = []; this.whisper = null; this.dimT = 0;
     this.save = s;
     this.player = new Player();
     this.player.maxHp = s.maxHp; this.player.hp = s.maxHp; this.player.maxThread = s.maxThread || 9;
@@ -192,6 +201,7 @@ const Game = {
     if (id === 'U6' && !f.surfaced) { f.surfaced = true; this.writeSave(); }
   },
   playCutscene(steps, onDone, overlay, skippable) {
+    if (!steps || !steps.length) { if (onDone) onDone(); return; } // an emptied scene (story trims) must not stall or crash
     if (this.state !== 'cutscene') this.prevState = this.state === 'title' ? 'play' : this.state;
     this.state = 'cutscene';
     Cutscene.play(steps, () => {
@@ -249,19 +259,32 @@ const Game = {
     const sc = World.screenAt(p.x, p.y);
     if (p.kind === 'spool') {
       this.save.flags['spool:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
-      pl.maxThread = Math.min(15, pl.maxThread + 1); pl.thread = pl.maxThread; this.save.maxThread = pl.maxThread;
-      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#8fb3ff', 16, 90);
-      this.startRite('spool', p, { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' });
+      const n = this.spoolCount(), done = n % SPOOL_FRAGS === 0, before = pl.maxThread;
+      pl.maxThread = this.save.maxThread = Math.min(15, 9 + Math.floor(n / SPOOL_FRAGS));
+      if (done && pl.maxThread > before) {
+        pl.thread = pl.maxThread; AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#8fb3ff', 16, 90);
+        this.startRite('spool', p, { title: 'A SPOOL OF THREAD', text: 'Hours wound tight by someone who meant to spend them later. The thread you can carry runs one longer.', color: '#8fb3ff' });
+      } else this.quietFragment(p, '#8fb3ff', 'Thread fragment ' + (done ? SPOOL_FRAGS : n % SPOOL_FRAGS) + '/' + SPOOL_FRAGS);
     } else if (p.kind === 'heart') {
       this.save.flags['heart:' + sc.id + ':' + (p.x / TILE - sc.ox) + ':' + (p.y / TILE - sc.oy)] = true;
-      pl.maxHp++; pl.hp = pl.maxHp; this.save.maxHp = pl.maxHp;
-      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
-      this.startRite('heart', p, { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now.', color: '#ff5a5a' });
+      const n = this.heartCount(), done = n % HEART_FRAGS === 0;
+      pl.maxHp = this.save.maxHp = 5 + Math.floor(n / HEART_FRAGS);
+      if (done) {
+        pl.hp = pl.maxHp; AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#ff5a5a', 16, 90);
+        this.startRite('heart', p, { title: 'AN HOUR OF YOUR OWN', text: 'Someone\'s unspent hour, found in the dark. It is yours now.', color: '#ff5a5a' });
+      } else this.quietFragment(p, '#ff5a5a', 'Hour fragment ' + (n % HEART_FRAGS) + '/' + HEART_FRAGS);
     } else if (p.kind === 'shard') {
       this.save.flags['shard:' + p.index] = true;
-      AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
       const sh = Story.shards[p.index] || { title: 'Memory', text: '...' };
-      this.startRite('shard', p, { title: sh.title, text: sh.text, color: '#e6d8ff', memory: true });
+      if (sh.key === true) {
+        AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
+        this.startRite('shard', p, { title: sh.title, text: sh.text, color: '#e6d8ff', memory: true });
+      } else {
+        // a quiet memory: a whisper, a slow dim, the first sentence surfacing at the bottom of the screen; the rest lives in the journal
+        AudioSys.sfx('memory'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 10, 50);
+        const first = (sh.text.match(/^.*?[.!?…]["'”’]?(?=\s|$)/) || [sh.text])[0];
+        this.whisper = { text: first, t: 0, dur: 6 }; this.dimT = 1.2;
+      }
     } else if (p.kind === 'ability') {
       this.save.abilities[p.ability] = true;
       AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
@@ -272,9 +295,16 @@ const Game = {
     }
     this.writeSave();
   },
+  // A fragment: no pause, no card; a soft chime, a puff of light and a pale toast beside the HUD.
+  quietFragment(p, color, text) {
+    AudioSys.sfx('fragment'); this.burst(p.x + 8, p.y + 8, color, 8, 50);
+    this.fragToast = { text, t: 2.5, color };
+  },
   // A rite: the moment a power or a memory enters Tam. Time holds, the camera draws in on him, the light
   // gathers, and only then does the card open. Shards play as a memory: the colour drains out first.
   startRite(kind, p, card) {
+    // rites never chain: a second one waits for the first card to close
+    if (this.state === 'rite' || this.state === 'overlay') { this.riteQueue.push({ kind, p, card }); return; }
     const pl = this.player;
     const dur = kind === 'ability' ? 2.6 : kind === 'shard' ? 1.9 : 1.5;
     this.rite = { kind, x: pl.x + pl.w / 2, y: pl.y + pl.h / 2 - 4, dur, card, color: card.color || '#ffd27a', srcX: p.x + 8, srcY: p.y + 8 };
@@ -388,9 +418,10 @@ const Game = {
       case 'cutscene': Cutscene.update(dt); if (Cutscene.overlay) this.stepParticles(dt); break;
       case 'play': this.stepPlay(dt); break;
       case 'rite': this.stepRite(dt); break;
-      case 'overlay': this.stepParticles(dt); this.overlayT += dt; if (Input.hit('confirm') && this.overlayT > 0.6) { const o = this.overlay; this.overlay = null; this.rite = null; this.state = 'play'; if (o.onClose) o.onClose(); } break;
+      case 'overlay': this.stepParticles(dt); this.overlayT += dt; if (Input.hit('confirm') && this.overlayT > 0.6) { const o = this.overlay; this.overlay = null; this.rite = null; this.state = 'play'; if (o.onClose) o.onClose(); const q = this.riteQueue.shift(); if (q) this.startRite(q.kind, q.p, q.card); } break;
       case 'map': if (Input.hit('map') || Input.hit('pause')) { this.state = 'play'; AudioSys.sfx('menu'); } break;
       case 'pause': this.stepPause(); break;
+      case 'journal': this.stepJournal(); break;
       case 'dead': this.deathT += dt; this.stepParticles(dt); if (this.deathT > 1.2 && Input.hit('confirm')) this.respawn(); break;
       case 'transition': this.stepTransition(dt); break;
     }
@@ -417,10 +448,24 @@ const Game = {
     UI.showToast('Back at the last lantern. Everything you found is kept.');
   },
   stepPause() {
-    if (Input.hit('downDir')) { UI.menuIndex = (UI.menuIndex + 1) % 3; AudioSys.sfx('menu'); }
-    if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + 2) % 3; AudioSys.sfx('menu'); }
+    const n = UI.pauseItems.length;
+    if (Input.hit('downDir')) { UI.menuIndex = (UI.menuIndex + 1) % n; AudioSys.sfx('menu'); }
+    if (Input.hit('up')) { UI.menuIndex = (UI.menuIndex + n - 1) % n; AudioSys.sfx('menu'); }
     if (Input.hit('pause')) { this.state = 'play'; return; }
-    if (Input.hit('confirm')) { if (UI.menuIndex === 0) this.state = 'play'; else if (UI.menuIndex === 1) this.unstick(); else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); } }
+    if (Input.hit('confirm')) {
+      const it = UI.pauseItems[UI.menuIndex];
+      if (it === 'Resume') this.state = 'play';
+      else if (it === 'Memories') { this.state = 'journal'; UI.journalIndex = 0; UI.journalMark(); AudioSys.sfx('menu'); }
+      else if (it === 'Stuck? Back to lantern') this.unstick();
+      else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); }
+    }
+  },
+  // the journal: every memory found, in the order the city gave them up
+  stepJournal() {
+    const list = UI.journalList(), n = list.length;
+    if (Input.hit('pause') || Input.hit('confirm') || Input.hit('map')) { this.state = 'pause'; UI.menuIndex = UI.pauseItems.indexOf('Memories'); AudioSys.sfx('menu'); return; }
+    if (n && Input.hit('downDir')) { UI.journalIndex = (UI.journalIndex + 1) % n; UI.journalMark(); AudioSys.sfx('menu'); }
+    if (n && Input.hit('up')) { UI.journalIndex = (UI.journalIndex + n - 1) % n; UI.journalMark(); AudioSys.sfx('menu'); }
   },
   stepParticles(dt) {
     for (const p of this.particles) p.update(dt); this.particles = this.particles.filter((p) => !p.dead);
@@ -454,6 +499,8 @@ const Game = {
       }
     }
     this.save.time += dt;
+    if (this.whisper) { this.whisper.t += dt; if (this.whisper.t > this.whisper.dur) this.whisper = null; }
+    if (this.dimT > 0) this.dimT -= dt;
     // time powers
     if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) this.timeScale = 1; }
     if (this.held) { this.held.t -= dt; if (this.held.t <= 0 || this.held.obj.dead) this.release(); }
@@ -659,13 +706,14 @@ const Game = {
     if (this.restGlow > 0) { const a = Math.min(0.35, this.restGlow * 0.4); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.2, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.9); g.addColorStop(0, `rgba(255,214,140,${a * 0.5})`); g.addColorStop(1, 'rgba(255,190,90,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.hurtFlash > 0) { const a = Math.min(0.5, this.hurtFlash); const g = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.35, VIEW_W / 2, VIEW_H / 2, VIEW_H * 0.85); g.addColorStop(0, 'rgba(160,0,20,0)'); g.addColorStop(1, `rgba(200,10,30,${a})`); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (this.flashWhite > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashWhite * 4})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
-    UI.drawHud(ctx, t);
+    UI.drawHud(ctx, t); UI.drawQuiet(ctx, t);
     switch (this.state) {
       case 'cutscene': Cutscene.draw(ctx, t); break;
       case 'overlay': UI.drawOverlayCard(ctx, this.overlay.title, this.overlay.text, t, this.overlay.color, this.overlayT, this.overlay.memory); break;
       case 'rite': break;
       case 'map': UI.drawMap(ctx, t); break;
       case 'pause': UI.drawPause(ctx, t); break;
+      case 'journal': UI.drawJournal(ctx, t); break;
       case 'dead': UI.drawDeath(ctx, t, this.deathT / 1.2); break;
       case 'transition': { const k = this.transition.t < 0.18 ? this.transition.t / 0.18 : 1 - (this.transition.t - 0.18) / 0.18; ctx.fillStyle = `rgba(0,0,0,${clamp(k, 0, 1)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); break; }
     }
