@@ -351,7 +351,7 @@ Object.assign(Art, {
             const pts = []; for (let k = 0; k <= 10; k++) pts.push([X - 4 + k * span / 10, y0 + slope * k / 10 + Math.sin(k * f1 + ph) * amp + Math.sin(k * f2 + ph2) * amp * 0.45]);
             Ink.line(ctx, pts, { w: 1.2 + n(s, 25) * 1.4, color: n(s, 26) < 0.5 ? acc(0.2) : moss(0.6), jit: 0, seed: s, t: 0 });
           }
-          if (n(s, 27) < 0.025) { const gx = X + 3 + n(s, 28) * 10, gy = Y + 3 + n(s, 29) * 10; ctx.fillStyle = acc(0.12); ctx.beginPath(); ctx.arc(gx, gy, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.beginPath(); ctx.arc(gx, gy, 1.6, 0, Math.PI * 2); ctx.fill(); }
+          if (n(s, 27) < 0.025) { const gx = X + 3 + n(s, 28) * 10, gy = Y + 3 + n(s, 29) * 10; const gg = ctx.createRadialGradient(gx, gy, 0.5, gx, gy, 7.5); gg.addColorStop(0, acc(0.3)); gg.addColorStop(0.5, acc(0.1)); gg.addColorStop(1, acc(0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(gx, gy, 7.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = acc(0.6); ctx.beginPath(); ctx.arc(gx, gy, 1.6, 0, Math.PI * 2); ctx.fill(); } // a glowing node: a soft halo, not a disc
           if (d >= 1 && n(s, 34) < 0.008) { // something in the rock, asleep: a closed eye the size of a hand
             const cx = X + 8, cy = Y + 8; const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, 11); g.addColorStop(0, acc(0.12)); g.addColorStop(1, acc(0)); ctx.fillStyle = g; ctx.fillRect(cx - 11, cy - 11, 22, 22);
             ctx.fillStyle = TILE_MIX(p.rock, p.accent, 0.22); ctx.beginPath(); ctx.ellipse(cx, cy, 6.5, 3, 0, 0, Math.PI * 2); ctx.fill();

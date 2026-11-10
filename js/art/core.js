@@ -132,13 +132,13 @@ const Paint = {
       if (!sp) sp = this._cache[key] = this._glowMaster(color, flat ? 64 : 256);
       ctx.drawImage(sp, x - r, y - r, r * 2, r * 2);
     } else {
-      // above 512 backing px of radius the sprite is kept at half size and stretched (it would be megabytes otherwise)
-      const rb = Math.round(20 * Math.pow(1.03, Math.round(Math.log(rd / 20) / Math.log(1.03)))), half = rb > 512, rs2 = half ? Math.ceil(rb / 2) : rb, key = 'G' + color + ':' + rs2; let sp = this._cache[key];
+      // above 800 backing px of radius the sprite is kept at half size and stretched (it would be megabytes otherwise)
+      const rb = Math.round(20 * Math.pow(1.03, Math.round(Math.log(rd / 20) / Math.log(1.03)))), half = rb > 800, rs2 = half ? Math.ceil(rb / 2) : rb, key = 'G' + color + ':' + rs2; let sp = this._cache[key];
       const lru = this._glowLru, tick = ++this._glowTick;
       if (!sp) {
         sp = this._cache[key] = this._glowMaster(color, rs2 * 2); this._glowPx += rs2 * rs2 * 4;
-        // forget the sprites unused for longest once 16 Mpx are held (never one used in the last few hundred glows)
-        for (const [k, tk] of lru) { if (this._glowPx <= 16e6 || tk > tick - 400) break; const old = this._cache[k]; if (old) { this._glowPx -= old.width * old.height; delete this._cache[k]; } lru.delete(k); }
+        // forget the sprites unused for longest once 24 Mpx are held (never one used in the last few hundred glows)
+        for (const [k, tk] of lru) { if (this._glowPx <= 24e6 || tk > tick - 400) break; const old = this._cache[k]; if (old) { this._glowPx -= old.width * old.height; delete this._cache[k]; } lru.delete(k); }
       }
       lru.delete(key); lru.set(key, tick);
       (ctx._rawSet || ctx.setTransform).call(ctx, 1, 0, 0, 1, 0, 0);

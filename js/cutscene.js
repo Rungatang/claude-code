@@ -149,7 +149,7 @@ const Cutscene = {
     }
     if (this.skippable) {
       ctx.fillStyle = '#9a9080';
-      ctx.font = '11px monospace';
+      ctx.font = '11px Georgia, serif';
       ctx.textAlign = 'right';
       ctx.fillText(this.skipT > 0 ? 'skipping...' : 'hold ESC to skip', VIEW_W - 12, 18);
       ctx.textAlign = 'left';

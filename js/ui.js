@@ -122,7 +122,7 @@ const UI = {
       const key = 'm' + ps + ':' + pq;
       if (this._pmKey !== key) {
         const m = document.createElement('canvas'); m.width = m.height = PN; const mc = m.getContext('2d'); mc.scale(pq, pq);
-        const rg = mc.createRadialGradient(64, 60, ps * 0.3, 64, 60, Math.min(ps * 0.56, 59)); // fades out inside the scratch canvas: no square edge rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(0.75, 'rgba(0,0,0,0.85)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        const rg = mc.createRadialGradient(64, 60, ps * 0.3, 64, 60, Math.min(ps * 0.56, 59)); rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(0.75, 'rgba(0,0,0,0.85)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
         mc.fillStyle = rg; mc.fillRect(0, 0, 128, 128); this._pm = m; this._pmKey = key;
       }
       const pc = this._pc.getContext('2d');
