@@ -1,7 +1,7 @@
 # WOUND: story bible
 
-Status: draft for review with the player (PLAN.md step 5, process item 1). Nothing in `js/story.js` has
-been changed to match it yet. The working title stays HOLLOW HOURS until step 4b picks the one-word title;
+Status: the Voice section, the reveal schedule and section 5 (the memories) describe what `js/story.js`
+does now; sections 3, 4 and 6 to 10 are the older long-form draft and yield to them where they differ. The working title stays HOLLOW HOURS until step 4b picks the one-word title;
 where this document says "the title card", read whichever word wins.
 
 ## Voice (binding; supersedes any line below that contradicts it)
@@ -12,15 +12,18 @@ where this document says "the title card", read whichever word wins.
 2. **No one explains.** NPCs and bosses speak in fragments, habits, trade talk and small grievances.
    Nobody summarises the plot, names the mechanism or says the central secret aloud. Sef lies by
    omission and warmth, never by monologue. No aphorisms, no rhetorical threes, no announced feelings.
-3. **Shards are fragments.** 10 to 30 words, impersonal or third person, never "you", never a stated
-   relationship, age or the name Tam. A smell, an object, a sound, one overheard line. Recurring
-   motifs: sugar, sand in a bottle, a bell over a door, a ledger signed S. Out of order and ambiguous;
-   collected, they let a careful player assemble the truth. Six are `key: true` (full ceremony); the
-   rest go quietly to the journal and must stand alone as a line worth re-reading.
+3. **Shards are fragments, and not all from one life.** 10 to 25 words, impersonal, never "you",
+   never a stated relationship or age, never a name of the cast. A smell, an object, a sound, one
+   overheard line. No single fragment looks wrong; two read together do not agree. Six are `key: true`
+   (full ceremony); the rest surface as one quiet line and go to the journal. Nothing on screen ever
+   says whose they are, how many there are, or what a blot or an ink means. See section 5.
 4. **Tablets are found text**: notices, ledgers, graffiti, a worker's note, a child's chalk. They may
    hint at a power by a picture or a verb; they never describe a mechanic outright, never state the
    theme. Ability cards are a name and at most one short oblique line: no key, no lore, and nothing the
-   player cannot try in the room where the card opens.
+   player cannot try in the room where the card opens. Five powers (Skip, Wither, Hold, Mend, Echo)
+   are taken out of a guardian's body where it fell (Shallows, Ferrous Mother, Escapement, Index,
+   Grinder): their cards say where the thing was, never what it does, and no text anywhere mentions an
+   altar or a seal on a stone. The rooms past those fights are quiet rooms, and their tablets read so.
 5. **Title cards show, they do not say.** A region card is the region's name and nothing else. A
    guardian with nothing to say gets no scene at all: the doors shut, a beat, its name rises, the
    fight is on. No card ever names a control.
@@ -37,6 +40,15 @@ where this document says "the title card", read whichever word wins.
    (`QUIET_GAP`): a queued one waits, one flagged `minor` is dropped. Talking to someone is the
    player's choice and is never held back. Tablets never open by themselves. Nothing tells the player
    where to go: no "east", no "up through", no "the seal is on the stone".
+9. **Nobody answers what was not asked. Sef's knowledge is the leak.** Tam never says he has
+   forgotten, so nobody may reply as if he had: no "your name is", no "you've forgotten", no recap of
+   a scene the speaker did not see, no defence against an accusation he never made. People talk about
+   what is in front of them (boots, bread, a net, a binding on the floor). Sef alone knows more than
+   she has been told, because she made him blank, and it shows only in slips: she uses his name as if
+   nothing were wrong and waits for an answer that does not come; she says "so that took" of a power he
+   has had for a minute; she "allowed for" how long he would be underground; she knows what the Regent
+   said in a room she was not in. She never explains a slip and nobody remarks on one. The player
+   should feel that she knows too much before anything tells them why.
 
 Prompts (each shown once; glyphs follow the last device touched, keyboard / pad):
 
@@ -61,11 +73,12 @@ Reveal schedule (what is on screen, in play order; nothing earlier may say more)
 | First door | A2 Sunken Stair | A chalk drawing of a child, a nail and a door. The anchor's key only after the door has beaten him. |
 | First foes | A1 to A3 | That they were people is left to the eye. The strike key beside the first one. A workers' notice about lunges. |
 | First guardian | A4 Shallows Hall | Its name, after a beat. No words before or after. |
-| The Jetty | A5 | A kind woman, tagged `???`, gives him one thing: "Tam." She does not name herself and sends him nowhere. The Skip card is a name and a line. |
+| First guardian's body | A4 | The Skip comes out of the Warden where it fell. A card: a name and one line. Nobody gave it to him. |
+| The Jetty | A5 | A woman, tagged `???`, greets him by a name, "Tam.", as if he were late for supper, and waits. He tries the sound. She covers ("The water does that."), remarks that the step "took", and goes back to her net. She gives nothing, names nobody else, sends him nowhere. The player has the name only because she used it. |
 | Rust, Glassworks, Cathedral | R, G, H | Initials only (T., S.), ledger pages as found objects, "Her." from the Escapement. Regent blamed by everything written. |
 | The fall | T1, D1 | The Regent does not know him. First mention of "the kind one" (Archivist). |
 | The Mills | M1 | The Miller says the name aloud for the first time: "Sef ran the Well. My wife." (optional to hear) |
-| The Root | U4 | Her tag turns from `???` to `Sef` as she says it herself: "Sef. You had it once. Say that too." |
+| The Root | U4 | Her tag turns from `???` to `Sef` as the name slips out the way one soothes a child: "Don't flinch. It's only Sef." She was expecting him: "Longer than I allowed for." |
 | The Clock | T2, T3 | Unchanged: the Regent's denial, "little brother", the ledger's last page. |
 
 The player's rules, all binding, restated so every section below can be checked against them:
@@ -138,8 +151,10 @@ appear and how their lines change by act.
   - "I only ever took what was owed. Ask anyone who owed."
 - Appears: the Jetty (A5), the Mouth (U4), the Great Clock (T3). New: a glimpse in the Grainmarket in Act
   I (the Pawnbroker: "Your friend was in. She did not buy."), and a letter in the Orphan Ward signed with
-  one initial. Act I: gives a name, a seal and a direction, and lets the city do the blaming. Act II:
-  gives Sever and a reason. Act III: tells the truth, because it is cheaper than lying.
+  one initial. Act I: uses his name once and gives nothing else, and lets the city do the blaming. Act II:
+  gives Sever and no reason. Act III: still does not recap; she answers his tone, not his evidence.
+- Staging rule (Voice 9): every scene of hers contains one thing she could not know unless she had done
+  it, said in passing and never explained, and one small practical thing she goes back to.
 
 ### The Regent of Hours
 
@@ -350,42 +365,88 @@ Act III: the Clock
 
 ---
 
-## 5. The twenty-four memory shards
+## 5. The twenty-four memories
 
-Superseded by the Voice section: shards are impersonal fragments (10 to 30 words), one per memory
-slot, index = `M` order in the rooms. Key shards (K) get the full ceremony. The older second-person
-drafts are retired; what each fragment now points at is listed as its gist.
+### How the memories work (for anyone writing or moving one)
 
-| # | Room | Title | Gist | Key |
-|---|---|---|---|---|
-| 1 | A2 | Bell | Bell over a door; a child's fist closed on a twist of sugar. Motif opens | K |
-| 2 | A3 | Sugar | Two grains on a sill, "Don't tell her", coins counted in stacks | |
-| 3 | A5 | Bottle | Sand in a green bottle: "Keep it and you keep the day" | |
-| 4 | A6 | Kettle | Tallow, wet wool, someone humming one verse. Home, only a smell | |
-| 5 | R1 | Stair | Forty-one steps, a worn rail, the bell once from below | |
-| 6 | R2 | Pen | A pen at night; every line ends in the same initial | |
-| 7 | R4 | The Well | The line of hats, the cold rim, "Only the one. Give me your hand." | K |
-| 8 | R5 | Bulbs | Two-bulb glass, no neck: "It will do for one." The glassworks hint | |
-| 9 | R6 | Slower | A man called by name walks away slower than he came | |
-| 10 | H3 | Yellow dog | Warm ears, flour, someone watching the dog as one watches a scale | |
-| 11 | H4 | Owing | "Everyone owes someone." "Soft. It can be mended." | |
-| 12 | H6 | Rice | A wedding; a whole life going slack in a pressed hand | |
-| 13 | H7 | Brazier | Names curling in the fire; feet on the stair, a soft "Oh." | |
-| 14 | T2 | Furnace | Old hands, the same glass wide as a ribcage, steady. The vessel | K |
-| 15 | D1 | Straps | New leather, a chair bolted by the well, "I'm sorry. Hold still." | |
-| 16 | D5 | Candle | A girl's eleventh birthday: "Good girls count" | |
-| 17 | D2 | From above | The brazier seen from the stair; a voice gentle only from outside | |
-| 18 | D4 | Ice | A fisherman's winter; "One hour, for the boat." | |
-| 19 | M1 | Pouring | A jug filling with ice, a candle, an old man's nap. None of it his | K |
-| 20 | M2 | Salt | Sand under a cheek; a voice rehearsing "The Regent did this. Say it back." | |
-| 21 | M5 | Matches | A box of matches, a name for each, fewer now | |
-| 22 | U2 | Charter | The signing: a young clockmaster, a hat in two hands, no eye contact | K |
-| 23 | U5 | Again | Footprints up toward the rust; hauled back; the same words. Not the first time | |
-| 24 | U7 | Wrist | The Well at night; a thumb across a wrist: "There. One that was given." | K |
+The truth being seeded, and never stated: Tam is filled with four hundred people's hours, so what he
+finds in the city is not one life. The twenty-four fragments come out of six of those hours. The game
+never says so. The player is given the means to sort them and nothing else.
 
-The ladder: 1 to 8 atmosphere and motifs with the first hints of the glassworks and the Well; 9 to 18
-the ledger, the debts, the chair and the other lives, all unattributed; 19 to 24 make the answer
-inferable (the pour, the repeated shore, the signing, the single freely given hour).
+- **Hands.** Every entry in `Story.shards` has `hand: 0..5`: whose hour it came out of.
+  - 0, his own. Signature: **the left hand** does something in every one (closes on the sugar, corks the
+    bottle, weighs the glass, feeds the brazier, turns the pipe, closes on nothing). No other hand's
+    fragment ever mentions a left hand. This is the only sorting key the text gives, and it is enough.
+  - 1, a fisherman (the sea, nets, a boat named for a daughter; right-handed; called Dov from the next room).
+  - 2, a girl (a latch too high, a river, counting; right-handed; called Wenna).
+  - 3, an old man (a cough, a stick, river fog, a nap by the weir; called Hale).
+  - 4, a baker (flour, a ring, a yellow dog; her right hand held out at the rim; called Maud).
+  - 5, the one who signs (the pen, the brazier seen from the stair, her own wrist). The one hour in him
+    that was given. Never named, never called anything.
+- **Contradiction, not statement.** A small left hand and a ringed right one; the sea on the shutters
+  and river fog on the pane; four different names called from another room; a cough and a girl of
+  eleven. Each fragment is plain alone. Do not add a line that notices the disagreement.
+- **The same thing from two bodies.** The brazier is in hand 0 (his left hand feeding the pages, a soft
+  "Oh." behind him) and in hand 5 (the same fire from the stair, and the "Oh" comes from this mouth). A
+  thumb at the wrist is in hands 1, 3 and 5. Pairs like these are the strongest tool here; keep them.
+- **The late keys carry the inference.** Ink (18): a pen writes a name, an hour, a letter at the foot.
+  The Book (21): a name, an hour, a letter down every page, and this hand's mark sits between a baker's
+  and a child's. Wrist (23): the same thumb, on this wrist, "one that was given". With the Index's
+  ledger card (columns signed S.) a careful player has: these were taken from people, one person signed
+  for each, and one was hers.
+- **Blots.** A span in `{braces}` is drawn as an ink blot the width of the hidden words. It lifts when
+  the fragment mends: with `clear: n`, once n memories are held; with no `clear`, once another
+  fragment of the same hand is held. Blots hide the detail that would give the life away (the name
+  called, the river, who the gift was for), so early fragments read as one life and come apart later.
+  Finding a fragment can mend an older one: that entry silently goes unread again (the dot returns on
+  pause > Memories) and carries a small pale ring until it has been read. No toast, no sound, no text.
+- **The journal** lists entries in the order found (`save.shardOrder`), with no title while anything in
+  the entry is blotted (a blot stands in its place), each in the ink of its hand: a slightly different
+  pale tint, slant and letter-spacing (`INKS` in js/ui.js). No legend. No total anywhere: the HUD shows
+  one small mark that is lit for a few seconds after a pickup; the map says "Memories n".
+- **The pickup** is a slow knot of sand turning against the clock. On touch the screen dims, the sand
+  in the HUD hours runs upward for a second and a half (`Game.sandBack`), and the fragment surfaces at
+  the bottom of the screen, blots and all, in its hand's ink. Key fragments get the full card.
+- **Code.** `Memory` at the foot of js/story.js is the only place braces are read (`words`, `text`,
+  `title`, `blotted`, `order`, `take`); `inkLayout` / `inkDraw` / `inkBlot` in js/ui.js draw the
+  whisper, the card and the journal from it. Save: `flags['shard:i']` held, `shardOrder` found order
+  (old saves heal to index order on first read), `flags['read:i']`, `flags['chg:i']` mended since read.
+- **Writing rules.** 10 to 25 words. Sensory, impersonal, present or verbless. Never "you", never a
+  cast name, never an explanation of the Well, the glass or the pouring. A new hand-0 fragment must use
+  the left hand; no other may. A name called from another room is always blotted at first.
+
+Index = `M` order in the rooms. K = `key: true`. Braces mark the blotted span.
+
+| # | Room | Hand | Title | Gist | Key | Clears when |
+|---|---|---|---|---|---|---|
+| 1 | A2 | 0 | Bell | Bell over a door; a small left hand on a twist of sugar; {a girl on a stool, counting} | K | another hand-0 is held |
+| 2 | A3 | 3 | Fog | A deep cough, river fog, a stick; {"Hale? Hale, come and eat."} | | another hand-3 is held |
+| 3 | A5 | 0 | Bottle | Sand funnelled into a green bottle; the left thumb on the cork; "the day is kept" | | no blot |
+| 4 | A6 | 1 | Kettle | Wet wool, a kettle, the sea on the shutters; {"Dov. Dov, it's gone five."} | | another hand-1 is held |
+| 5 | R1 | 2 | Latch | A latch too high, the right hand on tiptoe; forty-one steps down to {the river} | | another hand-2 is held |
+| 6 | R2 | 5 | Pen | A pen at night, columns, one initial; {the wrist aches from making it} | | another hand-5 is held |
+| 7 | R4 | 4 | The Rim | The dry stone, the line of hats, the ringed right hand held out: "Only the one." | K | no blot |
+| 8 | R5 | 0 | Bulbs | Two bulbs of glass weighed in the left palm; {wrapped in an apron, for her} | | 12 held |
+| 9 | R6 | 3 | Slower | Called by name, the stick first, a thumb at the wrist; the bridge longer, the bread cold | | no blot |
+| 10 | H3 | 4 | Yellow dog | Flour, the ring on the sill, a yellow dog; {"Maud! He's in the dough again."} | | 13 held |
+| 11 | H4 | 1 | Owing | A boat named for a daughter, a clerk, the right hand signs; {gulls, the tide going out} | | 14 held |
+| 12 | H6 | 2 | Rice | Wedding rice gathered into a pinafore pocket; {"Wenna! Leave it for the birds."} | | 16 held |
+| 13 | H7 | 0 | Brazier | Paper burning, the left hand feeding it, feet on the stair, a soft "Oh." | | no blot |
+| 14 | T2 | 0 | Furnace | The same two bulbs, wide as a ribcage, turned by the left hand, steady | K | no blot |
+| 15 | D1 | 3 | Nap | A nap saved for after the war, the bench by the weir; {waking: not had, the light gone} | | 18 held |
+| 16 | D5 | 2 | Candle | One candle, "Good girls count", eleven, then the room is {later than it was} | | 19 held |
+| 17 | D2 | 5 | From above | The brazier from the stair; the "Oh" comes from this mouth | | no blot |
+| 18 | D4 | 1 | Ice | Ice in the nets, the winter sea, "One hour, for the boat", a warm thumb on the wrist | | no blot |
+| 19 | M1 | 3 | Ink | A pen writes a name, {Hale}, one hour, one letter at the foot | K | 21 held |
+| 20 | M2 | 0 | Salt | Sand under a cheek, the left hand closing on nothing, a voice rehearsing; {the same words as the last time} | | 22 held |
+| 21 | M5 | 4 | Risen | The ring back on, the dough over the bowl, the dog will not come to {the hand that was held} | | 23 held |
+| 22 | U2 | 1 | The Book | A name, an hour, a letter down every page; the right hand marks {under a baker's, above a child's} | K | 23 held |
+| 23 | U5 | 2 | Beds | Numbered beds, a small right hand held out unasked; the counting {starts again from one} | | 24 held |
+| 24 | U7 | 5 | Wrist | Night at the dry stone; a thumb across this wrist, the same thumb: "One that was given." | K | no blot |
+
+The ladder: 1 to 8 read as one childhood with holes in it; 9 to 18 the holes fill and the lives stop
+agreeing; 19 to 24 put a pen, a book and one signing hand behind every one of them. Sections 3, 4 and 6
+still cite the retired shard numbering and are to be read for backstory only.
 
 ---
 

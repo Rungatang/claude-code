@@ -33,6 +33,7 @@ const Game = {
   deathT: 0, overlay: null, debug: false, manual: false,
   shardStarts: {}, powerIndex: 0, curScreen: null,
   riteQueue: [], whisper: null, dimT: 0, fragToast: null,
+  sandBack: 0, markT: 0, // a memory was just taken: the HUD hours run their sand upward (s left), the small mark by the powers is lit (s left)
   // contextual prompts (stepPrompts) and scene pacing: the one prompt on screen { id, text, t, end }, its session
   // state, the play seconds since the last scene, scenes waiting for the quiet gap, a guardian's name-card beat
   prompt: null, ps: null, padLast: false, quietT: 0, sayQueue: [], bossIntro: null, wakeT: 0, mapHintT: 0,
@@ -157,7 +158,7 @@ const Game = {
   has(ab) { return !!this.save.abilities[ab]; },
   powerList() { return POWER_ORDER.filter((p) => this.has(p)); },
   shardIndexFor(id) { return this.shardStarts[id] || 0; },
-  shardCount() { let n = 0; for (let i = 0; i < Story.shards.length; i++) if (this.save.flags['shard:' + i]) n++; return n; },
+  shardCount() { return Memory.count(this.save); },
   spoolCount() { let n = 0; for (const k in this.save.flags) if (k.startsWith('spool:')) n++; return n; },
   // The seal before a guardian's hall: tells the player how much of the city's memory it wants.
   gatePrompt(dt) {
@@ -203,7 +204,7 @@ const Game = {
     const prevRegion = World.room ? World.room.region : null;
     const specs = World.load(id);
     this.entities = []; this.projectiles = []; this.particles = []; this.floaters = [];
-    this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0; this.bossIntro = null; this.prompt = null;
+    this.pendingBosses = []; this.pendingDialogue = null; this.bossDefeatTimer = 0; this.bossIntro = null; this.prompt = null; this.powerDrop = null;
     this.timeScale = 1; this.severT = 0; this.held = null; this.fizzle = null; this.streak = null; World.platforms = [];
     const pl = this.player;
     pl.anchor = null; pl.history = []; pl.frozen = 0; pl.riding = null;
@@ -229,7 +230,12 @@ const Game = {
           this.entities.push(new Npc(s)); break;
         }
         case 'bossSpawn': {
-          if (f['boss:' + s.boss]) break;
+          if (f['boss:' + s.boss]) {
+            // a guardian already beaten whose power was never taken (an older save, or a death before the rite): it waits mid-hall
+            const pw = BOSS_POWERS[s.boss];
+            if (pw && !this.has(pw)) { const r = powerRestTile(s.arena, s.arena.x + s.arena.w / 2, s.arena.y + s.arena.h / 2); this.entities.push(new Pickup({ kind: 'ability', ability: pw, x: r.tx, y: r.ty, fromBoss: true })); }
+            break;
+          }
           if (s.boss === 'regent1' && f.regent1) break;
           if (s.boss === 'sef' && !f.sefConfront) { this.sefSpawn = s; break; }
           const b = new Boss(s.boss, s.x, s.y, s.arena); this.entities.push(b); this.pendingBosses.push(b); break;
@@ -355,22 +361,24 @@ const Game = {
         this.startRite('heart', p, { title: 'AN HOUR', text: 'The glass holds one more.', color: '#ff5a5a' });
       } else this.quietFragment(p, '#ff5a5a', 'Hour fragment ' + (n % HEART_FRAGS) + '/' + HEART_FRAGS);
     } else if (p.kind === 'shard') {
-      this.save.flags['shard:' + p.index] = true;
-      const sh = Story.shards[p.index] || { title: 'Memory', text: '...' };
+      // a memory (Memory, story.js): held, its place in the found order kept; an older entry it mends is quietly
+      // re-flagged unread. The sand in the HUD hours runs the wrong way for a moment; nothing is counted aloud.
+      Memory.take(this.save, p.index);
+      const sh = Story.shards[p.index] || { title: 'Memory', text: '...' }, text = Memory.text(this.save, p.index);
+      this.sandBack = 1.5; this.markT = 4;
       if (sh.key === true) {
         AudioSys.sfx('pickup'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 16, 90);
-        this.startRite('shard', p, { title: sh.title, text: sh.text, color: '#e6d8ff', memory: true });
+        this.startRite('shard', p, { title: Memory.title(this.save, p.index), text, color: '#e6d8ff', memory: true, hand: sh.hand });
       } else {
-        // a quiet memory: a whisper, a slow dim, the first sentence surfacing at the bottom of the screen; the rest lives in the journal
+        // a quiet memory: a slow dim and the fragment surfacing at the bottom of the screen, blots and all; it stays in the journal
         AudioSys.sfx('memory'); this.burst(p.x + 8, p.y + 8, '#e6d8ff', 10, 50);
-        const first = (sh.text.match(/^.*?[.!?…]["'”’]?(?=\s|$)/) || [sh.text])[0];
-        this.whisper = { text: first, t: 0, dur: 6 }; this.dimT = 1.2;
+        this.whisper = { text, t: 0, dur: 4 + text.length / 44, hand: sh.hand }; this.dimT = 1.2;
       }
     } else if (p.kind === 'ability') {
       this.save.abilities[p.ability] = true;
       AudioSys.sfx('ability'); this.burst(p.x + 8, p.y + 8, '#fff', 30, 140); World.shake = 0.3;
       const mv = MOVES[p.ability] || {}, ab = Story.abilities[p.ability] || { title: (mv.name || p.ability).toUpperCase(), text: (POWERS[p.ability] && POWERS[p.ability].hint) || mv.hint || '', color: (POWERS[p.ability] && POWERS[p.ability].color) || mv.color || '#ffd27a' };
-      this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (p.ability === 'dash') { this.save.flags.sefLeftJetty = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterDash; } if (p.ability === 'cut') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
+      this.overlay = { title: ab.title, text: ab.text, color: ab.color, onClose: () => { if (this.powerDrop && this.powerDrop.ability === p.ability) { /* taken from the guardian's body: only now does its hall open */ this.powerDrop = null; World.bossActive = false; World.tileVersion++; AudioSys.sfx('gate'); World.shake = Math.max(World.shake, 0.2); } if (p.ability === 'cut') { this.save.flags.sefLeftRoot = true; const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); } this.pendingDialogue = Story.sef.afterSever; } this.writeSave(); } };
       this.startRite('ability', p, this.overlay); this.overlay = null;
       const idx = POWER_ORDER.indexOf(p.ability); if (idx >= 0) this.powerIndex = this.powerList().indexOf(p.ability);
     }
@@ -418,7 +426,13 @@ const Game = {
     const pick = (table) => { for (const [cond, lines] of table) if (cond()) return lines; return null; };
     if (id === 'sef') {
       const here = this.curScreen;
-      if (here === 'A5') this.playCutscene(f.sefMet ? Story.sef.jettyAgain : Story.sef.jetty, () => { f.sefMet = true; this.writeSave(); }, true);
+      if (here === 'A5') this.playCutscene(f.sefMet ? Story.sef.jettyAgain : Story.sef.jetty, () => {
+        // she gives nothing here any more (the skip is taken from the Warden): once she has said her piece she is gone from the Jetty
+        f.sefMet = true; f.sefLeftJetty = true;
+        const n = this.entities.find((e) => e instanceof Npc && e.id === 'sef'); if (n) { n.dead = true; this.burst(n.x + 8, n.y + 16, '#ffd27a', 20, 60); }
+        if (Story.sef.afterJetty) this.pendingDialogue = Story.sef.afterJetty;
+        this.writeSave();
+      }, true);
       else this.playCutscene(f.sefRootMet ? Story.sef.rootAgain : Story.sef.root, () => { f.sefRootMet = true; this.writeSave(); }, true);
     } else if (id === 'sef2') {
       this.playCutscene(Story.sef.confront, () => {
@@ -527,6 +541,11 @@ const Game = {
     AudioSys.playTheme(World.room.region);
     World.openGates && World.openGates();
     this.bossDefeatTimer = 0.9; this.defeatedBoss = b.type;
+    this.player.withered = 0; this.player.pinned = 0;
+    // the guardian carried a power (BOSS_POWERS): it rises out of the body once the defeat scene is over, and the hall
+    // stays shut until Tam has taken it (World.bossActive keeps the doors down and the zone exits closed)
+    const pw = b.def.power;
+    if (pw && !this.has(pw)) { this.powerDrop = { ability: pw, x: b.x + b.w / 2, y: b.y + b.h - 8, arena: b.arena, risen: false }; World.bossActive = true; }
   },
   scriptedLoss() {
     const f = this.save.flags;
@@ -615,15 +634,15 @@ const Game = {
     if (Input.hit('confirm')) {
       const it = UI.pauseItems[UI.menuIndex];
       if (it === 'Resume') this.state = 'play';
-      else if (it === 'Memories') { this.state = 'journal'; UI.journalIndex = 0; UI.journalMark(); AudioSys.sfx('menu'); }
+      else if (it === 'Memories') { this.state = 'journal'; UI.journalOpen(); AudioSys.sfx('menu'); }
       else if (it === 'Stuck? Back to lantern') this.unstick();
       else { this.state = 'title'; UI.menuIndex = 0; AudioSys.playTheme('title'); }
     }
   },
-  // the journal: every memory found, in the order the city gave them up
+  // the journal: every memory held, in the order it was found
   stepJournal() {
     const list = UI.journalList(), n = list.length;
-    if (Input.hit('pause') || Input.hit('confirm') || Input.hit('map')) { this.state = 'pause'; UI.menuIndex = UI.pauseItems.indexOf('Memories'); AudioSys.sfx('menu'); return; }
+    if (Input.hit('pause') || Input.hit('confirm') || Input.hit('map')) { UI.journalClose(); this.state = 'pause'; UI.menuIndex = UI.pauseItems.indexOf('Memories'); AudioSys.sfx('menu'); return; }
     if (n && Input.hit('downDir')) { UI.journalIndex = (UI.journalIndex + 1) % n; UI.journalMark(); AudioSys.sfx('menu'); }
     if (n && Input.hit('up')) { UI.journalIndex = (UI.journalIndex + n - 1) % n; UI.journalMark(); AudioSys.sfx('menu'); }
   },
@@ -643,7 +662,7 @@ const Game = {
     // Failsafe: a fight with no living boss to fight must not keep the hall shut.
     if (World.bossActive && !Cutscene.active) {
       const live = this.entities.some((e) => e instanceof Boss && !e.dead);
-      if (!live) { World.bossActive = false; World.tileVersion++; }
+      if (!live && !this.powerDrop) { World.bossActive = false; World.tileVersion++; }
       else { const b = this.entities.find((e) => e instanceof Boss && !e.dead && !e.active && !this.pendingBosses.includes(e) && !(this.bossIntro && this.bossIntro.b === e)); if (b) b.active = true; }
     }
     if (this.bossIntro) {
@@ -661,13 +680,19 @@ const Game = {
       this.bossDefeatTimer -= dt;
       if (this.bossDefeatTimer <= 0) {
         const type = this.defeatedBoss;
-        this.playCutscene(Story.bosses[type].defeat, () => { AudioSys.sfx('gate'); if (type === 'sef') this.pendingEnding = true; }, true);
+        this.playCutscene(Story.bosses[type].defeat, () => {
+          const d = this.powerDrop;
+          if (d && !d.risen) { d.risen = true; this.entities.push(new PowerRise(d.ability, d.x, d.y, powerRestTile(d.arena, d.x, d.y))); } else AudioSys.sfx('gate');
+          if (type === 'sef') this.pendingEnding = true;
+        }, true);
         return;
       }
     }
     this.save.time += dt;
     if (this.whisper) { this.whisper.t += dt; if (this.whisper.t > this.whisper.dur) this.whisper = null; }
     if (this.dimT > 0) this.dimT -= dt;
+    if (this.sandBack > 0) this.sandBack -= dt;
+    if (this.markT > 0) this.markT -= dt;
     // time powers
     if (this.severT > 0) { this.severT -= dt; if (this.severT <= 0) this.timeScale = 1; }
     if (this.held) { this.held.t -= dt; if (this.held.t <= 0 || this.held.obj.dead) this.release(); }

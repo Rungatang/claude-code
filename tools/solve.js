@@ -357,7 +357,7 @@ const SOLVER = () => {
           if (s.ch === 'T') reached.spools++;
           if ('MHT'.includes(s.ch)) { const sc = World.zone.screens[s.screen]; reached.relics.push(s.ch + ' ' + s.screen + ' ' + (s.x - sc.ox) + ',' + (s.y - sc.oy)); }
           if (s.ch === 'S') { reached.saves.add(s.screen); queue.push([zone, { kind: 'save', screen: s.screen }]); }
-          if (s.ch === 'B') reached.bosses.add(def.boss);
+          if (s.ch === 'B') { reached.bosses.add(def.boss); if (BOSS_POWERS[def.boss]) reached.abilities.add(BOSS_POWERS[def.boss]); } // a guardian reached is beaten, and its power is taken from the body
           if (s.ch === 'N') reached.npcs.add(def.npc);
           if (s.ch === 'p') reached.plates.add(s.screen);
           if (s.ch === 'l' && (!s.broken || abilities.includes('restore'))) reached.levers.add(s.screen); // a broken lever needs restore before it can be struck
@@ -402,7 +402,7 @@ const SOLVER = () => {
   const report = await page.evaluate(SOLVER);
   for (const st of report.stages) console.log('with [' + st.abilities.join(',') + '] -> zones:', st.zones.join(' '), '| gains:', st.newAbilities.join(','), '| bosses:', st.bosses.join(','), '| shards', st.shards, 'hearts', st.hearts, 'spools', st.spools, (st.levers && st.levers.length ? '| levers ' + st.levers.join(',') : ''), '| passes', st.passes);
   const last = report.stages[report.stages.length - 1];
-  const defs = require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';({ ZONES, ROOMS })');
+  const defs = require('vm').runInNewContext('const ROOM_W=40,ROOM_H=23;' + require('./roomfiles').source() + ';({ ZONES, ROOMS, BOSS_POWERS })');
   const all = Object.keys(defs.ZONES);
   const total = { shards: 0, hearts: 0, spools: 0 };
   for (const r of Object.values(defs.ROOMS)) for (const row of r.grid) for (const ch of row) { if (ch === 'M') total.shards++; if (ch === 'H') total.hearts++; if (ch === 'T') total.spools++; }
@@ -433,10 +433,11 @@ const SOLVER = () => {
   console.log('return check:', hardFails ? hardFails + ' failing zone/stage pairs' : 'OK' + (notes ? ' (' + notes + ' one-way notes from the scripted loss)' : ''));
   console.log('time', ((Date.now() - t0) / 1000).toFixed(1) + 's');
   await browser.close();
-  // every altar in ROOMS must have been reached (the set of abilities, not a literal count)
-  const altars = [...new Set(Object.values(defs.ROOMS).map((r) => r.ability).filter(Boolean))];
+  // every power must have been gained: the ones the guardians carry (BOSS_POWERS) and every 'A' altar in ROOMS (the set of abilities, not a literal count)
+  const altars = [...new Set([...Object.values(defs.BOSS_POWERS || {}), ...Object.values(defs.ROOMS).map((r) => r.ability).filter(Boolean)])];
   const missingAltars = altars.filter((a) => !last.abilities.includes(a));
-  if (missingAltars.length) console.log('unreached altars:', missingAltars.join(','));
+  if (missingAltars.length) console.log('powers never gained:', missingAltars.join(','));
+  else console.log('powers gained: ' + altars.join(' ') + ' (' + altars.length + '/' + altars.length + ')');
   const finalOk = !missingAltars.length && last.abilities.length === altars.length && last.bosses.includes('regent') && last.bosses.includes('sef');
   const earlyTower = report.stages.some((st) => !st.abilities.includes('cut') && (st.bosses.includes('regent') || st.bosses.includes('sef')));
   if (earlyTower) console.log('WARNING: tower bosses reachable before cut');

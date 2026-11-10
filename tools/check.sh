@@ -18,6 +18,7 @@ if [ "$1" != "quick" ]; then
   expect solver "SOLVER OK" node tools/solve.js
   expect mechanics "errors: none" node tools/tests/mech.js
   expect story-flow "errors: none" node tools/tests/flow2.js
+  expect boss-powers "bosspower: OK" node tools/tests/bosspower.js
   expect lanterns "lantern: OK" node tools/tests/lantern.js
   expect migrate "migrate: OK" node tools/tests/migrate.js
   expect renders "errors: none" node tools/render.js all renders/tests

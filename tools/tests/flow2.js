@@ -27,13 +27,14 @@ const { chromium } = require('playwright');
     setup('A2', 8, 21); Game.player.placeFeet(ax + 8, 14 * TILE); run(20, []); clear();
     let ran = false; for (let i = 0; i < 300; i++) { run(1, ['ArrowRight']); clear(); if (Game.player.x > (ax + 38) * 16) { ran = true; break; } }
     out.push(['door beatable by running (should be false)', ran]);
-    // Sef at the jetty: talk, then take the seal
-    setup('A5', 12, 21, [], { 'boss:shallows': true });
+    // Sef at the jetty: she talks and is gone when the talk ends. She gives nothing: the skip was taken from the Warden's body (tools/tests/bosspower.js)
+    setup('A5', 12, 21, ['dash'], { 'boss:shallows': true });
     const sef = Game.entities.find((e) => e instanceof Npc && e.id === 'sef');
     run(5, []); clear(); run(1, [], { 0: ['ArrowUp'] }); const talking = Game.state === 'cutscene' && Cutscene.steps === Story.sef.jetty; clear();
-    for (let i = 0; i < 300; i++) { run(1, ['ArrowRight'], i % 30 === 0 ? { 0: ['KeyZ'] } : null); clear(); if (Game.has('dash')) break; }
+    const altarOnJetty = Game.entities.some((e) => e instanceof Pickup && e.kind === 'ability' && World.screenAt(e.x, e.y).id === 'A5');
+    for (let i = 0; i < 300; i++) { run(1, ['ArrowRight'], i % 30 === 0 ? { 0: ['KeyZ'] } : null); clear(); }
     clear();
-    out.push(['sef present', !!sef, 'jetty talk', talking, 'dash', Game.has('dash'), 'sef left', !Game.entities.some((e) => e instanceof Npc && e.id === 'sef'), 'flag', !!Game.save.flags.sefLeftJetty]);
+    out.push(['sef present', !!sef, 'jetty talk', talking, 'altar on the jetty (should be false)', altarOnJetty, 'sef left', !Game.entities.some((e) => e instanceof Npc && e.id === 'sef'), 'flag', !!Game.save.flags.sefLeftJetty]);
     // Root: Sef gives cut (Sever) after the loss
     setup('U3', 13, 21, ['dash', 'age', 'hold', 'restore', 'echo'], { regent1: true });
     const sefR = Game.entities.find((e) => e instanceof Npc && e.id === 'sef');

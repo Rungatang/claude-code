@@ -37,3 +37,7 @@
 // ---------------------------------------------------------------------------
 const ROOMS = {};
 const ZONE_DEFS = [];
+// A guardian carries a power and the player takes it from the body where it falls (Game.bossDefeated):
+// boss id -> power id. Boss.def.power (js/entities.js) is read from this table; tools/validate.js and
+// tools/solve.js read it for the story order.
+const BOSS_POWERS = { shallows: 'dash', ferrous: 'age', escapement: 'hold', index: 'restore', grinder: 'echo' };

@@ -46,11 +46,93 @@ function uiMask(ctx, x, y, on, t, i) {
     Paint.shape(ctx, pts, { fill: '#ece2cc', light: '#fffaf0', shade: '#c4b394', ink: 'rgba(26,20,30,0.8)', w: 1.5 });
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.1; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x + 3.7, y + 3.4); ctx.quadraticCurveTo(x + 3.9, y + 5.4, x + 4.9, y + 6.8); ctx.stroke(); // the small specular on the glass, following its curve
-    ctx.fillStyle = 'rgba(255,208,140,0.95)'; ctx.beginPath(); ctx.moveTo(x + 3.2, y + h - 3); ctx.lineTo(x + w - 3.2, y + h - 3); ctx.lineTo(x + w / 2, y + h - 7); ctx.closePath(); ctx.fill(); // sand resting in the lower bulb
+    // sand resting in the lower bulb; for a moment after a memory is taken (Game.sandBack) it runs the wrong way:
+    // the pile thins, grains climb the waist and gather under the upper cap, then it all settles again
+    const sb = Game.sandBack > 0 ? Math.pow(Math.sin(Math.PI * clamp(1 - Game.sandBack / 1.5, 0, 1)), 0.6) : 0, up = sb * 0.85;
+    const mxc = x + w / 2, lw = (w / 2 - 3.2) * (1 - up * 0.6), lh = 4 * (1 - up);
+    ctx.fillStyle = 'rgba(255,208,140,0.95)'; ctx.beginPath(); ctx.moveTo(mxc - lw, y + h - 3); ctx.lineTo(mxc + lw, y + h - 3); ctx.lineTo(mxc, y + h - 3 - lh); ctx.closePath(); ctx.fill();
+    if (sb > 0.01) {
+      const tw = (w / 2 - 3.2) * (0.4 + up * 0.6), th = 4.4 * up;
+      ctx.beginPath(); ctx.moveTo(mxc - tw, y + 3); ctx.lineTo(mxc + tw, y + 3); ctx.lineTo(mxc, y + 3 + th); ctx.closePath(); ctx.fill();
+      for (let j = 0; j < 3; j++) { const u = (t * 1.7 + j / 3 + i * 0.17) % 1; ctx.globalAlpha = breath * Math.min(1, sb * 1.6) * Math.sin(Math.PI * u); ctx.beginPath(); ctx.arc(mxc + Math.sin(u * 7 + j * 2.1) * 0.5, y + h - 6.5 - u * (h - 11.5), 0.65, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = breath;
+    }
   } else {
     Paint.shape(ctx, pts, { fill: 'rgba(18,14,24,0.6)', ink: 'rgba(214,200,172,0.35)', w: 1.2 });
   }
   ctx.restore();
+}
+
+// ---- ink: the memories are not all written in one hand ---------------------------------------------------
+// Each fragment's `hand` (Story.shards) has its own pale tint, slant and letter-spacing, all inside the quiet serif.
+// No legend, no label: nothing in the UI says what the difference means.
+const INKS = [
+  { color: '#efe7d6', style: '',        skew: 0,     sp: 0.2 },  // 0
+  { color: '#c9dcec', style: 'italic ', skew: 0,     sp: 0.35 }, // 1
+  { color: '#f0d3c8', style: '',        skew: 0.07,  sp: 1.15 }, // 2
+  { color: '#dfd29c', style: 'italic ', skew: 0.2,   sp: 0 },    // 3
+  { color: '#dcc8f0', style: '',        skew: -0.17, sp: 0.6 },  // 4
+  { color: '#c4e6cf', style: 'italic ', skew: -0.1,  sp: -0.25 },// 5
+];
+const INK_WHISPER = { color: '#e4dcf2', style: 'italic ', skew: 0, sp: 0 };
+// Lay a fragment out (font and letter-spacing already set on ctx): Memory.words wrapped to maxW, each run of
+// blotted words kept as one span so the blot is exactly as wide as the words it hides.
+function inkLayout(ctx, text, maxW) {
+  const sp = ctx.measureText(' ').width, lines = []; let cur = [], cw = 0;
+  for (const wd of Memory.words(text)) {
+    const w = ctx.measureText(wd.w).width;
+    if (cur.length && cw + sp + w > maxW) { lines.push(cur); cur = []; cw = 0; }
+    cw += (cur.length ? sp : 0) + w; cur.push(wd);
+  }
+  if (cur.length) lines.push(cur);
+  return lines.map((ln) => {
+    const runs = []; for (const wd of ln) { const last = runs[runs.length - 1]; if (last && last.blot === !!wd.blot) last.text += ' ' + wd.w; else runs.push({ text: wd.w, blot: !!wd.blot }); }
+    let x = 0; for (const r of runs) { r.x = x; r.w = ctx.measureText(r.text).width; x += r.w + sp; }
+    return { runs, w: x - sp };
+  });
+}
+// An ink blot: a soft dusk smear over the baseline at (x, y), w wide, in the same ink thinned out, darker at
+// its heart, with a stray drop beside it. Still (seeded by where it sits), never animated.
+function inkBlot(ctx, x, y, w, size, color, a, seed) {
+  if (w < 1.5 || a <= 0.01) return;
+  const h = size * 0.56, cy = y - size * 0.3, n = Math.max(3, Math.round(w / 6)), top = [], bot = [];
+  // the edge swells and thins along its length (two slow waves and a little noise), and tapers at both ends
+  for (let k = 0; k <= n; k++) {
+    const u = k / n, px = x - 2 + (w + 4) * u + (Ink.n(seed + k, 1) - 0.5) * 2, e = Math.min(1, 0.25 + Math.sin(Math.PI * u) * 2.2);
+    const sw = 0.78 + 0.26 * Math.sin(u * w * 0.11 + seed) + 0.14 * Math.sin(u * w * 0.31 + seed * 1.7);
+    top.push([px, cy - h * e * sw * (0.7 + Ink.n(seed + k, 3) * 0.5)]); bot.push([px, cy + h * e * sw * (0.75 + Ink.n(seed + k, 9) * 0.6)]);
+  }
+  const pts = top.concat(bot.reverse());
+  const path = (sc) => { ctx.beginPath(); pts.forEach((p, k) => { const q = pts[(k + 1) % pts.length], py = cy + (p[1] - cy) * sc, qy = cy + (q[1] - cy) * sc; if (k === 0) ctx.moveTo((p[0] + q[0]) / 2, (py + qy) / 2); else ctx.quadraticCurveTo(p[0], py, (p[0] + q[0]) / 2, (py + qy) / 2); }); const p = pts[0], q = pts[1]; ctx.quadraticCurveTo(p[0], cy + (p[1] - cy) * sc, (p[0] + q[0]) / 2, cy + ((p[1] + q[1]) / 2 - cy) * sc); ctx.closePath(); };
+  ctx.save();
+  ctx.shadowColor = Paint.rgba(color, 0.2 * a); ctx.shadowBlur = 7; ctx.shadowOffsetY = 0;
+  ctx.fillStyle = Paint.rgba(Paint.mix(color, '#1a1522', 0.66), 0.9 * a); path(1); ctx.fill();
+  ctx.shadowBlur = 4; ctx.shadowColor = Paint.rgba(Paint.mix(color, '#0a0810', 0.8), 0.9 * a);
+  ctx.fillStyle = Paint.rgba(Paint.mix(color, '#0a0810', 0.82), 0.85 * a); path(0.45); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = Paint.rgba(Paint.mix(color, '#1a1522', 0.62), 0.85 * a);
+  const dx = x + w * (0.2 + Ink.n(seed, 5) * 0.6), up = Ink.n(seed, 7) > 0.5 ? -1 : 1;
+  ctx.beginPath(); ctx.arc(dx, cy + up * (h + 2.2), 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + w + 3.2, cy + h * 0.5, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+// Draw a fragment in its ink. Braces in `text` are blots (Memory.text leaves them in only while the fragment is holed).
+//   o: { ink, size, lh, align ('center' | 'left'), alpha, shown (characters surfaced so far), glow, color }
+function inkDraw(ctx, text, x, y, maxW, o) {
+  const ink = o.ink || INKS[0], font = ink.style + o.size + 'px Georgia, serif', a = o.alpha === undefined ? 1 : o.alpha, col = o.color || ink.color;
+  ctx.save(); ctx.font = font; if ('letterSpacing' in ctx) ctx.letterSpacing = ink.sp + 'px';
+  const lines = inkLayout(ctx, text, maxW);
+  ctx.restore();
+  let left = o.shown === undefined ? Infinity : o.shown;
+  lines.forEach((ln, li) => {
+    const ly = y + li * o.lh, lx = o.align === 'center' ? x - ln.w / 2 : x;
+    for (const r of ln.runs) {
+      if (left <= 0) break;
+      if (r.blot) inkBlot(ctx, lx + r.x, ly, r.w * Math.min(1, left / r.text.length), o.size, col, a, li * 31 + r.x * 0.37 + text.length);
+      else { ctx.save(); ctx.translate(lx + r.x, ly); if (ink.skew) ctx.transform(1, 0, -ink.skew, 1, 0, 0); uiText(ctx, r.text.slice(0, Math.max(0, left)), 0, 0, { font, color: col, alpha: a, spacing: ink.sp, glow: o.glow, glowBlur: 6 }); ctx.restore(); }
+      left -= r.text.length + 1;
+    }
+  });
+  return lines.length;
 }
 
 const UI = {
@@ -209,7 +291,12 @@ const UI = {
       if (id === 'hold' && Game.held) drawHeldRing(ctx, x - r - 5, y + r - 2, 3.5, Game.held.t / Game.held.dur);
       if (sel) uiText(ctx, p.name + '  (' + p.cost + ')', VIEW_W - 14, 48, { font: '11px Georgia, serif', color: '#efe7d6', align: 'right' });
     });
-    uiText(ctx, '◆ ' + Game.shardCount() + ' / ' + Story.shards.length, VIEW_W - 14, list.length ? 63 : 48, { font: '11px Georgia, serif', color: '#e6d8ff', align: 'right' });
+    // memories: never a count. One small mark, nearly dark, that is lit for a few seconds after one is taken.
+    if (Game.shardCount() > 0) {
+      const lit = clamp(Game.markT / 1.5, 0, 1), mx = VIEW_W - 19, my = list.length ? 63 : 30;
+      if (lit > 0.02) Paint.glow(ctx, mx, my - 3.5, 13, '#c9b0ff', 0.5 * lit);
+      uiText(ctx, '◆', mx, my, { font: '10px Georgia, serif', color: '#e6d8ff', align: 'center', alpha: 0.26 + 0.74 * lit });
+    }
     // boss bar with poise: a thin pale bar on a soft dark wash, the name in serif above
     const boss = Game.entities.find((e) => e instanceof Boss && e.active && !e.dead);
     if (boss) {
@@ -267,40 +354,43 @@ const UI = {
     }
     const w = Game.whisper;
     if (w) {
-      const a = Math.min(1, w.t / 0.5, (w.dur - w.t) / 1.2), shown = Math.floor(w.t * 34);
-      ctx.font = 'italic 13px Georgia, serif';
-      const lines = wrapText(ctx, w.text, VIEW_W - 140); let left = shown;
-      const y0 = VIEW_H - 40 - (lines.length - 1) * 17;
-      lines.forEach((l, i) => { const piece = l.slice(0, Math.max(0, left)); left -= l.length + 1; if (piece) uiText(ctx, piece, VIEW_W / 2 - (ctx.measureText(l).width - ctx.measureText(piece).width) / 2, y0 + i * 17, { font: 'italic 13px Georgia, serif', color: '#e4dcf2', align: 'center', alpha: Math.max(0, a) * 0.9, glow: 'rgba(200,185,240,0.35)', glowBlur: 6 }); });
+      // a fragment surfaces whole, a few letters at a time, in the hand it came from and with its blots (inkDraw)
+      const a = Math.min(1, w.t / 0.5, (w.dur - w.t) / 1.2), ink = w.hand === undefined ? INK_WHISPER : INKS[w.hand] || INKS[0];
+      ctx.save(); ctx.font = ink.style + '13px Georgia, serif'; if ('letterSpacing' in ctx) ctx.letterSpacing = ink.sp + 'px';
+      const n = inkLayout(ctx, w.text, VIEW_W - 150).length; ctx.restore();
+      inkDraw(ctx, w.text, VIEW_W / 2, VIEW_H - 40 - (n - 1) * 17, VIEW_W - 150, { ink, size: 13, lh: 17, align: 'center', alpha: Math.max(0, a) * 0.92, shown: Math.floor(w.t * 44), glow: 'rgba(200,185,240,0.35)' });
     }
   },
   // ---- the journal (pause > Memories) ----
-  journalList() { const r = []; for (let i = 0; i < Story.shards.length; i++) if (Game.save.flags['shard:' + i]) r.push(i); return r; },
+  // Entries stand in the order they were found. An entry has no title until nothing in it is blotted; each is
+  // drawn in the ink of its hand. A filled dot is an unread entry, a small pale ring one that has mended since.
+  journalList() { return Memory.order(Game.save); },
+  journalOpen() { const l = this.journalList(), u = l.findIndex((i) => !Game.save.flags['read:' + i]); this.journalIndex = u >= 0 ? u : Math.max(0, l.length - 1); this.journalMark(); },
   journalMark() { const l = this.journalList(); if (l.length) Game.save.flags['read:' + l[Math.min(this.journalIndex, l.length - 1)]] = true; },
+  journalClose() { for (const i of this.journalList()) if (Game.save.flags['read:' + i]) delete Game.save.flags['chg:' + i]; },
   journalUnread() { let n = 0; for (const i of this.journalList()) if (!Game.save.flags['read:' + i]) n++; return n; },
   drawJournal(ctx, t) {
     ctx.fillStyle = 'rgba(4,3,8,0.86)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     Paint.vignette(ctx, VIEW_W, VIEW_H, 0.5);
     uiText(ctx, 'MEMORIES', VIEW_W / 2, 52, { font: '17px Georgia, serif', color: '#efe7d6', align: 'center', spacing: 6, glow: 'rgba(233,223,200,0.35)' });
     uiFlourish(ctx, VIEW_W / 2, 62, 140, '#d8ccb0', 0.7);
-    const list = this.journalList();
-    if (!list.length) { uiText(ctx, 'Nothing yet. The city keeps what it keeps.', VIEW_W / 2, 180, { font: 'italic 13px Georgia, serif', color: '#8e8778', align: 'center' }); }
+    const list = this.journalList(), save = Game.save;
+    if (!list.length) { uiText(ctx, 'Nothing yet.', VIEW_W / 2, 180, { font: 'italic 13px Georgia, serif', color: '#8e8778', align: 'center' }); }
     else {
       const sel = Math.min(this.journalIndex, list.length - 1), rows = 11, top = clamp(sel - 5, 0, Math.max(0, list.length - rows));
       for (let r = 0; r < rows && top + r < list.length; r++) {
-        const i = top + r, id = list[i], y = 92 + r * 22, on = i === sel, unread = !Game.save.flags['read:' + id];
-        if (unread && !on) { ctx.fillStyle = 'rgba(230,216,255,0.8)'; ctx.beginPath(); ctx.arc(44, y - 4, 2, 0, Math.PI * 2); ctx.fill(); }
-        uiText(ctx, Story.shards[id].title, 56, y, { font: on ? '14px Georgia, serif' : '13px Georgia, serif', color: on ? '#fbf6ea' : '#8e8778', glow: on ? 'rgba(233,223,200,0.45)' : null });
+        const i = top + r, id = list[i], y = 94 + r * 22, on = i === sel, ink = INKS[Story.shards[id].hand] || INKS[0], a = on ? 1 : 0.5;
+        if (save.flags['chg:' + id]) { ctx.strokeStyle = 'rgba(236,228,250,0.8)'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(44, y - 4, 2.2, 0, Math.PI * 2); ctx.stroke(); }
+        else if (!save.flags['read:' + id] && !on) { ctx.fillStyle = 'rgba(230,216,255,0.8)'; ctx.beginPath(); ctx.arc(44, y - 4, 2, 0, Math.PI * 2); ctx.fill(); }
+        if (Memory.blotted(save, id)) inkBlot(ctx, 57, y, 30 + Ink.n(id, 2) * 22, 13, ink.color, a, id * 13 + 5); // no title while anything in it is blotted
+        else inkDraw(ctx, Story.shards[id].title, 56, y, 180, { ink, size: 13, lh: 0, align: 'left', alpha: a, glow: on ? 'rgba(233,223,200,0.45)' : null });
       }
       if (top > 0) uiText(ctx, '▴', 48, 80, { font: '10px Georgia, serif', color: '#6e675c', align: 'center' });
-      if (top + rows < list.length) uiText(ctx, '▾', 48, 92 + rows * 22 - 6, { font: '10px Georgia, serif', color: '#6e675c', align: 'center' });
-      const sh = Story.shards[list[sel]], tx = 250;
-      uiText(ctx, sh.title, tx, 92, { font: 'italic 14px Georgia, serif', color: '#e4dcf2', glow: 'rgba(200,185,240,0.3)' });
-      ctx.fillStyle = 'rgba(217,207,182,0.3)'; ctx.fillRect(tx, 99, 120, 1);
-      ctx.font = '13px Georgia, serif';
-      wrapText(ctx, sh.text, VIEW_W - tx - 40).forEach((l, i) => uiText(ctx, l, tx, 122 + i * 18, { font: '13px Georgia, serif', color: '#e6dec9' }));
+      if (top + rows < list.length) uiText(ctx, '▾', 48, 94 + rows * 22 - 6, { font: '10px Georgia, serif', color: '#6e675c', align: 'center' });
+      const id = list[sel], ink = INKS[Story.shards[id].hand] || INKS[0], tx = 236, tw = VIEW_W - tx - 44;
+      ctx.fillStyle = 'rgba(217,207,182,0.22)'; ctx.fillRect(tx - 22, 84, 1, 196);
+      inkDraw(ctx, Memory.text(save, id), tx, 126, tw, { ink, size: 14, lh: 22, align: 'left', glow: 'rgba(233,223,200,0.18)' });
     }
-    uiText(ctx, list.length + ' of ' + Story.shards.length + ' remembered', 56, VIEW_H - 22, { font: 'italic 10px Georgia, serif', color: '#7a7366' });
     uiText(ctx, 'up / down read    Esc back', VIEW_W - 40, VIEW_H - 22, { font: '10px Georgia, serif', color: '#7a7366', align: 'right' });
   },
   showToast(text) { this.toast = { text, t: 2.5 }; },
@@ -359,7 +449,7 @@ const UI = {
     uiText(ctx, 'Keys: arrows move  Z jump  X strike  C dash  V cast  Q/E power  F anchor  hold H focus  M map', VIEW_W / 2, 250, { font: '10px Georgia, serif', color: '#8e8778', align: 'center' });
     uiText(ctx, 'Pad: A jump  X strike  RT dash  RB cast  d-pad power  Y anchor  hold B focus  LB/LT quick cast  Select map', VIEW_W / 2, 263, { font: '10px Georgia, serif', color: '#8e8778', align: 'center' });
     uiText(ctx, 'Quitting loses progress since your last rest.', VIEW_W / 2, 279, { font: 'italic 10px Georgia, serif', color: '#7a7366', align: 'center' });
-    uiText(ctx, 'Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 296, { font: '11px Georgia, serif', color: '#c8bc9e', align: 'center' });
+    uiText(ctx, 'Memories ' + Game.shardCount() + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + '    Recalls ' + (Game.save.recalls || 0) + '    Time ' + Game.playTime(), VIEW_W / 2, 296, { font: '11px Georgia, serif', color: '#c8bc9e', align: 'center' });
   },
 
   drawDeath(ctx, t, k) {
@@ -415,7 +505,7 @@ const UI = {
     ctx.strokeStyle = '#e05a68'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ox + 80, ly - 4, 3.5, 0, Math.PI * 2); ctx.stroke(); uiText(ctx, 'guardian', ox + 90, ly, lf);
     ctx.fillStyle = '#e6d8ff'; ctx.beginPath(); ctx.moveTo(ox + 163, ly - 7.5); ctx.lineTo(ox + 166.5, ly - 4); ctx.lineTo(ox + 163, ly - 0.5); ctx.lineTo(ox + 159.5, ly - 4); ctx.closePath(); ctx.fill(); uiText(ctx, 'power', ox + 172, ly, lf);
     ctx.fillStyle = '#9fb8ff'; ctx.beginPath(); ctx.arc(ox + 233, ly - 4, 2.4, 0, Math.PI * 2); ctx.fill(); uiText(ctx, 'someone to talk to', ox + 242, ly, lf);
-    uiText(ctx, 'Memories ' + Game.shardCount() + '/' + Story.shards.length + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + (this.totalSpools() ? '    Spools ' + (Game.spoolCount ? Game.spoolCount() : 0) + '/' + this.totalSpools() : '') + '    ' + PALETTES[World.room.region].name + (Game.curScreen ? ': ' + ROOMS[Game.curScreen].name : ''), ox, ly + 16, lf);
+    uiText(ctx, 'Memories ' + Game.shardCount() + '    Hours ' + Game.heartCount() + '/' + this.totalHearts() + (this.totalSpools() ? '    Spools ' + (Game.spoolCount ? Game.spoolCount() : 0) + '/' + this.totalSpools() : '') + '    ' + PALETTES[World.room.region].name + (Game.curScreen ? ': ' + ROOMS[Game.curScreen].name : ''), ox, ly + 16, lf);
     uiText(ctx, 'M / Tab to close', VIEW_W - ox, ly + 16, { font: '11px Georgia, serif', color: '#7a7366', align: 'right' });
   },
 
@@ -435,14 +525,9 @@ const UI = {
     uiFlourish(ctx, VIEW_W / 2, by + 50, 140 * Math.min(1, ot / 0.8), c, 0.85);
     if (memory) uiText(ctx, title, VIEW_W / 2, by + 66, { font: 'italic 12px Georgia, serif', color: Paint.mix(c, '#ffffff', 0.1), align: 'center', alpha: Math.min(1, Math.max(0, (ot - 0.4) / 0.4)) });
     ctx.font = '13px Georgia, serif';
-    const lines = wrapText(ctx, text, bw - 64);
-    // memories surface a few words at a time; other cards simply fade in
-    const shown = memory ? Math.floor(Math.max(0, ot - 0.7) * 38) : Infinity;
-    let count = 0;
-    lines.forEach((l, i) => {
-      let piece = l; if (memory) { const left = shown - count; piece = left <= 0 ? '' : l.slice(0, left); count += l.length + 1; }
-      if (piece) uiText(ctx, piece, VIEW_W / 2 - (memory && piece.length < l.length ? (ctx.measureText(l).width - ctx.measureText(piece).width) / 2 : 0), by + (memory ? 86 : 76) + i * 18, { font: '13px Georgia, serif', color: '#efe7d6', align: 'center', alpha: memory ? 1 : Math.min(1, Math.max(0, (ot - 0.3) / 0.5)) });
-    });
+    // memories surface a few letters at a time, in their own ink and with their blots; other cards simply fade in
+    if (memory) inkDraw(ctx, text, VIEW_W / 2, by + 88, bw - 72, { ink: INKS[Game.overlay && Game.overlay.hand] || INKS[0], size: 13, lh: 19, align: 'center', shown: Math.floor(Math.max(0, ot - 0.7) * 38) });
+    else wrapText(ctx, text, bw - 64).forEach((l, i) => uiText(ctx, l, VIEW_W / 2, by + 76 + i * 18, { font: '13px Georgia, serif', color: '#efe7d6', align: 'center', alpha: Math.min(1, Math.max(0, (ot - 0.3) / 0.5)) }));
     const k = 0.5 + Math.sin(t * 3) * 0.5;
     if (ot > 0.9) uiText(ctx, 'Enter', VIEW_W / 2, by + bh - 14, { font: '11px Georgia, serif', color: '#9d9686', align: 'center', alpha: 0.4 + k * 0.6, spacing: 1 });
     ctx.restore();

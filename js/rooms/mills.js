@@ -94,7 +94,7 @@ Object.assign(ROOMS, {
   // Echo Altar: a low entry opens into the altar chamber; the altar sits on a dais at the foot of a
   // chimney whose alternating slabs climb to the Root (cols 18-21). A balcony niche beside the
   // chimney holds an archer that covers the climb; a bone pocket with two husks sits under it.
-  M4: { name: 'Echo Altar', region: 'mills', mx: 16, my: 8, links: { left: 'M8', up: 'U1' }, ability: 'echo', grid: [
+  M4: { name: 'The Still Wheel', region: 'mills', mx: 16, my: 8, links: { left: 'M8', up: 'U1' }, grid: [
     '##################....##################',
     '##################....##################',
     '##################....##################',
@@ -113,7 +113,7 @@ Object.assign(ROOMS, {
     '#####.....##..............:.############',
     '#####....|...|.......###################',
     '.........|...|...............###########',
-    '.........|...|......A........###########',
+    '.........|...|...............###########',
     '.................######......###########',
     '...i..S....:...########.:a.a.###########',
     '########################################',

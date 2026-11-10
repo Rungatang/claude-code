@@ -7,8 +7,9 @@ const fs = require('fs');
 const vm = require('vm');
 const ctx = {};
 vm.createContext(ctx);
-vm.runInContext('const ROOM_W = 40, ROOM_H = 23;' + require('./roomfiles').source() + '\nthis.ROOMS = ROOMS; this.ZONES = ZONES;', ctx);
+vm.runInContext('const ROOM_W = 40, ROOM_H = 23;' + require('./roomfiles').source() + '\nthis.ROOMS = ROOMS; this.ZONES = ZONES; this.BOSS_POWERS = BOSS_POWERS;', ctx);
 const ROOMS = ctx.ROOMS;
+const BOSS_POWERS = ctx.BOSS_POWERS; // boss id -> the power taken from its body (js/rooms.js)
 const ZONES = ctx.ZONES;
 const W = 40, H = 23;
 const errors = [];
@@ -320,15 +321,21 @@ const notes = [];
   notes.push('lanterns: ' + lanterns.join(' ') + (gaps.length ? '; longest lantern-to-lantern walk ' + gaps[0][2] + ' screens (' + gaps[0][0] + ' to ' + gaps[0][1] + ')' : ''));
 })();
 
+// every power a guardian carries needs that guardian's hall, and no altar may offer the same power again
+for (const [boss, pw] of Object.entries(BOSS_POWERS)) {
+  if (!Object.values(ROOMS).some((r) => r.boss === boss)) { console.log(`BOSS_POWERS: no screen holds the boss '${boss}'`); process.exit(1); }
+  for (const [id, r] of Object.entries(ROOMS)) if (r.ability === pw) { console.log(`${id}: an altar offers '${pw}', which the boss '${boss}' carries`); process.exit(1); }
+}
 // ---------------------------------------------------------------------------
-// Story-order lint: a screen that uses a power's tile should come after that power's altar. held[S] is the set
+// Story-order lint: a screen that uses a power's tile should come after that power's altar or guardian. held[S] is the set
 // of abilities every route from A1 to S must have collected (the meet over the screen graph of the altars
 // passed; the scripted loss is the one extra edge T1 -> D1; a screen's needs: tag counts as held). A screen
 // marked optional: true is exempt. A warning (like the chain lint) for the interactable tiles of POWERS.md
 // section 3; the older letters (C L R X e) hide secrets on critical-path screens by design, so for them it is a note.
 // ---------------------------------------------------------------------------
 (function storyOrder() {
-  const ids = Object.keys(ROOMS), altar = {}; for (const id of ids) if (ROOMS[id].ability) altar[id] = ROOMS[id].ability;
+  // a power is gained on its altar screen, or on the hall of the guardian that carries it (the hall stays shut until it is taken)
+  const ids = Object.keys(ROOMS), altar = {}; for (const id of ids) { if (ROOMS[id].ability) altar[id] = ROOMS[id].ability; else if (ROOMS[id].boss && BOSS_POWERS[ROOMS[id].boss]) altar[id] = BOSS_POWERS[ROOMS[id].boss]; }
   const needsOf = (id) => { const n = ROOMS[id].needs; return !n ? [] : Array.isArray(n) ? n : [n]; };
   const nbrs = (id) => { const out = Object.values(ROOMS[id].links).filter((l) => ROOMS[l]); if (id === 'D1' && ROOMS.T1) out.push('T1'); return out; };
   const ALL = ['dash', 'age', 'hold', 'restore', 'echo', 'cut', 'cling', 'wings'];

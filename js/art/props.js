@@ -577,15 +577,31 @@ Object.assign(Art, {
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2 + bob;
     ctx.save(); ctx.translate(cx, cy);
     if (p.kind === 'shard') {
-      // memory glass: a long facet of pale violet glass that turns slowly and catches the light
-      const a = t * 1.1 + seed, sx = Math.cos(a), k = prEase((0.3 - Math.abs(sx)) / 0.3);
-      Paint.glow(ctx, 0, 0, 17 + k * 3, '#c9b0ff', 0.38 + k * 0.25);
-      ctx.save(); ctx.rotate(0.3 + Math.sin(t * 0.8 + seed) * 0.1); ctx.scale(0.22 + 0.78 * Math.pow(Math.abs(sx), 0.8), 1);
-      Paint.shape(ctx, [[0, -8.5], [4.8, -2.4], [3.2, 6.8], [-1.6, 8], [-4.8, -0.8]], { fill: sx > 0 ? '#cfbcf4' : '#b8a4e4', light: '#f2ecff', shade: '#6e58a8', ink: '#2a1e44', w: 2 });
-      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.moveTo(-0.2, -6.4); ctx.lineTo(1.4, -2.2); ctx.lineTo(-1.6, 3.2); ctx.lineTo(-3.2, -1.2); ctx.closePath(); ctx.fill();
-      ctx.restore();
-      if (k > 0.02) { ctx.fillStyle = `rgba(255,255,255,${k * 0.9})`; ctx.fillRect(-0.6 * k - 0.1, -6 * k, 1.2 * k + 0.2, 12 * k); ctx.fillRect(-4.5 * k, -0.6 * k - 0.1, 9 * k, 1.2 * k + 0.2); }
-      for (let i = 0; i < 3; i++) { const b = t * 1.0 + i * 2.1 + seed; ctx.fillStyle = `rgba(230,216,255,${0.35 + 0.35 * Math.sin(b * 2)})`; ctx.beginPath(); ctx.arc(Math.cos(b) * 10, Math.sin(b) * 3 - Math.sin(b) * 2, 0.9, 0, Math.PI * 2); ctx.fill(); }
+      // a memory: not a thing but a knot of sand, grains strung on a slow trefoil that turns against the clock,
+      // with a few more climbing into it from below (everything else in this city falls). A faint glow, no outline.
+      ctx.translate(0, -bob * 0.6); // it barely bobs: it is not floating, it is held
+      const turn = -(t * 0.42 + seed), breath = 0.5 + 0.5 * Math.sin(t * 0.9 + seed);
+      Paint.glow(ctx, 0, 0, 15 + breath * 2, '#c9b0ff', 0.2 + breath * 0.07);
+      Paint.glow(ctx, 0, 0, 6, '#fff1d8', 0.2);
+      const N = 26, cT = Math.cos(turn * 0.35), sT = Math.sin(turn * 0.35);
+      // the knot itself, barely there: one pale thread the grains are strung on
+      ctx.strokeStyle = 'rgba(226,212,255,0.2)'; ctx.lineWidth = 1; ctx.lineJoin = 'round'; ctx.beginPath();
+      for (let k = 0; k <= 48; k++) { const u = k / 48 * Math.PI * 2, kx = (Math.sin(u) + 2 * Math.sin(2 * u)) * 2.55, ky = (Math.cos(u) - 2 * Math.cos(2 * u)) * 2.55; ctx.lineTo(kx * cT - ky * sT, (kx * sT + ky * cT) * 0.92); }
+      ctx.closePath(); ctx.stroke();
+      for (let pass = 0; pass < 2; pass++) for (let i = 0; i < N; i++) {
+        const u = i / N * Math.PI * 2 + turn + Ink.n(i, 41) * 0.1, z = Math.sin(3 * u); // z: toward the eye
+        if ((z > 0) !== (pass === 1)) continue; // far grains first, near grains over them
+        const kx = (Math.sin(u) + 2 * Math.sin(2 * u)) * 2.55, ky = (Math.cos(u) - 2 * Math.cos(2 * u)) * 2.55;
+        const gx = kx * cT - ky * sT, gy = (kx * sT + ky * cT) * 0.92;
+        const warm = Ink.n(i, 17) > 0.62, r = (0.5 + Ink.n(i, 5) * 0.35) * (0.8 + 0.3 * z);
+        ctx.fillStyle = warm ? `rgba(255,224,170,${0.5 + 0.4 * z})` : `rgba(238,228,255,${0.5 + 0.42 * z})`;
+        ctx.beginPath(); ctx.arc(gx, gy, r, 0, Math.PI * 2); ctx.fill();
+      }
+      for (let i = 0; i < 4; i++) { // strays, rising
+        const u = (t * 0.22 + i * 0.25 + Ink.n(i, 63) + seed) % 1, e = prEase(u);
+        ctx.fillStyle = `rgba(240,226,255,${Math.sin(Math.PI * u) * 0.6})`;
+        ctx.beginPath(); ctx.arc((Ink.n(i, 71) - 0.5) * 12 * (1 - e), 15 - e * 13, 0.6, 0, Math.PI * 2); ctx.fill();
+      }
     } else if (p.kind === 'heart') {
       // an hour: a small hourglass of brass and gold sand; it turns itself over when it runs out
       const per = 4.2, ph = ((t + seed) % per) / per;

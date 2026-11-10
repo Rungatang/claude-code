@@ -114,6 +114,9 @@ class Player {
     this.castT = 0; this.castDur = 0; this.castPower = null; this.castFired = false; this.cds = {};
     this.anchor = null;
     this.invuln = 0; this.hurtT = 0; this.frozen = 0;
+    // suffered from a guardian's power (art may read both): withered = seconds left of double harm (the Ferrous Mother's rot),
+    // pinned = seconds the feet are held to the floor (the Escapement's stall)
+    this.withered = 0; this.pinned = 0;
     this.dropT = 0; this.spikeGrace = 0; this.boostT = 0; this.restT = 0;
     // movement upgrades (animation contract too): clinging = 0 or the wall's side; airJumps = air jumps spent
     this.clinging = 0; this.airJumps = 0; this.kickT = 0;
@@ -130,7 +133,7 @@ class Player {
   placeFeet(tx, bottomY) { this.x = tx * TILE + (TILE - this.w) / 2; this.y = bottomY - this.h; }
 
   update(dt) {
-    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT', 'kickT', 'atkCd', 'recoilT', 'dashReadyT']) if (this[k] > 0) this[k] -= dt;
+    for (const k of ['dashCd', 'invuln', 'hurtT', 'dropT', 'jumpBuf', 'coyote', 'spikeGrace', 'boostT', 'comboWin', 'atkBuf', 'frozen', 'landLock', 'skidT', 'dashBuf', 'stopT', 'kickT', 'atkCd', 'recoilT', 'dashReadyT', 'withered', 'pinned']) if (this[k] > 0) this[k] -= dt;
     // an anchor set on a moving thing rides with it
     if (this.anchor && this.anchor.ride) { const r = this.anchor.ride; if (r.dead) this.anchor.ride = null; else { this.anchor.x = r.x + this.anchor.dx; this.anchor.y = r.y + this.anchor.dy; } }
     for (const k in this.cds) if (this.cds[k] > 0) this.cds[k] -= dt;
@@ -163,6 +166,10 @@ class Player {
     } else this.healT = 0;
     if (Input.hit('jump') && controllable) this.jumpBuf = JUMP_BUFFER;
     if (Input.hit('attack') && controllable) this.atkBuf = ATTACK_BUFFER;
+    // feet pinned: no stride, no jump, no skip (he can still strike and cast)
+    const rooted = this.pinned > 0 && this.dashT <= 0;
+    if (rooted) { move = 0; this.jumpBuf = 0; this.dashBuf = 0; }
+    if (this.withered > 0 && Math.random() < 0.25) Game.particle(this.x + Math.random() * this.w, this.y + Math.random() * this.h * 0.6, (Math.random() - 0.5) * 16, 10, 0.5, '#8a9a84', 2);
 
     let res, fallV = 0, dashing = false;
     if (this.dashT > 0) {
@@ -218,7 +225,7 @@ class Player {
       if (!this.onGround && Math.abs(this.vy) < 70 && Input.held('jump')) g = GRAVITY * 0.55;
       this.vy = Math.min(MAX_FALL, this.vy + g * dt);
       if (this.clinging) this.vy = Math.min(this.vy, 60); // the slide
-      if (Game.has('dash') && (Input.hit('dash') || this.dashBuf > 0) && this.dashCd <= 0 && controllable) {
+      if (Game.has('dash') && (Input.hit('dash') || this.dashBuf > 0) && this.dashCd <= 0 && controllable && !rooted) {
         this.dashT = DASH_TIME; this.dashCd = DASH_CD; this.dashArmed = false; this.recoilT = 0; this.dashBuf = 0; this.dashDir = move || this.facing; this.facing = this.dashDir;
         this.attackT = 0; this.castT = 0; this.invuln = Math.max(this.invuln, DASH_TIME + 0.05);
         Feel.kick(this, 1.3, 0.8); if (this.onGround) Feel.dust(this, 3, 0.8, -this.dashDir);
@@ -564,6 +571,7 @@ class Player {
 
   hurt(dmg, fromX) {
     if (this.invuln > 0 || this.dead) return;
+    if (this.withered > 0) dmg *= 2; // aged by the Ferrous Mother: double harm, as his own Wither does to a foe
     this.hp -= dmg;
     this.recentDamage.push({ n: dmg, t: Game.t });
     this.invuln = 1.3; this.hurtT = 0.3;
@@ -596,6 +604,13 @@ class Player {
     if (this.dead) return;
     Art.drawPlayer(ctx, this, t);
     // (the focus ring is drawn by the player art)
+    const cx = this.x + this.w / 2;
+    if (this.withered > 0) { // a grey-green pall and falling flakes while aged
+      const k = Math.min(1, this.withered * 2);
+      Paint.glow(ctx, cx, this.y + this.h / 2, 16, POWERS.age.color, 0.28 * k + 0.06 * Math.sin(t * 9));
+      ctx.fillStyle = 'rgba(138,154,132,' + (0.7 * k) + ')'; for (let i = 0; i < 4; i++) { const u = (t * 0.9 + i * 0.27) % 1; ctx.fillRect(Math.round(cx - 7 + i * 4 + Math.sin(t * 3 + i) * 2), Math.round(this.y + 2 + u * (this.h - 2)), 1.5, 1.5); }
+    }
+    if (this.pinned > 0) drawClockRing(ctx, cx, this.y + this.h, 13, 4, this.pinned / 0.6, POWERS.hold.color, t, 0.9);
   }
 }
 
@@ -1144,16 +1159,21 @@ class Projectile {
     this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.r = r; this.hostile = hostile; this.kind = kind;
     this.life = o.life || (kind === 'wave' ? 1.6 : 3); this.dead = false;
     this.dmg = o.dmg || 1; this.pierce = !!o.pierce; this.wither = o.wither || 0; this.hit = new Set(); this.age = 0;
-    this.owner = o.owner || null; this.returning = false; this.gravity = kind === 'ember' || kind === 'page' || kind === 'shard';
+    this.owner = o.owner || null; this.returning = false; this.stallAt = 0; this.stallDur = 0; this.stallT = 0; this.delay = o.delay || 0; this.gravity = kind === 'ember' || kind === 'page' || kind === 'shard';
   }
   rect() { return { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 }; }
   isHeld() { return !!(Game.held && Game.held.obj === this); }
   // held in the air: a 16x6 step; on release it flies on
-  platformRect() { return this.isHeld() ? { x: this.x - 8, y: this.y - 3, w: 16, h: 6, vx: 0, vy: 0, owner: this } : null; }
+  platformRect() { return this.isHeld() || this.stallT > 0 ? { x: this.x - 8, y: this.y - 3, w: 16, h: 6, vx: 0, vy: 0, owner: this } : null; }
   update(dt0) {
     if (this.isHeld()) return;
     const dt = this.hostile ? dt0 * Game.timeScale * TEMPO : dt0;
+    // the Escapement's stall: its own gear held out of time (harmless, a step), then let go along the line it was thrown on
+    if (this.stallT > 0) { this.stallT -= dt0 * Game.timeScale; if (this.stallT <= 0) { this.age = 0; this.life = 2.6; AudioSys.sfx('release'); Game.burst(this.x, this.y, POWERS.hold.color, 8, 50); } return; }
+    // the Index's mended pages hang where they were first thrown until they are whole again
+    if (this.delay > 0) { this.delay -= dt; if (Math.random() < 0.3) Game.particle(this.x + (Math.random() - 0.5) * 24, this.y + 14 + Math.random() * 10, 0, -50, 0.3, POWERS.restore.color, 2); return; }
     this.life -= dt; this.age += dt;
+    if (this.stallAt && this.age >= this.stallAt) { this.stallAt = 0; this.stallT = this.stallDur; AudioSys.sfx('hold'); Game.burst(this.x, this.y, '#dfe9ff', 10, 50); return; }
     if (this.gravity) this.vy += 700 * dt;
     if (this.kind === 'gear' && this.owner && this.age > 0.7) { const ox = this.owner.x + this.owner.w / 2, oy = this.owner.y + this.owner.h / 2; const a = Math.atan2(oy - this.y, ox - this.x); this.vx += Math.cos(a) * 900 * dt; this.vy += Math.sin(a) * 900 * dt; if (dist(this.x, this.y, ox, oy) < 20 && this.age > 1) this.dead = true; }
     this.x += this.vx * dt; this.y += this.vy * dt;
@@ -1167,7 +1187,10 @@ class Projectile {
     const pl = Game.player;
     const box = { x: this.x - this.r, y: this.y - this.r, w: this.r * 2, h: this.r * 2 };
     if (this.hostile) {
-      if (!pl.dead && pl.invuln <= 0 && rectsOverlap(box, pl)) { pl.hurt(this.dmg, this.x); if (this.kind === 'hook' && this.owner) { pl.vx = sign(this.owner.x - pl.x) * 420; pl.vy = -120; } if (!this.pierce) this.dead = true; }
+      if (this.kind === 'rot') { // the Ferrous Mother's rot draws no blood: it ages him, and for four seconds every blow lands double
+        if (!pl.dead && pl.invuln <= 0 && rectsOverlap(box, pl)) { pl.withered = 4; this.dead = true; AudioSys.sfx('rust'); Game.burst(pl.x + pl.w / 2, pl.y + pl.h / 2, POWERS.age.color, 16, 70); Feel.kick(pl, 0.9, 1.08); }
+        if (Math.random() < 0.7) Game.particle(this.x, this.y, -this.vx * 0.05, (Math.random() - 0.5) * 30, 0.45, POWERS.age.color, 2);
+      } else if (!pl.dead && pl.invuln <= 0 && rectsOverlap(box, pl)) { pl.hurt(this.dmg, this.x); if (this.kind === 'hook' && this.owner) { pl.vx = sign(this.owner.x - pl.x) * 420; pl.vy = -120; } if (!this.pierce) this.dead = true; }
     } else {
       for (const e of Game.entities) {
         if ((e instanceof Enemy || e instanceof Boss) && !e.dead && !this.hit.has(e) && rectsOverlap(box, e)) {
@@ -1183,17 +1206,24 @@ class Projectile {
   draw(ctx, t) {
     ctx.save();
     const hostile = this.hostile;
+    if (this.stallT > 0) { // held: the clock ring runs down, and a faint line shows where it will fly when let go
+      const sp = Math.hypot(this.vx, this.vy) || 1;
+      ctx.strokeStyle = 'rgba(143,179,255,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.vx / sp * 70, this.y + this.vy / sp * 70); ctx.stroke(); ctx.setLineDash([]);
+      drawClockRing(ctx, this.x, this.y, 13, 13, this.stallT / (this.stallDur || 3), POWERS.hold.color, t, 1);
+    }
+    if (this.delay > 0) Paint.glow(ctx, this.x, this.y, 12, POWERS.restore.color, 0.5 + 0.2 * Math.sin(t * 14));
     switch (this.kind) {
       case 'arrow': { const a = Math.atan2(this.vy, this.vx); ctx.translate(this.x, this.y); ctx.rotate(a); ctx.fillStyle = hostile ? '#d8c8a0' : '#fff'; ctx.fillRect(-10, -1, 16, 2); ctx.fillStyle = hostile ? '#ff3355' : '#8fb3ff'; ctx.beginPath(); ctx.moveTo(6, -3); ctx.lineTo(11, 0); ctx.lineTo(6, 3); ctx.fill(); break; }
       case 'bolt': ctx.fillStyle = hostile ? '#ff3355' : '#8fb3ff'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(this.x - 1, this.y - 1, 2, 2); break;
       case 'note': ctx.fillStyle = '#ffd680'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(this.x + 2, this.y - 9, 2, 9); break;
       case 'ember': ctx.fillStyle = '#ff6a2a'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ffe28a'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r / 2, 0, Math.PI * 2); ctx.fill(); break;
       case 'wave': ctx.fillStyle = hostile ? '#9fb0b8' : '#7af0d0'; for (let i = 0; i < 4; i++) ctx.fillRect(this.x - 8 + i * 5, this.y - 6 - Math.abs(Math.sin(t * 20 + i)) * 8, 3, 10); break;
-      case 'gear': { ctx.translate(this.x, this.y); ctx.rotate(t * 12); ctx.fillStyle = hostile ? '#c9a24a' : '#8fb3ff'; ctx.beginPath(); for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const rr = k % 2 ? this.r : this.r + 3; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.fillStyle = '#15101a'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill(); break; }
+      case 'gear': { ctx.translate(this.x, this.y); ctx.rotate(this.stallT > 0 ? 0.3 : t * 12); ctx.fillStyle = hostile ? '#c9a24a' : '#8fb3ff'; ctx.beginPath(); for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const rr = k % 2 ? this.r : this.r + 3; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.fillStyle = '#15101a'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill(); break; }
       case 'page': { ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx)); ctx.fillStyle = '#e8e0d0'; ctx.fillRect(-8, -3, 16, 6); ctx.fillStyle = '#15101a'; ctx.fillRect(-5, -1, 8, 1); ctx.fillRect(-5, 1, 6, 1); break; }
       case 'shard': ctx.fillStyle = '#e8e0d8'; ctx.beginPath(); ctx.moveTo(this.x, this.y - 5); ctx.lineTo(this.x + 3, this.y + 4); ctx.lineTo(this.x - 3, this.y + 4); ctx.fill(); break;
       case 'hook': { ctx.strokeStyle = '#8a8698'; ctx.lineWidth = 2; if (this.owner) { ctx.beginPath(); ctx.moveTo(this.owner.x + this.owner.w / 2, this.owner.y + 20); ctx.lineTo(this.x, this.y); ctx.stroke(); } ctx.fillStyle = '#c8c4d0'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); break; }
       case 'wither': ctx.fillStyle = 'rgba(159,197,154,0.35)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r + 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9fc59a'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2a3a28'; ctx.fillRect(this.x - 2, this.y - 1, 4, 2); break;
+      case 'rot': { const c = POWERS.age.color; Paint.glow(ctx, this.x, this.y, this.r + 10, c, 0.5 + 0.15 * Math.sin(t * 18)); ctx.fillStyle = c; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#2a3a28'; ctx.beginPath(); ctx.arc(this.x + Math.cos(t * 9) * 2, this.y + Math.sin(t * 9) * 2, this.r * 0.45, 0, Math.PI * 2); ctx.fill(); break; }
       case 'timebolt': ctx.fillStyle = 'rgba(255,51,85,0.3)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r + 4, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#ff3355'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x, this.y - this.r + 1); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.r - 2, this.y); ctx.stroke(); break;
     }
     ctx.restore();
@@ -1201,6 +1231,47 @@ class Projectile {
 }
 
 // ---------------------------------------------------------------------------
+// The colour of a power or a movement relic.
+const powerColor = (id) => (POWERS[id] && POWERS[id].color) || (MOVES[id] && MOVES[id].color) || '#ffd27a';
+// A flat clock ring (rx by ry), its rim running down with k (1..0) and one hand sweeping: the mark of Hold.
+function drawClockRing(ctx, x, y, rx, ry, k, color, t, a) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+  Paint.glow(ctx, 0, 0, rx + 6, color, 0.22 * a);
+  ctx.globalAlpha = a; ctx.strokeStyle = 'rgba(223,233,255,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, rx, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(k, 0, 1)); ctx.stroke();
+  for (let i = 0; i < 12; i++) { const an = i / 12 * Math.PI * 2; ctx.fillStyle = color; ctx.fillRect(Math.cos(an) * (rx - 2.5) - 0.5, Math.sin(an) * (rx - 2.5) - 0.5, 1, 1); }
+  const h = -Math.PI / 2 + Math.PI * 2 * clamp(k, 0, 1); ctx.strokeStyle = '#dfe9ff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(h) * (rx - 3), Math.sin(h) * (rx - 3)); ctx.stroke();
+  ctx.restore();
+}
+// Where a power comes to rest: the tile nearest (px, py) inside the arena's walls that is air, stands on solid floor and
+// is not over spikes. Searches down from the body, then outward column by column.
+function powerRestTile(a, px, py) {
+  const tx0 = Math.floor(a.x / TILE), ty0 = Math.floor(a.y / TILE), lo = tx0 + 4, hi = tx0 + ROOM_W - 5;
+  const cx = clamp(Math.floor(px / TILE), lo, hi), top = ty0 + 1, bot = ty0 + ROOM_H - 2;
+  const free = (tx, ty) => !World.isSolidAt(tx, ty) && World.tile(tx, ty) !== '^' && World.tile(tx, ty) !== 'D';
+  for (let d = 0; d <= hi - lo; d++) for (const sd of d ? [-1, 1] : [1]) {
+    const tx = cx + sd * d; if (tx < lo || tx > hi) continue;
+    let ty = clamp(Math.floor(py / TILE), top, bot);
+    while (ty > top && World.isSolidAt(tx, ty)) ty--;
+    for (; ty <= bot; ty++) { if (!free(tx, ty)) break; if (World.isSolidAt(tx, ty + 1) && World.tile(tx, ty + 1) !== 'D') return { tx, ty }; }
+  }
+  return { tx: cx, ty: clamp(Math.floor(py / TILE), top, bot) };
+}
+// A guardian's power rising out of its body: motes of the power's colour gather from where it fell for 1.2 s,
+// then the power waits there as an ordinary ability Pickup (Game.onPickup runs the rite).
+class PowerRise {
+  constructor(ability, x, y, tile) { this.ability = ability; this.sx = x; this.sy = y; this.tile = tile; this.t = 0; this.dur = 1.2; this.dead = false; this.color = powerColor(ability); this.x = x; this.y = y; this.w = 0; this.h = 0; AudioSys.sfx('weave'); }
+  pos() { const k = Paint.ease.inOut(clamp(this.t / this.dur, 0, 1)); const ex = this.tile.tx * TILE + 8, ey = this.tile.ty * TILE + 8; return { x: this.sx + (ex - this.sx) * k, y: this.sy + (ey - this.sy) * k - Math.sin(k * Math.PI) * 14, k }; }
+  update(dt) {
+    this.t += dt; const p = this.pos();
+    for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = 18 + Math.random() * 34, mx = this.sx + Math.cos(a) * r, my = this.sy + Math.sin(a) * r * 0.5 + 6; Game.particle(mx, my, (p.x - mx) * 2.2, (p.y - my) * 2.2 - 60, 0.45, this.color, 2); }
+    if (this.t >= this.dur) {
+      this.dead = true; Game.burst(p.x, p.y, this.color, 18, 90); Game.burst(p.x, p.y, '#fff', 8, 60); AudioSys.sfx('pickup');
+      Game.entities.push(new Pickup({ kind: 'ability', ability: this.ability, x: this.tile.tx, y: this.tile.ty, fromBoss: true }));
+    }
+  }
+  draw(ctx, t) { const p = this.pos(); Paint.glow(ctx, this.sx, this.sy, 26 * (1 - p.k) + 4, this.color, 0.35 * (1 - p.k)); Paint.glow(ctx, p.x, p.y, 6 + 14 * p.k, this.color, 0.3 + 0.4 * p.k); ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.6 * p.k; ctx.fillRect(p.x - 1, p.y - 1, 2, 2); ctx.globalAlpha = 1; }
+}
 class Pickup {
   constructor(spec) { Object.assign(this, spec); this.w = 16; this.h = 16; this.x = spec.x * TILE; this.y = spec.y * TILE; this.dead = false; }
   update() { const pl = Game.player; if (!pl.dead && rectsOverlap(this, pl)) { this.dead = true; Game.onPickup(this); } }
@@ -1263,20 +1334,30 @@ class Npc {
 // ---------------------------------------------------------------------------
 // Bosses. Each has a move table; moves telegraph briefly, act, then recover.
 // Damage fills a poise meter; when full the boss staggers and takes extra harm.
+// `power`: the power the guardian carries (BOSS_POWERS, js/rooms.js) and gives up where it falls. It uses that power
+// in the fight through one signature move (`sig: '<power>'`, drawn in the power's colour, a full-length telegraph of
+// at least 0.6 s that phase 2 does not shorten), so the player suffers it before winning it:
+//   shallows   skip    a streaking dash across the hall with afterimages (jump it)
+//   ferrous    rot     a slow bolt that draws no blood but withers Tam for 4 s: every blow lands double (dodge it, or keep away after)
+//   escapement stall   a gear thrown and held in the air for 3 s (harmless, a step), then let go along its line
+//              pin     once per phase a clock ring closes on the floor under Tam; feet inside it are held 0.6 s and a dash follows
+//   index      mend    once, at half health: it runs 2 s backwards (place, and up to 8 health), and its last page rain re-forms
+//   grinder    echo    after a roll, bite or leap it leaves a violet echo that repeats the attack 1.5 s later and can hit once
 const BOSS_DEFS = {
-  shallows: { name: 'Warden of the Shallows', hp: 48, poise: 12, w: 40, h: 50, phase2: 0.5, ground: true,
+  shallows: { name: 'Warden of the Shallows', hp: 48, poise: 12, w: 40, h: 50, phase2: 0.5, ground: true, power: BOSS_POWERS.shallows,
     moves: [
       { id: 'combo', type: 'combo', hits: 3, tele: 0.3, step: 0.26, range: 56, dmg: 1, advance: 36, near: true, w: 2 },
       { id: 'hook', type: 'hook', tele: 0.4, speed: 620, far: true, w: 2 },
       { id: 'leap', type: 'leap', tele: 0.25, vy: -560, shock: true, w: 1.5 },
-      { id: 'dash', type: 'dash', tele: 0.3, speed: 480, dur: 0.4, far: true, w: 1.5 },
+      { id: 'skip', type: 'dash', tele: 0.6, speed: 640, dur: 0.7, far: true, w: 1.5, sig: 'dash' },
     ] },
-  ferrous: { name: 'The Ferrous Mother', hp: 72, poise: 16, w: 60, h: 70, phase2: 0.5, ground: true,
+  ferrous: { name: 'The Ferrous Mother', hp: 72, poise: 16, w: 60, h: 70, phase2: 0.5, ground: true, power: BOSS_POWERS.ferrous,
     moves: [
       { id: 'slam', type: 'combo', hits: 2, tele: 0.35, step: 0.4, range: 70, dmg: 1, advance: 20, near: true, shock: true, w: 2 },
       { id: 'spit', type: 'volley', tele: 0.4, n: 3, speed: 260, spread: 0.35, kind: 'ember', arc: -260, far: true, w: 2 },
       { id: 'charge', type: 'dash', tele: 0.4, speed: 420, dur: 0.6, far: true, w: 1.5 },
       { id: 'summon', type: 'summon', tele: 0.5, what: 'husk', n: 2, phase: 2, w: 1 },
+      { id: 'rot', type: 'volley', tele: 0.65, n: 1, speed: 300, spread: 0, kind: 'rot', far: true, w: 1.5, sig: 'age' },
     ] },
   annealer: { name: 'The Annealer', hp: 76, poise: 14, w: 44, h: 60, phase2: 0.5, ground: true,
     moves: [
@@ -1287,13 +1368,15 @@ const BOSS_DEFS = {
       { id: 'pane', type: 'guard', dur: 1.1, w: 1 },
       { id: 'cullet', type: 'summon', tele: 0.5, what: 'hourfly', n: 2, phase: 2, w: 1 },
     ] },
-  escapement: { name: 'The Escapement', hp: 60, poise: 10, w: 26, h: 48, phase2: 0.5, ground: true,
+  escapement: { name: 'The Escapement', hp: 60, poise: 10, w: 26, h: 48, phase2: 0.5, ground: true, power: BOSS_POWERS.escapement,
     moves: [
       { id: 'flurry', type: 'combo', hits: 4, tele: 0.22, step: 0.18, range: 48, dmg: 1, advance: 30, near: true, w: 2 },
       { id: 'blink', type: 'teleport', tele: 0.2, then: 'flurry', w: 1.5 },
       { id: 'gears', type: 'volley', tele: 0.3, n: 2, speed: 300, spread: 0.3, kind: 'gear', far: true, w: 2 },
       { id: 'guard', type: 'guard', dur: 1.0, w: 1 },
       { id: 'dash', type: 'dash', tele: 0.25, speed: 560, dur: 0.3, far: true, w: 1.5 },
+      { id: 'stall', type: 'volley', tele: 0.6, n: 1, speed: 300, spread: 0, kind: 'gear', far: true, w: 1.5, sig: 'hold', stall: 3 },
+      { id: 'pin', type: 'pin', tele: 0.8, dur: 0.6, w: 1.4, sig: 'hold', once: true, then: 'dash' },
     ] },
   regent1: { name: '???', hp: 999, poise: 999, w: 30, h: 60, phase2: 2, ground: true, scripted: true,
     moves: [
@@ -1301,14 +1384,15 @@ const BOSS_DEFS = {
       { id: 'cut', type: 'combo', hits: 2, tele: 0.2, step: 0.2, range: 60, dmg: 1, advance: 20, near: true, w: 1 },
       { id: 'hands', type: 'volley', tele: 0.3, n: 5, speed: 240, spread: 0.6, kind: 'timebolt', far: true, w: 1.5 },
     ] },
-  index: { name: 'The Index', hp: 56, poise: 10, w: 36, h: 44, phase2: 0.5, ground: false,
+  index: { name: 'The Index', hp: 56, poise: 10, w: 36, h: 44, phase2: 0.5, ground: false, power: BOSS_POWERS.index,
     moves: [
       { id: 'rain', type: 'rain', tele: 0.45, n: 6, kind: 'page', w: 2 },
       { id: 'blink', type: 'teleport', tele: 0.2, then: 'sweep', w: 1.5 },
       { id: 'sweep', type: 'dash', tele: 0.3, speed: 520, dur: 0.45, w: 1.5 },
       { id: 'spears', type: 'volley', tele: 0.35, n: 4, speed: 300, spread: 0.5, kind: 'page', far: true, w: 1.5 },
+      { id: 'mend', type: 'mend', tele: 0.7, dur: 0.4, heal: 8, sig: 'restore', auto: true },
     ] },
-  grinder: { name: 'The Grinder', hp: 78, poise: 18, w: 56, h: 44, phase2: 0.5, ground: true, thread: true,
+  grinder: { name: 'The Grinder', hp: 78, poise: 18, w: 56, h: 44, phase2: 0.5, ground: true, thread: true, power: BOSS_POWERS.grinder, echo: ['roll', 'bite', 'leap'],
     moves: [
       { id: 'roll', type: 'dash', tele: 0.3, speed: 520, dur: 0.9, bounce: true, w: 2 },
       { id: 'spin', type: 'spin', tele: 0.35, dur: 1.1, speed: 150, shards: 8, w: 2 },
@@ -1341,6 +1425,7 @@ const BOSS_DEFS = {
 // fires the one scripted time stop.
 // Bosses are long fights, not short ones: more health to work through, with the poise bar unchanged.
 for (const k in BOSS_DEFS) if (!BOSS_DEFS[k].scripted) BOSS_DEFS[k].hp = Math.round(BOSS_DEFS[k].hp * 1.5);
+for (const k in BOSS_POWERS) if (!BOSS_DEFS[k] || BOSS_DEFS[k].power !== BOSS_POWERS[k]) throw new Error('BOSS_POWERS and BOSS_DEFS disagree on ' + k);
 
 class Boss {
   constructor(type, tx, ty, arena) {
@@ -1354,6 +1439,8 @@ class Boss {
     this.state = 'idle'; this.timer = 0.6; this.phase = 1; this.move = null; this.lastMove = null; this.hitboxes = [];
     this.name = def.name; this.fightT = 0; this.rewound = false; this.guarding = false; this.hitsLeft = 0; this.floatY = this.y;
     this.withered = 0; this.shieldCut = 0; this.threadOpen = 0; this.holdCd = 0; this.rewindCd = 0; this.trail = []; this.decoy = null;
+    // signature move state. `sig` is the id of the signature move while it is telegraphed or acting ('echo' while the Grinder's echo stands): art may read it
+    this.sig = null; this.onceUsed = {}; this.mendPending = false; this.mended = false; this.mendPath = null; this.lastRain = null; this.pinSpot = null; this.ghosts = []; this.ghostT = 0; this.rec = null; this.echoCd = 4; this.echoRef = null;
     // animation contract (read by js/art/bosses.js)
     Feel.initAnim(this); this.stateT = 0; this.prevState = this.state; this.onGround = false; this.wasGround = false; this.swingKick = 0; this.walkPhase = 0; this.pinT = 0; this.leapVx = 0;
   }
@@ -1377,7 +1464,7 @@ class Boss {
       // the one scripted stop: the glass in Tam's chest answers her rewind; three seconds in which every hit on her is doubled
       Game.sever(3.0); UI.showToast('Everything stops. Everything but you.');
     }
-    else if (this.phase === 1 && this.hp <= this.maxHp * this.def.phase2) { this.phase = 2; this.state = 'idle'; this.timer = 0.8; this.hitboxes = []; if (Story.bosses[this.type] && Story.bosses[this.type].phase2) Game.playCutscene(Story.bosses[this.type].phase2, null, true); }
+    else if (this.phase === 1 && this.hp <= this.maxHp * this.def.phase2) { this.phase = 2; this.state = 'idle'; this.timer = 0.8; this.hitboxes = []; if (Story.bosses[this.type] && Story.bosses[this.type].phase2) Game.playCutscene(Story.bosses[this.type].phase2, null, true); if (!this.mended && this.def.moves.some((m) => m.type === 'mend')) { this.mendPending = true; this.timer = 0.3; } }
     if (this.hp <= 0) {
       this.hp = 0; this.dead = true;
       AudioSys.sfx('bossdie');
@@ -1421,7 +1508,7 @@ class Boss {
   pickMove() {
     const pl = this.target(); const d = Math.abs(pl.x + pl.w / 2 - (this.x + this.w / 2));
     const near = d < 90;
-    const cands = this.def.moves.filter((m) => (!m.phase || m.phase <= this.phase) && m.id !== (this.lastMove && this.lastMove.id) && m.type !== 'guard' || (m.type === 'guard' && Math.random() < 0.3));
+    const cands = this.def.moves.filter((m) => !m.auto && !(m.once && this.onceUsed[m.id] >= this.phase)).filter((m) => (!m.phase || m.phase <= this.phase) && m.id !== (this.lastMove && this.lastMove.id) && m.type !== 'guard' || (m.type === 'guard' && Math.random() < 0.3));
     let total = 0; const weighted = cands.map((m) => { let w = m.w || 1; if (m.near && near) w *= 2.2; if (m.near && !near) w *= 0.4; if (m.far && !near) w *= 2; if (m.far && near) w *= 0.5; total += w; return [m, w]; });
     let r = Math.random() * total;
     for (const [m, w] of weighted) { r -= w; if (r <= 0) return m; }
@@ -1435,16 +1522,18 @@ class Boss {
     if (this.threadOpen > 0) { this.threadOpen -= dt; if (this.threadOpen <= 0) UI.showToast(this.name + '\'s thread reknits.'); }
     if (this.holdCd > 0) this.holdCd -= dt0;
     if (this.rewindCd > 0) this.rewindCd -= dt0;
-    if (!this.active || this.dead) return;
+    if (this.echoCd > 0) this.echoCd -= dt;
+    if (this.ghosts.length) { for (const g of this.ghosts) g.life -= dt0; this.ghosts = this.ghosts.filter((g) => g.life > 0); }
+    if (!this.active || this.dead) { this.sig = null; return; }
     if (this.isHeld()) { this.hitboxes = []; this.vx = 0; this.decoy = null; this.animTick(dt0, 0); return; } // pinned
-    this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 120) this.trail.shift();
+    this.trail.push({ x: this.x, y: this.y, hp: this.hp }); if (this.trail.length > 120) this.trail.shift();
     if (this.kbv) { this.x += this.kbv * dt0; this.kbv *= Math.exp(-9 * dt0); if (Math.abs(this.kbv) < 8) this.kbv = 0; this.keepInside(); }
     this.fightT += dt; this.stateT += dt;
     const pl = this.target(), a = this.arena, def = this.def; this.decoy = pl === Game.player ? null : pl;
     const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
     const spd = this.phase === 2 ? 1.2 : 1;
-    this.timer -= dt * (this.state === 'tele' ? (this.phase === 2 ? 1.2 : 1) : 1);
+    this.timer -= dt * (this.state === 'tele' && !(this.move && this.move.sig) ? (this.phase === 2 ? 1.2 : 1) : 1);
     this.hitboxes = [];
     const wasGround = this.onGround;
     switch (this.state) {
@@ -1453,12 +1542,18 @@ class Boss {
         // close distance a little while idle
         const d = pcx - cx;
         if (def.ground) this.vx = Feel.approach(this.vx, Math.abs(d) > 100 ? sign(d) * 110 * spd : 0, 0, 760, dt); else { this.vx = 0; this.y += ((pl.y - 30 + Math.sin(this.fightT * 2) * 16) - this.y) * dt * 2.5; this.x += clamp(pcx - this.w / 2 - this.x + (pcx < cx ? 70 : -70), -140, 140) * dt; }
-        if (this.timer <= 0) { this.move = this.pickMove(); this.lastMove = this.move; this.state = this.move.type === 'guard' ? 'guard' : 'tele'; this.timer = this.move.type === 'guard' ? this.move.dur : this.move.tele * (this.phase === 2 ? 0.85 : 1); this.guarding = this.move.type === 'guard'; if (this.move.type === 'teleport') { this.visible = false; Game.burst(cx, cy, '#e8e0d0', 12, 60); } }
+        if (this.timer <= 0) {
+          if (this.mendPending) { this.mendPending = false; this.mended = true; this.move = def.moves.find((m) => m.type === 'mend'); } else this.move = this.pickMove();
+          this.lastMove = this.move; this.state = this.move.type === 'guard' ? 'guard' : 'tele'; this.timer = this.move.type === 'guard' ? this.move.dur : this.move.tele * (this.phase === 2 && !this.move.sig ? 0.85 : 1); this.guarding = this.move.type === 'guard'; if (this.move.type === 'teleport') { this.visible = false; Game.burst(cx, cy, '#e8e0d0', 12, 60); }
+          if (this.move.sig) this.beginSig(this.move);
+        }
         break;
       }
       case 'tele': {
         this.vx = Feel.approach(this.vx, 0, 0, 1400, dt);
         if (this.move.type !== 'teleport') this.facePlayer();
+        // a signature move gathers the power's colour while it winds up
+        if (this.move.sig && Math.random() < 0.6) { const an = Math.random() * Math.PI * 2, rr = this.w * 0.5 + 18 + Math.random() * 14, mx = cx + Math.cos(an) * rr, my = cy + Math.sin(an) * rr; Game.particle(mx, my, (cx - mx) * 2.4, (cy - my) * 2.4 - 50, 0.4, powerColor(this.move.sig), 2); }
         if (this.timer <= 0) this.beginAct();
         break;
       }
@@ -1490,6 +1585,9 @@ class Boss {
     }
     this.keepInside();
     this.escapePin(dt);
+    this.sig = (this.state === 'tele' || this.state === 'act') && this.move && this.move.sig ? this.move.id : (this.echoRef && !this.echoRef.dead ? 'echo' : null);
+    // the Grinder records the attack its echo will repeat: where it was, which way it faced, what could hurt
+    if (this.rec) { if (this.state === 'act') this.rec.push({ x: this.x, y: this.y, dir: this.dir, hb: [contactRect(this, 3)].concat(this.hitboxes.map((h) => ({ x: h.x, y: h.y, w: h.w, h: h.h }))) }); else if (this.state !== 'recover') this.rec = null; }
     this.animTick(dt0, dt);
     // contact and move hitboxes (always the player: an echo cannot be hurt)
     const me = Game.player;
@@ -1550,9 +1648,21 @@ class Boss {
   beginAct() {
     const m = this.move; this.state = 'act'; this.actT = 0; this.hitsLeft = m.hits || 0; this.stepT = 0; this.landed = undefined; this.fired = false;
     const pl = Game.player, a = this.arena, tg = this.target();
+    this.rec = this.def.echo && this.def.echo.includes(m.id) && this.echoCd <= 0 && !(this.echoRef && !this.echoRef.dead) ? [] : null;
     switch (m.type) {
+      case 'pin': {
+        // the ring closes: feet on the floor inside it are held (a jump, a skip or a step aside is out of it)
+        const sp = this.pinSpot, pcx = pl.x + pl.w / 2;
+        if (sp && pl.onGround && pl.dashT <= 0 && pl.invuln <= 0 && !pl.dead && Math.abs(pcx - sp.x) < sp.r && Math.abs(pl.y + pl.h - sp.y) < 12) {
+          pl.pinned = m.dur; pl.vx = 0; AudioSys.sfx('hold'); Game.burst(pcx, pl.y + pl.h, '#dfe9ff', 14, 60);
+          const next = this.def.moves.find((mm) => mm.id === m.then); this.pinSpot = null;
+          if (next) { this.move = next; this.state = 'tele'; this.timer = next.tele; return; }
+        } else if (sp) Game.burst(sp.x, sp.y, POWERS.hold.color, 8, 40);
+        this.pinSpot = null; this.endAct(0.3); return;
+      }
+      case 'mend': { this.mendPath = this.trail.slice(); this.timer = m.dur; AudioSys.sfx('weave'); Feel.kick(this, 0.85, 1.15); break; }
       case 'combo': this.stepT = 0; break;
-      case 'dash': this.facePlayer(); this.timer = m.dur; Feel.kick(this, 1.25, 0.82); if (this.onGround) Feel.dust(this, 5, 1, -this.dir); AudioSys.sfx('dash'); break;
+      case 'dash': this.facePlayer(); this.timer = m.dur; this.ghostT = 0; Feel.kick(this, 1.25, 0.82); if (this.onGround) Feel.dust(this, 5, 1, -this.dir); AudioSys.sfx('dash'); break;
       case 'leap': this.facePlayer(); this.vy = m.vy; this.leapVx = clamp((tg.x - this.x) / 0.7, -320, 320); this.vx *= 0.3; this.landed = false; Feel.kick(this, 0.8, 1.26); Feel.dust(this, 5, 1, 0); AudioSys.sfx('jump'); break;
       case 'volley': this.timer = 0.25; break;
       case 'rain': this.timer = 0.3; break;
@@ -1605,7 +1715,9 @@ class Boss {
         // ease into the dash over ~0.08 s instead of snapping to full speed
         this.vx = Feel.approach(this.vx, this.dir * m.speed * spd, 0, m.speed * spd / 0.08, dt);
         this.hitboxes.push({ x: this.x - 4, y: this.y, w: this.w + 8, h: this.h, dmg: 1 });
-        if (Math.random() < 0.6) Game.particle(cx - this.dir * this.w / 2, this.y + this.h, -this.dir * 30, -30, 0.3, PALETTES[World.room.region].accent, 3);
+        if (Math.random() < 0.6) Game.particle(cx - this.dir * this.w / 2, this.y + this.h, -this.dir * 30, -30, 0.3, m.sig ? powerColor(m.sig) : PALETTES[World.room.region].accent, 3);
+        // the skip: afterimages hang behind it, and motes of its colour stream off the body like Tam's own dash
+        if (m.sig) { this.ghostT -= dt; if (this.ghostT <= 0) { this.ghostT = 0.045; this.ghosts.push({ x: this.x, y: this.y, dir: this.dir, life: 0.32 }); } Game.particle(cx - this.dir * this.w / 2, this.y + Math.random() * this.h, -this.dir * 40, 0, 0.3, powerColor(m.sig), 3); }
         if (this.timer <= 0) this.endAct(0.4);
         break;
       }
@@ -1619,6 +1731,8 @@ class Boss {
             const vx = Math.cos(ang) * m.speed, vy = m.arc !== undefined ? m.arc + i * 40 : Math.sin(ang) * m.speed;
             const p = new Projectile(cx + this.dir * 14, this.y + 20, vx, vy, m.kind === 'gear' ? 7 : 4, true, m.kind, { owner: this, life: m.kind === 'gear' ? 2.6 : 3 });
             if (m.kind === 'wither') { p.hostile = true; p.wither = 0; p.dmg = 1; }
+            if (m.kind === 'rot') p.r = 6;
+            if (m.stall) { p.stallAt = 0.3; p.stallDur = m.stall; }
             Game.projectiles.push(p);
           }
           AudioSys.sfx('shoot'); this.timer = 0.3;
@@ -1628,9 +1742,25 @@ class Boss {
       case 'rain': {
         if (!this.fired && this.timer <= 0) {
           this.fired = true;
-          for (let i = 0; i < m.n; i++) { const px = clamp(pl.x + (i - (m.n - 1) / 2) * 34 + (Math.random() - 0.5) * 10, a.x + 20, a.x + a.w - 20); Game.projectiles.push(new Projectile(px, a.y + 10, 0, 60 + i * 15, 4, true, 'page', { life: 3 })); }
+          this.lastRain = [];
+          for (let i = 0; i < m.n; i++) { const px = clamp(pl.x + (i - (m.n - 1) / 2) * 34 + (Math.random() - 0.5) * 10, a.x + 20, a.x + a.w - 20); this.lastRain.push(px); Game.projectiles.push(new Projectile(px, m.clear ? this.rainTop(px) : a.y + 10, 0, 60 + i * 15, 4, true, 'page', { life: 3 })); }
           AudioSys.sfx('shoot'); this.timer = 0.4;
         } else if (this.fired && this.timer <= 0) this.endAct(0.3);
+        break;
+      }
+      case 'mend': {
+        // run backwards along the last two seconds; at the end the wounds of those seconds close (at most m.heal), and the last rain re-forms
+        const path = this.mendPath || [], k = clamp(1 - this.timer / m.dur, 0, 1);
+        if (path.length) { const f = path[Math.round((1 - k) * (path.length - 1))]; this.x = f.x; this.y = f.y; this.vx = 0; this.vy = 0; }
+        if (Math.random() < 0.8) Game.particle(cx + (Math.random() - 0.5) * this.w, this.y + Math.random() * this.h, 0, -40, 0.35, POWERS.restore.color, 2);
+        if (this.timer <= 0) {
+          const was = path.length ? path[0].hp : this.hp, back = clamp(was - this.hp, 0, m.heal);
+          this.hp = Math.min(this.maxHp, this.hp + back); this.poise = 0;
+          Game.burst(this.x + this.w / 2, this.y + this.h / 2, POWERS.restore.color, 24, 110); Feel.kick(this, 1.15, 0.88); if (back > 0) Game.floaty(this.x + this.w / 2, this.y - 6, '+' + Math.round(back), POWERS.restore.color);
+          const xs = this.lastRain || [0, 1, 2, 3, 4, 5].map((i) => clamp(Game.player.x + (i - 2.5) * 34, a.x + 20, a.x + a.w - 20));
+          xs.forEach((px, i) => Game.projectiles.push(new Projectile(px, this.rainTop(px), 0, 60 + i * 15, 4, true, 'page', { life: 3, delay: 0.7 })));
+          this.mendPath = null; this.trail = []; this.endAct(0.4);
+        }
         break;
       }
       case 'hook': {
@@ -1660,8 +1790,69 @@ class Boss {
       }
     }
   }
-  endAct(recover) { this.state = 'recover'; this.timer = recover * (this.phase === 2 ? 0.8 : 1); this.hitboxes = []; if (this.move.type === 'dash' || this.move.type === 'spin') this.vx *= 0.3; }
-  draw(ctx, t) { if (!this.dead && this.visible) Art.drawBoss(ctx, this, t); }
+  endAct(recover) {
+    this.state = 'recover'; this.timer = recover * (this.phase === 2 ? 0.8 : 1); this.hitboxes = []; if (this.move.type === 'dash' || this.move.type === 'spin') this.vx *= 0.3;
+    // the Grinder's echo: a copy stands where the attack began and repeats it
+    if (this.rec && this.rec.length > 6) { this.echoRef = new BossEcho(this, this.rec); Game.entities.push(this.echoRef); this.echoCd = this.phase === 2 ? 5 : 7; }
+    this.rec = null;
+  }
+  // where a falling thing can start in column px: just under the hall's ceiling rock. A rain move uses it only with `clear: true`;
+  // without it the rain starts 10 px down the arena, which is inside the ceiling rock of D3 and G6, and dies at once (as it always
+  // has: the Index's 'rain' and the Annealer's 'racks' never reach the floor; setting clear on them would be a balance change)
+  rainTop(px) { const tx = Math.floor(px / TILE); let ty = Math.floor(this.arena.y / TILE); for (let i = 0; i < ROOM_H - 4 && World.isSolidAt(tx, ty); i++) ty++; return ty * TILE + 6; }
+  // a signature move begins its telegraph: the warning chime, and whatever the move marks on the floor
+  beginSig(m) {
+    AudioSys.sfx('tell');
+    if (m.once) this.onceUsed[m.id] = this.phase;
+    if (m.type === 'pin') { const pl = Game.player, tx = Math.floor((pl.x + pl.w / 2) / TILE); let ty = Math.floor((pl.y + pl.h - 1) / TILE); for (let i = 0; i < ROOM_H && !World.isSolidAt(tx, ty + 1); i++) ty++; this.pinSpot = { x: pl.x + pl.w / 2, y: pl.onGround ? pl.y + pl.h : (ty + 1) * TILE, r: 26 }; }
+  }
+  draw(ctx, t) {
+    if (this.dead) return;
+    const m = this.move, tele = this.state === 'tele' && m && m.sig, col = m && m.sig ? powerColor(m.sig) : '#fff';
+    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+    // the skip's afterimages: the body where it was a moment ago, fading, on a streak of its colour
+    if (this.ghosts.length && this.visible) {
+      const keep = { x: this.x, y: this.y, dir: this.dir }, c = MOVES.dash.color, g0 = this.ghosts[0];
+      ctx.save(); ctx.strokeStyle = c; ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { ctx.globalAlpha = 0.25 * clamp(g0.life / 0.32 + 0.4, 0, 1); const yy = this.y + this.h * (0.25 + i * 0.25); ctx.beginPath(); ctx.moveTo(g0.x + this.w / 2, yy); ctx.lineTo(cx, yy); ctx.stroke(); }
+      for (let i = 0; i < this.ghosts.length; i += 2) { const g = this.ghosts[i], k = g.life / 0.32; Paint.glow(ctx, g.x + this.w / 2, g.y + this.h / 2, this.w * 0.7, c, 0.22 * k); ctx.globalAlpha = 0.3 * k; this.x = g.x; this.y = g.y; this.dir = g.dir; Art.drawBoss(ctx, this, t); }
+      Object.assign(this, keep); ctx.restore();
+    }
+    if (tele && this.visible) Paint.glow(ctx, cx, cy, this.w * 0.9 + 10, col, 0.25 + 0.3 * clamp(this.stateT / (m.tele || 0.6), 0, 1));
+    // the pin: a clock ring on the floor that closes over the telegraph
+    if (this.pinSpot && tele && m.type === 'pin') { const k = clamp(this.timer / m.tele, 0, 1); drawClockRing(ctx, this.pinSpot.x, this.pinSpot.y, this.pinSpot.r, 7, k, col, t, 0.5 + 0.5 * (1 - k)); }
+    // the mend: the two seconds it is about to run back along, drawn as a streak
+    if (m && m.type === 'mend' && (tele || this.state === 'act')) {
+      const path = this.state === 'act' && this.mendPath ? this.mendPath : this.trail;
+      if (path.length > 2) { ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = this.state === 'act' ? 3 : 1.5; ctx.globalAlpha = this.state === 'act' ? 0.7 : 0.35; ctx.beginPath(); for (let i = 0; i < path.length; i += 4) { const f = path[i]; if (i) ctx.lineTo(f.x + this.w / 2, f.y + this.h / 2); else ctx.moveTo(f.x + this.w / 2, f.y + this.h / 2); } ctx.lineTo(cx, cy); ctx.stroke(); ctx.restore(); Paint.glow(ctx, path[0].x + this.w / 2, path[0].y + this.h / 2, 14, col, 0.4); }
+    }
+    if (this.visible) Art.drawBoss(ctx, this, t);
+  }
+}
+
+// The Grinder's echo: a translucent violet copy standing where its last attack began. It waits 1.5 s (the warning
+// glyph rises over the last 0.7 s), then repeats the attack frame for frame and can hurt once. It cannot be struck.
+class BossEcho {
+  constructor(owner, frames) { this.owner = owner; this.frames = frames; this.i = 0; this.wait = 1.5; this.dead = false; this.spent = false; this.w = owner.w; this.h = owner.h; const f = frames[0]; this.x = f.x; this.y = f.y; this.dir = f.dir; this.told = false; AudioSys.sfx('shadow'); Game.burst(this.x + this.w / 2, this.y + this.h / 2, POWERS.echo.color, 12, 60); }
+  update(dt0) {
+    const dt = dt0 * Game.timeScale, o = this.owner;
+    if (o.dead || !o.active) { this.dead = true; return; }
+    if (dt <= 0) return;
+    if (this.wait > 0) { this.wait -= dt; if (!this.told && this.wait <= 0.7) { this.told = true; AudioSys.sfx('tell'); } if (Math.random() < 0.3) Game.particle(this.x + Math.random() * this.w, this.y + Math.random() * this.h, 0, -30, 0.4, POWERS.echo.color, 2); return; }
+    const f = this.frames[this.i]; this.x = f.x; this.y = f.y; this.dir = f.dir;
+    const pl = Game.player;
+    if (!this.spent && !pl.dead && pl.invuln <= 0) for (const hb of f.hb) if (rectsOverlap(hb, pl)) { pl.hurt(1, this.x + this.w / 2); this.spent = true; break; }
+    this.i++; if (this.i >= this.frames.length) { this.dead = true; Game.burst(this.x + this.w / 2, this.y + this.h / 2, POWERS.echo.color, 14, 80); }
+  }
+  draw(ctx, t) {
+    if (this.dead) return;
+    const o = this.owner, keep = { x: o.x, y: o.y, dir: o.dir, withered: o.withered, flash: o.flash }, cx = this.x + this.w / 2;
+    Paint.glow(ctx, cx, this.y + this.h / 2, this.w * 0.8, POWERS.echo.color, 0.25 + 0.08 * Math.sin(t * 8));
+    ctx.save(); ctx.globalAlpha = this.wait > 0 ? 0.3 + 0.2 * (1 - this.wait / 1.5) : (this.spent ? 0.3 : 0.55);
+    o.x = this.x; o.y = this.y; o.dir = this.dir; o.withered = 1; o.flash = 0; Art.drawBoss(ctx, o, t); Object.assign(o, keep);
+    ctx.restore();
+    if (this.wait > 0 && this.wait <= 0.7) Feel.drawTell(ctx, cx, this.y - 8, 1 - this.wait / 0.7, t);
+  }
 }
 
 // A hostile echo of the player, summoned by Sef: replays your own movements against you.

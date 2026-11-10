@@ -70,8 +70,8 @@ const { chromium } = require('playwright');
     { const b = Game.entities.find((e) => e instanceof Boss); let active = false; for (let i = 0; i < 600 && !active; i++) { run(1, ['ArrowRight']); active = !!(b && b.active); }
       out.boss = { found: !!b, active, cutsceneFrames: seen.cutscene, banner: UI.banner && UI.banner.region, sub: UI.banner && UI.banner.room, introTalk: Story.bosses.shallows.intro.filter((s) => !s.title).length }; }
     // 8. nobody is named on the Shore: no name tag but '???' and 'Tam' at the Jetty, and no tablet there says a name
-    { const tags = [...Story.sef.jetty, ...Story.sef.jettyAgain].map((s) => s.name).filter((n) => n !== '???' && n !== 'Tam');
-      const shoreText = ['A1', 'A2', 'A3', 'A5', 'A6'].map((id) => (Story.tablets[id] || []).map((t) => t.title + ' ' + t.text).join(' ')).join(' ') + Story.prologue.map((s) => s.text).join(' ') + Story.sef.jetty.filter((s) => s.who === 'sef').map((s) => s.text).join(' ') + Story.sef.jettyAgain.map((s) => s.text).join(' ');
+    { const tags = [...Story.sef.jetty, ...(Story.sef.jettyAgain || [])].map((s) => s.name).filter((n) => n !== '???' && n !== 'Tam');
+      const shoreText = ['A1', 'A2', 'A3', 'A5', 'A6'].map((id) => (Story.tablets[id] || []).map((t) => t.title + ' ' + t.text).join(' ')).join(' ') + Story.prologue.map((s) => s.text).join(' ') + Story.sef.jetty.filter((s) => s.who === 'sef').map((s) => s.text).join(' ') + (Story.sef.jettyAgain || []).map((s) => s.text).join(' ');
       out.names = { tags, named: (shoreText.match(/\b(Sef|Regent|Well|[Ll]edger|Hourwright)\b/g) || []), tamBeforeJetty: /\bTam\b/i.test(['A1', 'A2', 'A3', 'A6'].map((id) => (Story.tablets[id] || []).map((t) => t.text).join(' ')).join(' ') + Story.prologue.map((s) => s.text).join(' ')) }; }
     return out;
   });
