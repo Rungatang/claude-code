@@ -5,6 +5,7 @@
 const SAVE_KEY = 'hollow-hours-save-v4';
 // Fragments: hours and spools come in pieces; a set completes into +1 max hour / +1 max thread (the rite plays on completion only).
 const HEART_FRAGS = 2, SPOOL_FRAGS = 3;
+const WORLD_V = 2; // save.worldV: 2 = the spread world (connector screens between left-right neighbours); see Game.migrateWorld
 const OLD_SAVE_KEY = 'hollow-hours-save-v3'; // read once and migrated (power ids renamed, see readSave)
 
 // A thin clock ring that empties over a hold (k = time left / duration), drawn around held things and beside the Hold seal.
@@ -53,15 +54,20 @@ const Game = {
   },
 
   // ---- save -------------------------------------------------------------
-  defaultSave() { return { zone: 'A1', x: 0, y: 0, maxHp: 5, maxThread: 9, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
+  defaultSave() { return { worldV: WORLD_V, zone: 'A1', x: 0, y: 0, maxHp: 5, maxThread: 9, abilities: {}, flags: {}, explored: {}, time: 0, completed: false, recalls: 0 }; },
   hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } },
-  writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* unavailable */ } },
+  writeSave() { this.save.worldV = WORLD_V; try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch (e) { /* unavailable */ } },
   readSave() {
     try {
       const s = localStorage.getItem(SAVE_KEY);
-      if (s) return this.deriveStats(Object.assign(this.defaultSave(), JSON.parse(s)));
+      if (s) {
+        const raw = JSON.parse(s), stale = !(raw.worldV >= WORLD_V);
+        const m = this.migrateWorld(this.deriveStats(Object.assign(this.defaultSave(), raw, stale ? { worldV: 0 } : {})));
+        if (stale) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(m)); } catch (e) { /* unavailable */ } }
+        return m;
+      }
       const old = localStorage.getItem(OLD_SAVE_KEY); if (!old) return null;
-      const m = this.migrateSave(Object.assign(this.defaultSave(), JSON.parse(old)));
+      const m = this.migrateWorld(this.migrateSave(Object.assign(this.defaultSave(), JSON.parse(old), { worldV: 0 })));
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(m)); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { /* unavailable */ }
       return this.deriveStats(m);
     } catch (e) { return null; }
@@ -70,6 +76,31 @@ const Game = {
   deriveStats(s) {
     let h = 0, sp = 0; for (const k in s.flags) { if (k.startsWith('heart:')) h++; else if (k.startsWith('spool:')) sp++; }
     s.maxHp = 5 + Math.floor(h / HEART_FRAGS); s.maxThread = Math.min(15, 9 + Math.floor(sp / SPOOL_FRAGS)); return s;
+  },
+  // World v1 -> v2 ("Spread the world"): every multi-screen zone gained a connector screen between its left-right
+  // neighbours, so a screen to the right of one starts VIEW_W px further on. Old zone-relative x -> new x; the
+  // point is then checked against the zone's static grid and, if it lands in rock, snapped to the zone's first lantern
+  // (or its start). Position only: the anchor is not saved, and the other saved flags are keyed by screen id.
+  migrateWorld(s) {
+    if (s.worldV >= WORLD_V) return s;
+    s.worldV = WORLD_V;
+    const zone = ZONES[s.zone]; if (!zone || (!s.x && !s.y)) return s;
+    s.x = s.x + Math.floor(s.x / VIEW_W) * VIEW_W;
+    if (s.anchor && typeof s.anchor.x === 'number') s.anchor.x += Math.floor(s.anchor.x / VIEW_W) * VIEW_W;
+    const PW = 10, PH = 22;
+    const blocked = (x, y) => {
+      for (let ty = Math.floor(y / TILE); ty <= Math.floor((y + PH - 0.01) / TILE); ty++) for (let tx = Math.floor(x / TILE); tx <= Math.floor((x + PW - 0.01) / TILE); tx++) {
+        if (tx < 0 || ty < 0 || tx >= zone.W || ty >= zone.H || World.isSolid(zone.grid[ty][tx])) return true;
+      }
+      return false;
+    };
+    if (blocked(s.x, s.y)) {
+      let spot = null;
+      for (let y = 0; y < zone.H && !spot; y++) for (let x = 0; x < zone.W; x++) if (zone.grid[y][x] === 'S') { spot = { x: x * TILE + (TILE - PW) / 2, y: (y + 1) * TILE - PH }; break; }
+      for (let y = 0; y < zone.H && !spot; y++) for (let x = 0; x < zone.W; x++) if (zone.grid[y][x] === 'P') { spot = { x: x * TILE + (TILE - PW) / 2, y: (y + 1) * TILE - PH }; break; }
+      if (spot) { s.x = spot.x; s.y = spot.y; }
+    }
+    return s;
   },
   // v3 -> v4: the powers were renamed (wither age, stall hold, mend restore, sever cut); the tower gate flag with them
   migrateSave(s) {

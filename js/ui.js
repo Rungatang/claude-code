@@ -375,6 +375,7 @@ const UI = {
     uiFlourish(ctx, VIEW_W / 2, 41, 170, '#d8ccb0', 0.8);
     const cols = Math.max(...Object.values(ROOMS).map((r) => r.mx)) + 1, rows = Math.max(...Object.values(ROOMS).map((r) => r.my)) + 1;
     const cw = Math.min(50, Math.floor((VIEW_W - 60) / cols)), ch = Math.min(27, Math.floor(260 / rows)), ox = Math.floor((VIEW_W - cols * cw) / 2), oy = 48;
+    const mg = Math.max(7, Math.round(cw * 0.27)), mv = Math.max(7, Math.round(ch * 0.34)); // marker insets from a cell's corners: four corners + the middle row stay clear of each other at 30x26 cells
     const seen = (id) => !!(id && ROOMS[id] && (Game.save.explored[id] || Game.debug));
     // pale connections first, so the cells sit on top of them
     ctx.save(); ctx.strokeStyle = 'rgba(216,204,176,0.4)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
@@ -396,11 +397,11 @@ const UI = {
       const cg = ctx.createLinearGradient(0, y, 0, y + ch); cg.addColorStop(0, 'rgba(255,255,255,0.1)'); cg.addColorStop(1, 'rgba(0,0,0,0.22)'); ctx.fillStyle = cg; ctx.fill();
       ctx.strokeStyle = Paint.rgba(p.light, 0.35); ctx.lineWidth = 1; uiRound(ctx, x + 3.5, y + 3.5, cw - 7, ch - 7, 4.5); ctx.stroke();
       ctx.restore();
-      if (r.grid.some((row) => row.includes('S'))) { Paint.glow(ctx, x + 11, y + 11, 8, '#ffd27a', 0.5); ctx.fillStyle = '#ffe2a0'; ctx.beginPath(); ctx.arc(x + 11, y + 11, 2.2, 0, Math.PI * 2); ctx.fill(); }
-      if (r.boss) { const done = Game.save.flags['boss:' + r.boss]; if (!done) Paint.glow(ctx, x + cw - 12, y + 12, 9, '#ff6a7a', 0.3); ctx.strokeStyle = done ? 'rgba(140,130,130,0.7)' : '#e05a68'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x + cw - 12, y + 12, 3.5, 0, Math.PI * 2); ctx.stroke(); if (!done) { ctx.fillStyle = '#ff8a94'; ctx.beginPath(); ctx.arc(x + cw - 12, y + 12, 1.4, 0, Math.PI * 2); ctx.fill(); } }
-      if (r.ability && !Game.has(r.ability)) { ctx.fillStyle = '#e6d8ff'; const dx = x + cw - 11, dy = y + ch - 11; ctx.beginPath(); ctx.moveTo(dx, dy - 3.5); ctx.lineTo(dx + 3.5, dy); ctx.lineTo(dx, dy + 3.5); ctx.lineTo(dx - 3.5, dy); ctx.closePath(); ctx.fill(); }
-      if (r.npc && !r.boss) { ctx.fillStyle = '#9fb8ff'; ctx.beginPath(); ctx.arc(x + 11, y + ch - 11, 2.4, 0, Math.PI * 2); ctx.fill(); }
-      if (Game.save.explored[id]) { let k = 0; r.grid.forEach((row, yy) => row.split('').forEach((c, xx) => { if ((c === 'H' && !Game.save.flags['heart:' + id + ':' + xx + ':' + yy]) || (c === 'T' && !Game.save.flags['spool:' + id + ':' + xx + ':' + yy])) { ctx.fillStyle = c === 'H' ? '#ff9a9a' : '#8fb3ff'; ctx.beginPath(); ctx.arc(x + cw - 12 - k * 6, y + 21, 1.8, 0, Math.PI * 2); ctx.fill(); k++; } })); }
+      if (r.grid.some((row) => row.includes('S'))) { Paint.glow(ctx, x + mg, y + mv, 8, '#ffd27a', 0.5); ctx.fillStyle = '#ffe2a0'; ctx.beginPath(); ctx.arc(x + mg, y + mv, 2.2, 0, Math.PI * 2); ctx.fill(); }
+      if (r.boss) { const done = Game.save.flags['boss:' + r.boss]; if (!done) Paint.glow(ctx, x + cw - mg, y + mv, 9, '#ff6a7a', 0.3); ctx.strokeStyle = done ? 'rgba(140,130,130,0.7)' : '#e05a68'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x + cw - mg, y + mv, 3.5, 0, Math.PI * 2); ctx.stroke(); if (!done) { ctx.fillStyle = '#ff8a94'; ctx.beginPath(); ctx.arc(x + cw - mg, y + mv, 1.4, 0, Math.PI * 2); ctx.fill(); } }
+      if (r.ability && !Game.has(r.ability)) { ctx.fillStyle = '#e6d8ff'; const dx = x + cw - mg, dy = y + ch - mv; ctx.beginPath(); ctx.moveTo(dx, dy - 3.5); ctx.lineTo(dx + 3.5, dy); ctx.lineTo(dx, dy + 3.5); ctx.lineTo(dx - 3.5, dy); ctx.closePath(); ctx.fill(); }
+      if (r.npc && !r.boss) { ctx.fillStyle = '#9fb8ff'; ctx.beginPath(); ctx.arc(x + mg, y + ch - mv, 2.4, 0, Math.PI * 2); ctx.fill(); }
+      if (Game.save.explored[id]) { const frags = []; r.grid.forEach((row, yy) => row.split('').forEach((c, xx) => { if ((c === 'H' && !Game.save.flags['heart:' + id + ':' + xx + ':' + yy]) || (c === 'T' && !Game.save.flags['spool:' + id + ':' + xx + ':' + yy])) frags.push(c === 'H' ? '#ff9a9a' : '#8fb3ff'); })); frags.slice(0, 4).forEach((col, k, a) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + cw / 2 + (k - (a.length - 1) / 2) * 4.5, y + ch / 2 - 0.5, 1.6, 0, Math.PI * 2); ctx.fill(); }); }
       if (id === Game.curScreen) { const pulse = 0.5 + Math.sin(t * 4) * 0.5; Paint.glow(ctx, x + cw / 2, y + ch / 2, 14, '#e9dfc8', 0.25 + pulse * 0.3); ctx.fillStyle = '#fffaf0'; ctx.beginPath(); ctx.arc(x + cw / 2, y + ch / 2, 2.4 + pulse * 0.6, 0, Math.PI * 2); ctx.fill(); }
     }
     const ly = oy + rows * ch + 14;

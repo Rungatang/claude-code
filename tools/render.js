@@ -154,9 +154,10 @@ fs.mkdirSync(outDir, { recursive: true });
     await page.keyboard.down('Escape'); await page.waitForTimeout(1300); await page.keyboard.up('Escape'); await page.waitForTimeout(300);
     for (let i = 0; i < 8; i++) { await page.keyboard.press('Enter'); await page.waitForTimeout(150); }
     await page.keyboard.press('Digit9'); await page.keyboard.press('Digit0');
-    const spots = [['A1', 60, 'shore_tideline'], ['A1', 100, 'shore_breakers'], ['R1', 20, 'rust_scrapyard'], ['R3', 60, 'rust_altar'], ['H1', 20, 'hours_nave'], ['H4', 20, 'hours_crushers'], ['T1', 100, 'tower_hall'], ['D1', 20, 'archive_oubliette'], ['M1', 20, 'mills_wheelhouse'], ['U1', 20, 'root_cellar']];
-    for (const [zone, tx, name] of spots) {
-      await page.evaluate(({ zone, tx }) => { Game.loadZone(zone, 'debug'); Game.player.placeFeet(tx, (zone === 'R3' ? 44 : 21) * TILE); Game.player.vy = 0; Game.state = 'play'; Game.pendingDialogue = null; Cutscene.active = false; UI.banner = null; Game.cam.x = Math.max(0, Math.min(World.W - VW, Game.player.x - VW / 2)); Game.cam.y = Math.max(0, Math.min(World.H - VH, Game.player.y - VH * 0.6)); }, { zone, tx });
+    // screen-relative spots: [screen id, local tile column, shot name]; the player stands on local row 21
+    const spots = [['A2', 20, 'shore_tideline'], ['A3', 20, 'shore_breakers'], ['R1', 20, 'rust_scrapyard'], ['R4', 20, 'rust_altar'], ['H3', 20, 'hours_nave'], ['H4', 20, 'hours_crushers'], ['T1', 20, 'tower_hall'], ['D1', 20, 'archive_oubliette'], ['M1', 20, 'mills_wheelhouse'], ['U6', 20, 'root_cellar']];
+    for (const [screen, lx, name] of spots) {
+      await page.evaluate(({ screen, lx }) => { const zone = SCREEN_ZONE[screen], sc = ZONES[zone].screens[screen]; Game.loadZone(zone, 'debug'); Game.player.placeFeet(sc.ox + lx, (sc.oy + 21) * TILE); Game.player.vy = 0; Game.state = 'play'; Game.pendingDialogue = null; Cutscene.active = false; UI.banner = null; Game.cam.x = Math.max(0, Math.min(World.W - VW, Game.player.x - VW / 2)); Game.cam.y = Math.max(0, Math.min(World.H - VH, Game.player.y - VH * 0.6)); }, { screen, lx });
       await page.waitForTimeout(500);
       for (let k = 0; k < 3; k++) { const s = await page.evaluate(() => Game.state); if (s === 'cutscene' || s === 'overlay') { await page.keyboard.press('Enter'); await page.waitForTimeout(150); } }
       await page.screenshot({ path: path.join(outDir, 'env_' + name + '.png') });
