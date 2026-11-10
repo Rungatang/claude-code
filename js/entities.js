@@ -158,7 +158,8 @@ class Player {
       const lunging = this.attackT > 0 && this.step === 2 && this.attackKind === 'slash' && this.attackPhase() === 'active';
       let target = move * RUN_SPEED * (Input.stickMag > 0 && !Input.keyMove() ? Input.stickMag : 1); // analog stick: partial tilt walks slower
       if (this.attackT > 0 && this.onGround && this.attackKind !== 'pogo') target *= 0.4;
-      if (lunging) target = this.facing * 260;
+      // the third strike plants the feet: it reaches further (see attackBox) instead of carrying Tam into the enemy
+      if (lunging) target = 0;
       // Movement curves: a quick first response that eases into full speed (~0.12 s from rest), a hard
       // stop when the stick is released, a visible skid when reversing at speed, softer control in the air.
       const vx = this.vx;
@@ -347,8 +348,7 @@ class Player {
     this.attackDur = tm.wind + tm.active + tm.rec; this.attackT = this.attackDur;
     this.hitSet = new Set(); this.comboWin = 0; this.attackStarted = true;
     AudioSys.sfx('swing');
-    // a small step into each of the first two strikes; the third lunges on its own
-    if (kind === 'slash' && step < 2 && this.onGround) this.vx += this.facing * 60;
+    // strikes never push Tam forward on their own: stepping in is the player's choice
     if (kind === 'slash' && step === 2) Game.burst(this.x + this.w / 2 + this.facing * 8, this.y + 12, '#8fb3ff', 4, 40);
   }
   attackBox() {
