@@ -1295,7 +1295,7 @@ Object.assign(Art, {
   dropScaleCaches() {
     this._tileChunks = null; this.tileCache = null; this.tileCacheKey = ''; this.bgCache = {};
     if (typeof HOLLOW_ENV !== 'undefined') HOLLOW_ENV.sprites = {};
-    if (typeof Paint !== 'undefined') { Paint._cache = {}; Paint._glowLru = []; Paint._glowPx = 0; }
+    if (typeof Paint !== 'undefined') { Paint._cache = {}; Paint._glowLru = new Map(); Paint._glowPx = 0; }
     if (this.dropIllustrationCaches) this.dropIllustrationCaches();
     if (typeof UI !== 'undefined') { UI._pc = null; UI._pm = null; }
   },

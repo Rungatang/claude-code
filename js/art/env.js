@@ -351,6 +351,7 @@ Object.assign(Art, {
   layers(region) {
     if (this.bgCache[region]) return this.bgCache[region];
     for (const k in this.bgCache) delete this.bgCache[k]; // one region's layers at a time: at the render scale they are large
+    for (const k in HOLLOW_ENV.sprites) if (k[0] === 'M' || k.startsWith('shaft')) delete HOLLOW_ENV.sprites[k]; // and its full-size mist and shaft sprites
     const p = PALETTES[region], K = HOLLOW_ENV, rs = typeof RS !== 'undefined' ? RS : 1;
     // Layer resolution (cache px per logical px): every layer is painted at the render scale and blitted 1:1 on whole
     // backing px (a resampled full-screen blit costs ten times a straight one without a GPU). Above 3 the hazy

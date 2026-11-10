@@ -114,7 +114,7 @@ const Paint = {
   // Cached additive radial glow. r in units of the current transform.
   // Wide glows are the most expensive thing in a frame when a sprite has to be resampled, so a glow whose radius is
   // 20 backing px or more is drawn from a sprite made at (nearly) that exact size and blitted 1:1 on whole backing px:
-  // radii are rounded up to steps of about 9%, which no eye can tell on a soft pool of light. Small glows (motes,
+  // radii are rounded to the nearest step of 3%, which no eye can tell on a soft pool of light, even a breathing one. Small glows (motes,
   // sparks) stretch one 64 px sprite. Under a rotated transform the 256 px master is stretched as before.
   _glowMaster(color, n) {
     const sp = document.createElement('canvas'); sp.width = sp.height = n; const c = sp.getContext('2d'), h = n / 2;
@@ -122,7 +122,7 @@ const Paint = {
     for (const [k, a] of [[0, 1], [0.12, 0.8], [0.25, 0.58], [0.4, 0.37], [0.55, 0.2], [0.7, 0.095], [0.85, 0.03], [1, 0]]) g.addColorStop(k, this.rgba(color, a));
     c.fillStyle = g; c.fillRect(0, 0, n, n); return sp;
   },
-  _glowPx: 0, _glowLru: [],
+  _glowPx: 0, _glowLru: new Map(), _glowTick: 0,
   glow(ctx, x, y, r, color, a) {
     if (!(r > 0)) return;
     const m = ctx._rawGet ? ctx._rawGet() : ctx.getTransform(), flat = m.b === 0 && m.c === 0 && m.a > 0 && m.a === m.d, rd = r * m.a;
@@ -132,13 +132,18 @@ const Paint = {
       if (!sp) sp = this._cache[key] = this._glowMaster(color, flat ? 64 : 256);
       ctx.drawImage(sp, x - r, y - r, r * 2, r * 2);
     } else {
-      const rb = Math.ceil(20 * Math.pow(1.09, Math.ceil(Math.log(rd / 20) / Math.log(1.09) - 1e-9))), key = 'G' + color + ':' + rb; let sp = this._cache[key];
+      // above 512 backing px of radius the sprite is kept at half size and stretched (it would be megabytes otherwise)
+      const rb = Math.round(20 * Math.pow(1.03, Math.round(Math.log(rd / 20) / Math.log(1.03)))), half = rb > 512, rs2 = half ? Math.ceil(rb / 2) : rb, key = 'G' + color + ':' + rs2; let sp = this._cache[key];
+      const lru = this._glowLru, tick = ++this._glowTick;
       if (!sp) {
-        sp = this._cache[key] = this._glowMaster(color, rb * 2); this._glowLru.push(key); this._glowPx += rb * rb * 4;
-        while (this._glowPx > 16e6 && this._glowLru.length > 4) { const k = this._glowLru.shift(), old = this._cache[k]; if (old) { this._glowPx -= old.width * old.height; delete this._cache[k]; } }
+        sp = this._cache[key] = this._glowMaster(color, rs2 * 2); this._glowPx += rs2 * rs2 * 4;
+        // forget the sprites unused for longest once 16 Mpx are held (never one used in the last few hundred glows)
+        for (const [k, tk] of lru) { if (this._glowPx <= 16e6 || tk > tick - 400) break; const old = this._cache[k]; if (old) { this._glowPx -= old.width * old.height; delete this._cache[k]; } lru.delete(k); }
       }
+      lru.delete(key); lru.set(key, tick);
       (ctx._rawSet || ctx.setTransform).call(ctx, 1, 0, 0, 1, 0, 0);
-      ctx.drawImage(sp, Math.round(x * m.a + m.e) - rb, Math.round(y * m.d + m.f) - rb);
+      const px = Math.round(x * m.a + m.e), py = Math.round(y * m.d + m.f);
+      if (half) ctx.drawImage(sp, px - rs2 * 2, py - rs2 * 2, rs2 * 4, rs2 * 4); else ctx.drawImage(sp, px - rb, py - rb);
     }
     ctx.restore();
   },
