@@ -530,7 +530,7 @@ class Player {
     if (!targets.length) { Game.fizzle = { id, box: this.castBox(id), t: 0.3 }; AudioSys.sfx('fizzle'); return; }
     // holding the thing you already hold lets it go early, for free
     if (id === 'hold' && Game.held && targets[0].e === Game.held.obj) { Game.release(); return; }
-    if (this.thread < p.cost) { UI.showToast('Not enough thread. Strike something.'); AudioSys.sfx('menu'); return; }
+    if (this.thread < p.cost) { UI.showToast('Not enough thread.'); AudioSys.sfx('menu'); return; }
     this.thread -= p.cost; this.cds[id] = p.cd;
     this.castPower = id; this.castDur = p.windup + 0.2; this.castT = this.castDur; this.castFired = false;
     Game.burst(this.x + this.w / 2 + this.facing * 10, this.y + 8, p.color, 6, 30);

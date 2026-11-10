@@ -483,7 +483,7 @@ Object.assign(Art, {
     const p = PALETTES[region], K = HOLLOW_ENV, n = Ink.n, L = this.layers(region), fog = L.C.fog;
     ctx.save();
     // the nearer lights also touch the world: a soft echo of every mid / near glow over the tiles
-    for (const gl of L.lights) if (gl.layer >= 2) { const l = L.layers[gl.layer]; this.envEach(L, l, gl.x, gl.y, gl.r, (sx, sy) => Paint.glow(ctx, sx, sy, gl.r * 1.3, gl.col, gl.a * 0.35 * this.envPulse(gl, t))); }
+    for (const gl of L.lights) if (gl.layer >= 2) { const l = L.layers[gl.layer]; this.envEach(L, l, gl.x, gl.y, gl.r, (sx, sy) => Paint.glow(ctx, sx, sy, gl.r * 1.6, gl.col, gl.a * 0.4 * this.envPulse(gl, t))); }
     // ground fog along the floor, drifting slowly, attached to the world
     Paint.fog(ctx, 0, VIEW_H - 110, VIEW_W, VIEW_H, fog, 0, 0.28);
     { const worldW = typeof World !== 'undefined' && World.W ? World.W : VIEW_W;

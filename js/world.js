@@ -201,7 +201,7 @@ const World = {
         if (d.open && !d.side) d.side = side || 1;
         if (!d.open) d.side = 0;
         if (d.open && d.side && side === -d.side && Math.abs(pl.x + pl.w / 2 - d.x) > TILE * 1.5) {
-          d.latched = true; Game.save.flags['door:' + id] = true; AudioSys.sfx('save'); UI.showToast('The way stays open behind you.'); Game.writeSave();
+          d.latched = true; Game.save.flags['door:' + id] = true; AudioSys.sfx('save'); UI.showToast('It stays open.'); Game.writeSave();
         }
       }
     }
@@ -394,7 +394,7 @@ const World = {
       if (!byRelics && !byFlag) continue;
       let opened = false;
       for (let y = 0; y < ROOM_H; y++) for (let x = 0; x < ROOM_W; x++) if (this.tiles[sc.oy + y][sc.ox + x] === 'G') { this.tiles[sc.oy + y][sc.ox + x] = '.'; opened = true; }
-      if (opened) { this.tileVersion++; AudioSys.sfx('gate'); UI.showToast('A seal gives way. The way to the guardian is open.'); this.shake = Math.max(this.shake, 0.2); }
+      if (opened) { this.tileVersion++; AudioSys.sfx('gate'); UI.showToast('Somewhere, a seal gives way.'); this.shake = Math.max(this.shake, 0.2); }
     }
   },
   openGates() {

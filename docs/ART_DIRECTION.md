@@ -60,6 +60,23 @@ conflict. Read it before touching any file under `js/art/` or `js/ui.js`.
 Cache anything static in offscreen canvases. Per-frame sprites stay under a few hundred calls. No
 `createRadialGradient` per frame (use `Paint.glow`). No `Math.random` in drawing (use `Ink.n`).
 
+## Resolution (the render scale RS)
+
+The game draws in logical units (a 640 x 368 view, the world magnified by `ZOOM` inside it), but the canvas
+backing store is `640 * RS x 368 * RS`: `RS` (js/util.js, set by `Game.resize`) is the displayed size times
+devicePixelRatio over 640, from 1 to 4 in quarter steps, so the vector art is rasterised at the size it is shown and
+never upscaled. `?rs=2` in the URL forces a scale; a frame-time watchdog lowers it by half steps on slow machines.
+
+- On the main context `setTransform`, `shadowBlur` and the shadow offsets are wrapped to stay in logical units
+  (`Game.scaleContext`), so `setTransform(1, 0, 0, 1, 0, 0)` still means screen space. Offscreen contexts are plain.
+- One logical px is not one backing px. Do not snap with `Math.floor` / `Math.round` to "pixels", do not draw
+  details as 1 x 1 `fillRect` squares (use small arcs or round-capped strokes), and never turn image smoothing off.
+- Every offscreen cache is painted at the scale it is shown at (`RS`, or `ZOOM * RS` for world art), drawn back
+  with an explicit destination size in logical units, and dropped by `Art.dropScaleCaches()` when RS changes.
+  `ctx.filter` blur radii and `putImageData` ignore the transform: scale them yourself or blur at low resolution.
+- Full-screen layers are blitted 1:1 on whole backing px (offsets snapped to `1 / RS`); a resampled full-screen blit
+  is about ten times slower without a GPU. The terrain is cached in chunks (`Art.drawRoomTiles`), not per zone.
+
 ## Acceptance (each critic judges against these, 1 to 10, 7 ships)
 
 - Could a still frame be mistaken for a Hollow Knight screenshot at a glance (silhouettes, depth,

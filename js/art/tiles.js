@@ -1219,7 +1219,7 @@ Object.assign(Art, {
 // and blitted 1:1 onto whole backing px, so there is no resampling, no seam and no shimmer. When a tile changes
 // only the chunks near the change are repainted.
 // ---------------------------------------------------------------------------
-const TILE_CHUNK_W = 320, TILE_CHUNK_H = 192, TILE_CHUNK_PAD = 16, TILE_CHUNK_BUDGET = 30e6; // world px; cache px kept
+const TILE_CHUNK_W = 320, TILE_CHUNK_H = 192, TILE_CHUNK_PAD = 16, TILE_CHUNK_BUDGET = 24e6; // world px; cache px kept
 Object.assign(Art, {
   _tileChunks: null,
   tileScale() { return Math.max(1, Math.round(ZOOM * (typeof RS !== 'undefined' ? RS : 1) * 2) / 2); },
@@ -1295,7 +1295,7 @@ Object.assign(Art, {
   dropScaleCaches() {
     this._tileChunks = null; this.tileCache = null; this.tileCacheKey = ''; this.bgCache = {};
     if (typeof HOLLOW_ENV !== 'undefined') HOLLOW_ENV.sprites = {};
-    if (typeof Paint !== 'undefined') Paint._cache = {};
+    if (typeof Paint !== 'undefined') { Paint._cache = {}; Paint._glowLru = []; Paint._glowPx = 0; }
     if (this.dropIllustrationCaches) this.dropIllustrationCaches();
     if (typeof UI !== 'undefined') { UI._pc = null; UI._pm = null; }
   },

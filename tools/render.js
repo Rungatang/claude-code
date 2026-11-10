@@ -20,7 +20,7 @@ fs.mkdirSync(outDir, { recursive: true });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?debug');
+  await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?debug&rs=2'); // rs=2: a fixed render scale (and no frame-time watchdog), so the sheets are reproducible
   await page.waitForTimeout(400);
   const want = (k) => what === 'all' || what === k;
 

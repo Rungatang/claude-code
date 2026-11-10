@@ -17,7 +17,7 @@ fs.mkdirSync(outDir, { recursive: true });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?debug');
+  await page.goto('file://' + path.resolve(__dirname, '../index.html') + '?debug&rs=1'); // rs=1: the zone sheets are drawn at one px per world px or less
   await page.waitForTimeout(400);
   const zones = await page.evaluate((only) => {
     const ids = Object.keys(ZONES).filter((z) => !only.length || only.includes(z) || ZONES[z].ids.some((s) => only.includes(s)));
