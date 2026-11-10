@@ -1,7 +1,9 @@
 'use strict';
 // HOURS screens. Legend and conventions: see js/rooms.js. Zones for this region are declared at the bottom.
 Object.assign(ROOMS, {
-  H1: { name: 'Pendulum Nave', region: 'hours', mx: 14, my: 3, links: { down: 'R5', left: 'H8', up: 'H6' }, grid: [
+  // needs: 'age': the only way in from below is the rust hatch at the top of R5 (LLLL), which only Wither opens. Wither is the
+  // Ferrous Mother's (R3), and the Glassworks road reaches R4 without passing her hall, so the hatch is what guarantees it here.
+  H1: { name: 'Pendulum Nave', region: 'hours', mx: 14, my: 3, links: { down: 'R5', left: 'H8', up: 'H6' }, needs: 'age', grid: [
     '##################....##################',
     '##################....##################',
     '##################....##################',

@@ -46,10 +46,12 @@ drops him into the underground; the long climb out ends with the twist. Full scr
 **Verification (run before every commit).**
 - `tools/check.sh quick`: syntax, layout validator (`tools/validate.js`: sizes, links, matching
   edge openings, ledge chain lint), smoke test.
-- `tools/check.sh`: also `tools/solve.js` (reachability solver: every zone, altar, boss, plate,
+- `tools/check.sh`: also `tools/solve.js` (reachability solver: every zone, power (boss-carried or altar), boss, plate,
   shard, heart and spool reachable in story order, tower bosses not before Sever; must end
   SOLVER OK), `tools/tests/mech.js` (mechanics and all seven boss fights; must end
-  "errors: none"), `tools/tests/flow2.js` (story flow), `tools/render.js all` (art contact
+  "errors: none"), `tools/tests/flow2.js` (story flow), `tools/tests/bosspower.js` (a guardian's
+  power rises from its body, the hall stays shut until it is taken, each signature move; must end
+  "bosspower: OK"), `tools/render.js all` (art contact
   sheets and in-game shots), `tools/rooms-sheet.js` (whole-zone maps), `tools/music-check.js`
   if present.
 - Needs Node 18+ and Playwright with Chromium (`npm i playwright && npx playwright install chromium`).

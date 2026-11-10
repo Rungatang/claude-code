@@ -5,7 +5,7 @@
 //   R1 Scrapyard Gate: rise from the Jetty drain, dash through the riveted wall to the right; optional scrap-heap climb to R6.
 //   R2 Chain Street : chain-hung planks to a plate gantry (anchor + recall opens the timed door), furnace block, heart shelf.
 //   R3 Foundry Floor: boss arena, flat floor, crucibles overhead.
-//   R4 Rust Altar   : lantern plinth, altar pedestal, chimney climb to R5; a dead-end tunnel off the chimney hides a spool.
+//   R4 Slag Chapel  : lantern plinth, a bare pedestal (Wither is taken from the Ferrous Mother in R3), chimney climb to R5; a dead-end tunnel off the chimney hides a spool.
 //   R5 Locked Stair : lower hall with knights, a locked corridor (age), shaft climb, locked hatch under the exit to the Hours.
 //   R6 Crane Deck   : optional; stepped deck up to the crane cab: the brake lever opens the Foundry's seal (R3 gateFlag lever:R6),
 //                     a weak floor beside it drops to the spool (Age), and a bare-walled pocket above holds the shard (cling).

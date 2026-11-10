@@ -40,7 +40,7 @@ const RECALL_COST = 2;
 // Swings are paced (about 0.38 s apart), so bosses carry a little less health to keep fights the same length.
 const BOSS_HP_SCALE = 0.8;
 const HOLD_DUR = 4.0;
-// Passive movement upgrades (Game.has(id)): not in the power list; picked up at altars like the powers.
+// Passive movement upgrades (Game.has(id)): not in the power list. Cling and Second Wind wait on altars; the Skip is taken from the Warden of the Shallows (BOSS_POWERS).
 // Game.onPickup reads name/hint/color from here when Story.abilities has no card for the id.
 const MOVES = {
   dash:  { name: 'Skip', color: '#8fb3ff', hint: 'C, L or Shift steps you forward faster than the moment can follow. Nothing can touch you mid-skip, and cracked walls shatter.' },

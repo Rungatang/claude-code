@@ -3,7 +3,7 @@
 //
 // The Bone Mills are dry, dusty and low. M1 is the wheelhouse (hub: miller + lantern, a loft with a
 // secret), M2 is three strata of grinding tunnels around a weight gate, M3 the Grinder's vault,
-// M4 the echo altar under a chimney to the Root (a vine seed at its foot: Restore grows the rungs), and M5 an optional
+// M4 The Still Wheel (once the echo altar; Echo is taken from the Grinder in M3) under a chimney to the Root (a vine seed at its foot: Restore grows the rungs), and M5 an optional
 // ossuary under M2 whose perch holds the wings altar and the Grinder's broken lever (M3 gateFlag lever:M5, Restore fixes it).
 Object.assign(ROOMS, {
   // Wheelhouse: the great wheel's pit on the left, the Miller's dais under it, a zig-zag climb up the
@@ -91,7 +91,7 @@ Object.assign(ROOMS, {
     '########################################',
     '########################################',
   ] },
-  // Echo Altar: a low entry opens into the altar chamber; the altar sits on a dais at the foot of a
+  // The Still Wheel: a low entry opens into the chamber; a bare dais (the altar is gone) stands at the foot of a
   // chimney whose alternating slabs climb to the Root (cols 18-21). A balcony niche beside the
   // chimney holds an archer that covers the climb; a bone pocket with two husks sits under it.
   M4: { name: 'The Still Wheel', region: 'mills', mx: 16, my: 8, links: { left: 'M8', up: 'U1' }, grid: [

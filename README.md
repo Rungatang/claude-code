@@ -114,7 +114,7 @@ raises health, and `[` / `]` jump between zones.
 
 ## The Glassworks
 
-A side region below the Rust Altar: a dead glassworks of furnaces and cooling racks, guarded by the
+A side region below the Slag Chapel (R4): a dead glassworks of furnaces and cooling racks, guarded by the
 Annealer, Master Brannoch, who never left his bench. It opens a shortcut back to the Jetty, holds a heart,
 a spool and three tablets, and is where the game first hints at who made the glass in Tam's chest.
 

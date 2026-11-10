@@ -4,7 +4,7 @@
 // The Drowned Archive is the first underground region: the bottom of the oubliette, a flooded library
 // whose toppled stacks are the stairs, paper wraiths, and the broken stair up to the Mills.
 //
-//   D5 Flooded Vault (optional: lever, cling altar, heart, spool)  <-  D1 The Oubliette  ->  D2 The Stacks  ->  D3 Reading Room  ->  D4 Mend Altar  ^ M1
+//   D5 Flooded Vault (optional: lever, cling altar, heart, spool)  <-  D1 The Oubliette  ->  D2 The Stacks  ->  D3 Reading Room (the Index carries Mend)  ->  D4 The Binding Room  ^ M1
 //
 // Secrets: D5 is reached from the drowned gallery high on D1's left wall; D2 hides a spool behind a cracked
 // pier face at the end of a dead-end shelf in the middle bay. A lever past D2's door reopens it from the east.
@@ -123,7 +123,7 @@ Object.assign(ROOMS, {
     '########################################',
     '########################################',
   ] },
-  // The broken stair. A low flooded corridor opens into a dim antechamber and then the altar hall; the
+  // The broken stair. A low flooded corridor opens into a dim antechamber and then the binding hall (no altar now: Mend is taken from the Index in D3); the
   // stair to the Mills switchbacks up the east wall, but one landing has fallen (rubble) and has to be
   // mended before the last flights can be climbed to the gallery under the chimney.
   D4: { name: 'The Binding Room', region: 'archive', mx: 10, my: 9, links: { left: 'D9', up: 'M1' }, grid: [

@@ -126,7 +126,7 @@ guess it is still a number, and the playtest changes it. Read with `js/rooms.js`
 ####.^^^.####                         #############
 ```
 
-- **Tutorial (no text):** R5 Locked Stair as built: the altar room R4 exits up into R5 whose first
+- **Tutorial (no text):** R5 Locked Stair as built: the room after the Foundry, R4 Slag Chapel, exits up into R5 whose first
   obstacle is the `LL` hinge door at (27..28, 13..15), in view, the only valid target in range, highlighted
   as soon as the player is within 56 px. The overhead `LLLL` hatch under the exit teaches Up + V.
 - **Late combination:** U2 Taproot, Age + Restore: a root cistern (section 3, sluice) that must be drained to
@@ -177,7 +177,7 @@ guess it is still a number, and the playtest changes it. Read with `js/rooms.js`
 #.#..s......#  hop up rung by rung                   opens for good
 ```
 
-- **Tutorial:** D4 Mend Altar as built: the fallen landing `RRRR` at (31..34, 9) is the first thing on the
+- **Tutorial:** D4 The Binding Room (the room after the Index) as built: the fallen landing `RRRR` at (31..34, 9) is the first thing on the
   stair out; nothing else in the room answers Restore.
 - **Late combination:** U7 The Vein, Restore + Echo: the lever that opens the shard shelf is broken and sits
   under a crusher; restore it, then step away and let the echo strike it (echoes are not crushed).
@@ -382,7 +382,7 @@ Ten letters. Legend addition for `js/rooms.js`; the validator's known-tile strin
 - `prepZone(zoneId, abilities, variant)`: the per-power tile rules above, in this order: lever flags, Age,
   Restore, Hold, Echo, Cut, then the crusher rule as today. Ability ids change (`age hold restore echo cut`,
   plus `cling wings` when built). The final check `last.abilities.length === 6` becomes a check against the
-  list of altars in `ROOMS` (every `ability` found).
+  list of powers: every `BOSS_POWERS` entry (gained when its guardian is reached) and every altar in `ROOMS` (every `ability` found).
 - **Variants.** A screen whose state the player can flip both ways with the powers held (today only the
   sluice: Age and Restore both held) is explored once per state and the results are unioned; `variant` is a
   bitmask over the zone's sluices (at most 2 per zone, so at most 4 explorations). Every other change is
@@ -397,20 +397,24 @@ Ten letters. Legend addition for `js/rooms.js`; the validator's known-tile strin
   jumpable route back or the designer adds a lever/`=`.
 - **Validator** (`tools/validate.js`): the rules in the table; the plate/door pairing rule extends to levers
   (a `d`/`e` screen needs a plate *or* a lever); chain lint treats `f u b m` as standable and `y q ~ O` as
-  solid; a new lint lists every screen that uses a power's tile before the power's altar in story order
-  (altar order below) unless the screen is marked `optional: true`.
+  solid; a new lint lists every screen that uses a power's tile before the power's source in story order
+  (its guardian's hall or its altar, order below) unless the screen is marked `optional: true`.
 
 ## 5. Where the powers are found, and in what order
 
-Altars stay where they are. The order and the story reason each belongs there:
+The five time powers of the main road are not found on altars: each is carried by a guardian, used against the player in
+that fight (one signature move in the power's colour, see `BOSS_DEFS` in `js/entities.js`), and taken from the body where
+it falls (`BOSS_POWERS` in `js/rooms.js`; the hall stays shut until it is taken). The room after each hall, once an altar
+room, is now the breath after the fight: a lantern and a tablet. Cut is still Sef's gift, and the two optional movement
+relics keep their altars. The order and the story reason each belongs there:
 
-| # | ability | altar | why here | what it opens |
+| # | ability | where it is won | why here | what it opens |
 |---|---|---|---|---|
-| 1 | dash | A5 The Jetty | Sef's seal, unchanged | `C` walls |
-| 2 | age | R4 Rust Altar | the Ferrous Mother's rust, "decay held like a stone" | R5 hinge door and hatch, R6 weak floor to the crane spool, D5 sluice, H1 hanging platform |
-| 3 | hold | H3 Stall Altar | the Escapement's stolen tempo, now held in one hand instead of poured over a room | H4 and U3 crushers, H5 blade, M2 boulder plate |
-| 4 | restore | D4 Mend Altar | the Archive files what was; it can be asked back | D4 stair, U2 hole and cistern, M4 chimney seed, M5 broken lever (the Grinder's seal) |
-| 5 | echo | M4 Echo Altar | the mills ground hours into dust; what is ground echoes | U1 gate, M2 attic, H5 two plates, U7 crusher plate |
+| 1 | dash | A4 Shallows Hall, from the Warden of the Shallows (its skip: a streaking dash) | the Warden steps over moments; Sef at the Jetty (A5) only talks now | `C` walls |
+| 2 | age | R3 Foundry Floor, from the Ferrous Mother (her rot bolt withers Tam: double harm for 4 s) | the Ferrous Mother's rust, "decay held like a stone" | R5 hinge door and hatch, R6 weak floor to the crane spool, D5 sluice, H1 hanging platform |
+| 3 | hold | H2 The Escapement, from the Escapement (a gear held in the air, a ring that pins the feet) | the Escapement's stolen tempo, now held in one hand instead of poured over a room | H4 and U3 crushers, H5 blade, M2 boulder plate |
+| 4 | restore | D3 Reading Room, from the Index (at half health it runs two seconds backwards) | the Archive files what was; it can be asked back | D4 stair, U2 hole and cistern, M4 chimney seed, M5 broken lever (the Grinder's seal) |
+| 5 | echo | M3 The Grinder, from the Grinder (its echo repeats its last attack) | the mills ground hours into dust; what is ground echoes | U1 gate, M2 attic, H5 two plates, U7 crusher plate |
 | 6 | cut | U4 The Mouth | Sef's last gift, given gladly: the one that spends the most strangers | U5 curtain, U6 lift, U7 bridge, H6/H7 blades, T1 approach |
 | 7 | cling (opt.) | D5 Flooded Vault | the drowned learned the walls | H7, R6, U7 shelves |
 | 8 | wings (opt.) | M5 Ossuary | the bones of those who leapt the Well | H6 to H7, U5 shelf, D2 pier |

@@ -357,7 +357,7 @@ for (const [boss, pw] of Object.entries(BOSS_POWERS)) {
     const flat = r.grid.join(''), used = new Map();
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const ch = r.grid[y][x]; let p = POWER_OF[ch]; if (ch === 'O') p = r.grid[y + 1] && r.grid[y + 1][x] === '.' ? 'cut' : 'hold'; if (p && !held[id].has(p) && !used.has(ch)) used.set(ch, p); }
     if (flat.includes('m') && flat.includes('O') && !held[id].has('cut') && !used.has('m')) used.set('m', 'cut');
-    for (const [ch, p] of used) ('fuysqlxOmb'.includes(ch) ? warnings : notes).push(`${id}: uses '${ch}' (${p}) before the ${p} altar in story order (mark the screen optional: true, or tag it needs: '${p}' if a gate guarantees the power)`);
+    for (const [ch, p] of used) ('fuysqlxOmb'.includes(ch) ? warnings : notes).push(`${id}: uses '${ch}' (${p}) before ${p} is won (its altar or guardian) in story order (mark the screen optional: true, or tag it needs: '${p}' if a gate guarantees the power)`);
   }
 })();
 if (tileWarnings.length) warnings.push(...tileWarnings);
